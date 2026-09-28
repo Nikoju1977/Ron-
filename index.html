@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#02070D">
+<title>RON — Studio Niko Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --abyss:#02070D; --deep:#06182A; --ice:#9FE8FF; --frost:#D8F6FF;
+  --amber:#FFB347; --alarm:#FF4D5E; --mist:#6F93A6; --line:rgba(159,232,255,.18);
+  --display:'Orbitron',system-ui,sans-serif; --mono:'Share Tech Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--abyss);color:var(--frost);font-family:var(--mono);overflow:hidden;-webkit-tap-highlight-color:transparent}
+body{height:100dvh;background:radial-gradient(ellipse 70% 60% at 50% 42%,var(--deep) 0%,var(--abyss) 70%)}
+#stage{position:fixed;inset:0;display:block;width:100%;height:100%}
+.hud{position:fixed;left:0;right:0;pointer-events:none;padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+.hud *{pointer-events:auto}
+#top{top:0;padding-top:max(18px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:flex-start}
+#brand{font-family:var(--display);font-weight:700;font-size:clamp(18px,2.4vw,26px);letter-spacing:.42em;color:var(--ice);text-shadow:0 0 18px rgba(159,232,255,.45)}
+#state{margin-top:8px;font-size:14px;color:var(--mist);min-height:1.2em;transition:color .3s}
+#state.listening{color:var(--frost)} #state.thinking{color:var(--amber)} #state.error{color:var(--alarm)}
+.icon-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:rgba(2,7,13,.5);color:var(--ice);display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}
+.icon-btn:hover{border-color:var(--ice)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ice);outline-offset:3px}
+#bottom{bottom:0;padding-bottom:max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:14px}
+#transcript{width:min(62ch,100%);text-align:center;font-size:15px;line-height:1.55;min-height:3.2em}
+#youLine{color:var(--mist)}
+#ronLine{color:var(--frost);max-height:7.8em;overflow-y:auto;scrollbar-width:none}
+#ronLine::-webkit-scrollbar{display:none}
+#controls{display:flex;align-items:center;gap:12px;width:min(560px,100%)}
+#textForm{flex:1;display:flex;border:1px solid var(--line);border-radius:26px;background:rgba(2,7,13,.55);backdrop-filter:blur(6px);overflow:hidden}
+#textIn{flex:1;min-width:0;background:transparent;border:0;color:var(--frost);font:16px var(--mono);padding:13px 18px}
+#textIn::placeholder{color:var(--mist)}
+#sendBtn{background:transparent;border:0;color:var(--ice);font:15px var(--mono);padding:0 18px;cursor:pointer}
+#micBtn{position:relative;width:64px;height:64px;flex:0 0 64px;border-radius:50%;border:1px solid var(--ice);background:rgba(6,24,42,.7);color:var(--ice);cursor:pointer;display:grid;place-items:center;transition:transform .15s,background .2s}
+#micBtn:active{transform:scale(.94)}
+#micBtn.on{background:var(--ice);color:var(--abyss);box-shadow:0 0 28px rgba(159,232,255,.6)}
+#micBtn.on::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:1px solid var(--ice);animation:ring 1.4s ease-out infinite}
+@keyframes ring{from{opacity:.8;transform:scale(.9)}to{opacity:0;transform:scale(1.35)}}
+#micBtn[hidden]{display:none}
+#panel{position:fixed;top:0;right:0;height:100dvh;width:min(380px,100%);background:rgba(3,12,22,.96);border-left:1px solid var(--line);padding:max(22px,env(safe-area-inset-top)) max(22px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) 22px;transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1);overflow-y:auto;z-index:5}
+#panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.panel-title{font-family:var(--display);font-size:16px;letter-spacing:.2em;color:var(--ice)}
+.field{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+.field label{font-size:13px;color:var(--mist)}
+.field input[type=password],.field input[type=text],.field select{width:100%;background:rgba(6,24,42,.8);border:1px solid var(--line);border-radius:10px;color:var(--frost);font:16px var(--mono);padding:11px 12px}
+.check{display:flex;gap:10px;align-items:center;font-size:14px;margin-bottom:14px;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--ice)}
+.hint{font-size:13px;line-height:1.5;color:var(--mist);margin-bottom:16px}
+.hint a{color:var(--ice)}
+.row{display:flex;gap:10px;margin-top:6px}
+.btn{flex:1;padding:12px;border-radius:10px;border:1px solid var(--ice);background:var(--ice);color:var(--abyss);font:15px var(--mono);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ice);border-color:var(--line)}
+#keyStatus{font-size:13px;min-height:1.3em;margin-top:12px;color:var(--mist)}
+#keyStatus.ok{color:var(--ice)} #keyStatus.bad{color:var(--alarm)}
+#micStatus{font-size:13px;line-height:1.45;color:var(--mist);min-height:1.4em}
+#micStatus.ok{color:var(--ice)} #micStatus.bad{color:var(--alarm)}
+#grantMicBtn{width:100%;flex:none}
+#toast{position:fixed;left:50%;top:max(80px,calc(env(safe-area-inset-top) + 70px));transform:translate(-50%,-10px);opacity:0;background:rgba(3,12,22,.92);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px;max-width:90vw;transition:opacity .25s,transform .25s;z-index:6;pointer-events:none}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:520px){#brand{letter-spacing:.3em}#transcript{font-size:14px}}
+@media (prefers-reduced-motion:reduce){#micBtn.on::after{animation:none}#panel{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-hidden="true"></canvas>
+
+<header class="hud" id="top">
+  <div>
+    <div id="brand">RON</div>
+    <div id="state" role="status" aria-live="polite">Initialisation…</div>
+  </div>
+  <button class="icon-btn" id="settingsBtn" aria-label="Réglages" title="Réglages">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</header>
+
+<footer class="hud" id="bottom">
+  <div id="transcript">
+    <div id="youLine"></div>
+    <div id="ronLine"></div>
+  </div>
+  <div id="controls">
+    <form id="textForm" autocomplete="off">
+      <input id="textIn" type="text" placeholder="Écris à Ron…" aria-label="Message pour Ron" enterkeyhint="send">
+      <button id="sendBtn" type="submit">Envoyer</button>
+    </form>
+    <button id="micBtn" aria-label="Parler à Ron" title="Parler (Espace)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+  </div>
+</footer>
+
+<aside id="panel" aria-label="Réglages">
+  <div class="panel-head">
+    <div class="panel-title">Réglages</div>
+    <button class="icon-btn" id="panelClose" aria-label="Fermer les réglages">✕</button>
+  </div>
+  <p class="hint">RON peut utiliser Mistral ou un serveur LLM compatible OpenAI : Ollama, LM Studio, vLLM ou ton propre endpoint. Les modèles locaux peuvent rester entièrement sur ta machine.</p>
+  <div class="field">
+    <label for="providerSel">Moteur LLM</label>
+    <select id="providerSel">
+      <option value="mistral">Mistral API</option>
+      <option value="ollama">Ollama local</option>
+      <option value="lmstudio">LM Studio local</option>
+      <option value="vllm">vLLM local / serveur</option>
+      <option value="custom">API OpenAI-compatible personnalisée</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="endpointIn">Endpoint API</label>
+    <input id="endpointIn" type="text" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434/v1">
+  </div>
+  <div class="field">
+    <label for="modelIn">Modèle</label>
+    <input id="modelIn" type="text" autocomplete="off" spellcheck="false" placeholder="qwen3:14b">
+  </div>
+  <div class="field">
+    <label for="keyIn">Clé API <span style="color:var(--mist)">(optionnelle en local)</span></label>
+    <input id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="Clé si le serveur en demande une">
+  </div>
+  <label class="check"><input type="checkbox" id="rememberChk" checked> Mémoriser la configuration sur cet appareil</label>
+  <div class="field">
+    <label for="agentSel">Orchestration agentique</label>
+    <select id="agentSel">
+      <option value="direct">Direct — 1 agent</option>
+      <option value="agentic">Agentique — planificateur + spécialiste</option>
+      <option value="council">Conseil scientifique — plan + expert + vérificateur + synthèse</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="voiceSel">Voix</label>
+    <select id="voiceSel"></select>
+  </div>
+  <div class="field">
+    <label>Microphone</label>
+    <button class="btn ghost" id="grantMicBtn" type="button">Autoriser le micro</button>
+    <div id="micStatus" role="status" aria-live="polite">Vérification du microphone…</div>
+  </div>
+  <label class="check"><input type="checkbox" id="wakeChk"> Réveil par « Ron » (écoute continue)</label>
+  <div class="row">
+    <button class="btn" id="saveBtn">Enregistrer et tester</button>
+    <button class="btn ghost" id="clearBtn">Effacer la clé</button>
+  </div>
+  <div id="keyStatus"></div>
+</aside>
+
+<div id="toast" role="alert"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ═══════════ Utilitaires Studio Niko ═══════════ */
+const $ = id => document.getElementById(id);
+
+function sanitizeKey(k){
+  return String(k || '')
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+    .replace(/^\s*bearer\s+/i, '')
+    .replace(/["'`\s]/g, '');
+}
+
+const safeStorage = (() => {
+  const mem = new Map();
+  let dbp = null;
+  function db(){
+    if (dbp) return dbp;
+    dbp = new Promise(res => {
+      try {
+        const r = indexedDB.open('ron-niko', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => res(null);
+      } catch (e) { res(null); }
+    });
+    return dbp;
+  }
+  async function run(mode, fn){
+    const d = await db();
+    if (!d) return undefined;
+    return new Promise(res => {
+      try {
+        const t = d.transaction('kv', mode);
+        const rq = fn(t.objectStore('kv'));
+        t.oncomplete = () => res(rq ? rq.result : undefined);
+        t.onerror = () => res(undefined);
+      } catch (e) { res(undefined); }
+    });
+  }
+  return {
+    async get(k){ const v = await run('readonly', s => s.get(k)); return v === undefined ? mem.get(k) : v; },
+    async set(k, v){ mem.set(k, v); await run('readwrite', s => s.put(v, k)); },
+    async del(k){ mem.delete(k); await run('readwrite', s => s.delete(k)); }
+  };
+})();
+
+let toastTimer = 0;
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4200);
+}
+
+/* ═══════════ Réglages & cerveau multi-LLM ═══════════ */
+const PROVIDERS = {
+  mistral: { endpoint: 'https://api.mistral.ai/v1', model: 'mistral-large-latest', needsKey: true },
+  ollama: { endpoint: 'http://localhost:11434/v1', model: 'qwen3:14b', needsKey: false },
+  lmstudio: { endpoint: 'http://localhost:1234/v1', model: 'local-model', needsKey: false },
+  vllm: { endpoint: 'http://localhost:8000/v1', model: 'Qwen/Qwen3-14B', needsKey: false },
+  custom: { endpoint: 'http://localhost:8000/v1', model: '', needsKey: false }
+};
+
+const cfg = {
+  key: '', provider: 'mistral', endpoint: PROVIDERS.mistral.endpoint,
+  model: PROVIDERS.mistral.model, agentMode: 'council',
+  voiceName: '', wake: false, remember: true
+};
+
+function applyProviderPreset(force=false){
+  const p = PROVIDERS[$('providerSel').value] || PROVIDERS.custom;
+  if (force || !$('endpointIn').value.trim()) $('endpointIn').value = p.endpoint;
+  if (force || !$('modelIn').value.trim()) $('modelIn').value = p.model;
+  $('keyIn').placeholder = p.needsKey ? 'Clé API requise' : 'Optionnelle pour ce serveur';
+}
+
+async function loadCfg(){
+  cfg.provider = (await safeStorage.get('provider')) || cfg.provider;
+  cfg.endpoint = (await safeStorage.get('endpoint')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).endpoint;
+  cfg.model = (await safeStorage.get('model')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).model;
+  cfg.agentMode = (await safeStorage.get('agentMode')) || cfg.agentMode;
+  cfg.voiceName = (await safeStorage.get('voice')) || '';
+  cfg.wake = (await safeStorage.get('wake')) === true;
+  const rem = await safeStorage.get('remember');
+  cfg.remember = rem === undefined ? true : rem === true;
+  cfg.key = cfg.remember ? sanitizeKey(await safeStorage.get('key')) : '';
+  $('providerSel').value = cfg.provider;
+  $('endpointIn').value = cfg.endpoint;
+  $('modelIn').value = cfg.model;
+  $('agentSel').value = cfg.agentMode;
+  $('wakeChk').checked = cfg.wake;
+  $('rememberChk').checked = cfg.remember;
+  $('keyIn').value = cfg.key;
+  applyProviderPreset(false);
+}
+
+const DOMAIN_AGENTS = [
+  { name:'médecine', re:/\b(médec|santé|sympt[oô]me|traitement|diagnostic|douleur|médicament|fibromyalg|neurolog|cardio|cancer|infection)\b/i,
+    brief:"Raisonne comme un clinicien fondé sur les preuves. Sépare mécanismes, données humaines, niveau de preuve, limites et signes d'alerte. Ne transforme pas une hypothèse en diagnostic." },
+  { name:'psychologie', re:/\b(psycholog|anxi|dépress|trauma|émotion|thérap|cognit|comportement|stress|motivation)\b/i,
+    brief:"Utilise psychologie scientifique, sciences cognitives et approches thérapeutiques validées. Distingue accompagnement, hypothèses et diagnostic clinique." },
+  { name:'coaching', re:/\b(coach|objectif|discipline|habitude|productivit|carrière|leadership|décision)\b/i,
+    brief:"Transforme la demande en objectifs, contraintes, options, plan d'action mesurable et boucle de feedback, sans pseudo-science." },
+  { name:'cinématographie', re:/\b(cinéma|film|réalis|cadre|caméra|objectif|lumière|étalonn|montage|scénario|photograph)\b/i,
+    brief:"Raisonne comme réalisateur, directeur photo et monteur : intention, mise en scène, optique, lumière, mouvement, découpage, rythme et faisabilité de production." },
+  { name:'sport', re:/\b(sport|muscl|course|cardio|entraîn|football|tennis|vélo|récupération|performance)\b/i,
+    brief:"Appuie-toi sur physiologie de l'exercice, biomécanique, charge d'entraînement, récupération et prévention des blessures." },
+  { name:'philosophie', re:/\b(philosoph|éthique|morale|existence|conscience|épistém|métaphys)\b/i,
+    brief:"Distingue thèses, arguments, objections, traditions philosophiques et présupposés. Évite de présenter une école comme vérité unique." },
+  { name:'biologie cellulaire', re:/\b(cellul|mitochond|ribosom|membrane|ADN|ARN|protéine|signalisation|épigén)\b/i,
+    brief:"Raisonne à l'échelle moléculaire et cellulaire : mécanismes, voies, causalité, systèmes modèles, limites de transposition à l'humain." },
+  { name:'sciences de la vie', re:/\b(biolog|génét|physiolog|écolog|évolution|microbi|immunolog)\b/i,
+    brief:"Mobilise biologie moderne, évolution, physiologie et méthode expérimentale. Sépare corrélation, causalité et extrapolation." },
+  { name:'mathématiques', re:/\b(math|algèbr|géométr|probab|statist|calcul|équation|matrice|intégral|dériv)\b/i,
+    brief:"Définis les variables, montre les étapes utiles, vérifie dimensions et cas limites, et donne une réponse calculable." },
+  { name:'physique', re:/\b(physiqu|quantique|relativ|énergie|force|champ|thermo|mécanique|optique)\b/i,
+    brief:"Utilise lois physiques, unités SI, ordres de grandeur, hypothèses et vérifications dimensionnelles." },
+  { name:'chimie', re:/\b(chimi|molécule|réaction|acide|base|redox|solvant|catalys|liaison)\b/i,
+    brief:"Raisonne avec stœchiométrie, thermodynamique, cinétique, structure et sécurité expérimentale. Vérifie unités et conditions." },
+  { name:'histoire', re:/\b(histoire|historique|siècle|guerre|empire|révolution|antiqu|médiéval)\b/i,
+    brief:"Sépare faits établis, débats historiographiques, sources primaires/secondaires, chronologie et contexte." },
+  { name:'géographie', re:/\b(géograph|pays|région|climat|population|territoire|ville|frontière|relief)\b/i,
+    brief:"Raisonne par échelles spatiales, données, dynamiques territoriales, climat, démographie et incertitudes des sources." }
+];
+
+function detectDomain(text){
+  return DOMAIN_AGENTS.find(a => a.re.test(text)) || {
+    name:'général scientifique',
+    brief:"Utilise la méthode scientifique : définitions, hypothèses explicites, niveau de preuve, calculs vérifiables et incertitudes. Ne fabrique aucune source."
+  };
+}
+
+const SYSTEM = () => [
+  "Tu es RON, l'assistant personnel scientifique et créatif de l'utilisateur. Tu parles français.",
+  "Tu réponds avec précision, clarté et esprit critique. Tu distingues faits établis, consensus, résultats préliminaires, hypothèses et opinions.",
+  "Tu n'inventes jamais une étude, une citation, un chiffre ou une capacité que tu n'as pas.",
+  "Tes réponses sont lues à voix haute : privilégie des phrases naturelles. Tu peux être détaillé si la question l'exige.",
+  "Tu couvres notamment médecine, psychologie, coaching, cinéma, sport, philosophie, sciences de la vie, biologie cellulaire, maths, physique, chimie, histoire, géographie et fibromyalgie.",
+  "Pour une question médicale, donne une information scientifique utile, indique les incertitudes et les situations nécessitant une évaluation médicale urgente ; ne présente pas un échange textuel comme un diagnostic.",
+  "Si une demande implique une action que tu ne peux réellement exécuter, dis exactement ce qui manque et fournis l'alternative la plus utile.",
+  "Date et heure locales : " + new Date().toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' }) + "."
+].join(' ');
+
+const history = [];
+let currentXhr = null;
+
+function apiBase(){ return String(cfg.endpoint || '').trim().replace(/\/+$/, ''); }
+function apiHeaders(stream=false){
+  const h = { 'Content-Type':'application/json' };
+  if (stream) h['Accept'] = 'text/event-stream';
+  if (cfg.key) h['Authorization'] = 'Bearer ' + cfg.key;
+  return h;
+}
+function requestBody(messages, stream, temperature=0.35, maxTokens=1100){
+  return { model: cfg.model, stream, temperature, max_tokens:maxTokens, messages };
+}
+
+async function chatOnce(messages, temperature=0.2, maxTokens=900){
+  const r = await fetch(apiBase() + '/chat/completions', {
+    method:'POST', headers:apiHeaders(false), body:JSON.stringify(requestBody(messages, false, temperature, maxTokens))
+  });
+  if (!r.ok) throw new Error(await apiError(r.status, r));
+  const j = await r.json();
+  const c = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+  if (Array.isArray(c)) return c.map(x => x.text || x.content || '').join('');
+  return String(c || '').trim();
+}
+
+async function apiError(status, response){
+  let detail='';
+  try { const j=await response.clone().json(); detail=(j.error && (j.error.message || j.error)) || ''; } catch(e){}
+  if (status === 401) return 'Authentification refusée par le serveur LLM.';
+  if (status === 404) return 'Endpoint ou modèle introuvable. Vérifie l’URL et le nom du modèle.';
+  if (status === 429) return 'Limite de requêtes atteinte sur le serveur LLM.';
+  if (status >= 500) return 'Le serveur LLM a rencontré une erreur.';
+  return 'Erreur LLM ' + status + (detail ? ' : ' + detail : '.');
+}
+
+function chatStream(messages, onDelta){
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    currentXhr = xhr;
+    let seen = 0, buf = '', full = '';
+    xhr.open('POST', apiBase() + '/chat/completions');
+    Object.entries(apiHeaders(true)).forEach(([k,v]) => xhr.setRequestHeader(k,v));
+    const parse = () => {
+      if (xhr.status && xhr.status !== 200) return;
+      buf += xhr.responseText.slice(seen); seen = xhr.responseText.length;
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines){
+        const l = line.trim(); if (!l.startsWith('data:')) continue;
+        const data = l.slice(5).trim(); if (!data || data === '[DONE]') continue;
+        try {
+          const j = JSON.parse(data);
+          const d = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+          if (typeof d === 'string' && d){ full += d; onDelta(d); }
+        } catch(e){}
+      }
+    };
+    xhr.onprogress = parse;
+    xhr.onload = () => {
+      currentXhr = null;
+      if (xhr.status === 200){ buf += '\n'; parse(); resolve(full); return; }
+      reject(new Error(xhr.status === 401 ? 'Authentification refusée par le serveur LLM.' : 'Erreur LLM ' + xhr.status + '.'));
+    };
+    xhr.onerror = () => { currentXhr = null; reject(new Error('Connexion au serveur LLM impossible. Vérifie endpoint, CORS et réseau.')); };
+    xhr.onabort = () => { currentXhr = null; reject(new Error('abort')); };
+    xhr.send(JSON.stringify(requestBody(messages, true, 0.35, 1300)));
+  });
+}
+
+function setThinkingDetail(txt){
+  state = 'thinking'; tgt.think = 1; tgt.listen = 0; tgt.speak = 0;
+  const el=$('state'); el.className='thinking'; el.textContent=txt;
+}
+
+async function buildAgentContext(userText){
+  const domain = detectDomain(userText);
+  const recent = history.slice(-10);
+  const contextText = recent.map(m => (m.role === 'user' ? 'Utilisateur: ' : 'RON: ') + m.content).join('\n');
+  if (cfg.agentMode === 'direct') return { domain, extra:'' };
+
+  setThinkingDetail('RON planifie…');
+  const plan = await chatOnce([
+    {role:'system', content:"Tu es le PLANIFICATEUR de RON. Décompose la question en sous-problèmes, données nécessaires, calculs éventuels et risques d'erreur. Réponse compacte, sans bavardage."},
+    {role:'user', content:`Domaine détecté: ${domain.name}. ${domain.brief}\n\nContexte:\n${contextText}\n\nQuestion: ${userText}`}
+  ], 0.1, 500);
+
+  if (cfg.agentMode === 'agentic') return { domain, extra:`PLAN DU PLANIFICATEUR:\n${plan}` };
+
+  setThinkingDetail('RON consulte le spécialiste…');
+  const expert = await chatOnce([
+    {role:'system', content:`Tu es l'EXPERT spécialisé en ${domain.name}. ${domain.brief} Produis un brouillon techniquement solide. Mentionne les incertitudes importantes et vérifie les calculs.`},
+    {role:'user', content:`QUESTION:\n${userText}\n\nPLAN:\n${plan}`}
+  ], 0.2, 900);
+
+  setThinkingDetail('RON vérifie les faits…');
+  const audit = await chatOnce([
+    {role:'system', content:"Tu es le VÉRIFICATEUR contradicteur de RON. Cherche activement erreurs factuelles, confusions corrélation/causalité, unités incohérentes, extrapolations, faux consensus, diagnostics abusifs et affirmations non étayées. Ne réécris pas tout : produis un audit priorisé et les corrections nécessaires."},
+    {role:'user', content:`QUESTION:\n${userText}\n\nBROUILLON EXPERT:\n${expert}`}
+  ], 0.05, 700);
+
+  return { domain, extra:`PLAN:\n${plan}\n\nBROUILLON EXPERT:\n${expert}\n\nAUDIT DU VÉRIFICATEUR:\n${audit}` };
+}
+
+async function testConnection(){
+  try {
+    const r = await fetch(apiBase() + '/models', { headers: cfg.key ? {'Authorization':'Bearer '+cfg.key} : {} });
+    if (r.ok) return 200;
+    return r.status;
+  } catch(e){ return 0; }
+}
+
+/* ═══════════ Voix : synthèse ═══════════ */
+const synth = window.speechSynthesis || null;
+let voices = [], voice = null;
+let speechQueue = [], speakingNow = false, streamDone = true, speakToken = 0, mouthPulse = 0;
+
+function loadVoices(){
+  if (!synth) return;
+  voices = synth.getVoices();
+  const fr = voices.filter(v => /^fr/i.test(v.lang));
+  const list = fr.length ? fr : voices;
+  const sel = $('voiceSel');
+  sel.innerHTML = '';
+  list.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v.name; o.textContent = v.name + ' (' + v.lang + ')';
+    sel.appendChild(o);
+  });
+  voice = list.find(v => v.name === cfg.voiceName)
+       || list.find(v => /google/i.test(v.name))
+       || list.find(v => /thomas|daniel|henri|paul/i.test(v.name))
+       || list[0] || null;
+  if (voice) sel.value = voice.name;
+}
+
+function cleanForSpeech(s){
+  return s.replace(/https?:\/\/\S+/g, 'lien')
+          .replace(/[*_#`>|~]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+}
+
+function enqueueSpeech(s){
+  s = cleanForSpeech(s);
+  if (!s || !synth) return;
+  speechQueue.push(s);
+  if (!speakingNow) nextSpeech();
+}
+
+function nextSpeech(){
+  const s = speechQueue.shift();
+  if (!s){
+    speakingNow = false;
+    if (streamDone) onSpeechDrained();
+    return;
+  }
+  speakingNow = true;
+  setState('speaking');
+  const tok = ++speakToken;
+  const u = new SpeechSynthesisUtterance(s);
+  u.lang = voice ? voice.lang : 'fr-FR';
+  if (voice) u.voice = voice;
+  u.rate = 1.03; u.pitch = 0.9;
+  const done = () => { if (tok === speakToken){ speakToken++; nextSpeech(); } };
+  u.onboundary = () => { mouthPulse = 1; };
+  u.onend = done; u.onerror = done;
+  setTimeout(done, s.length * 95 + 4000); // garde-fou : Chrome oublie parfois onend
+  synth.speak(u);
+}
+
+function stopSpeaking(){
+  speechQueue = [];
+  speakToken++;
+  speakingNow = false;
+  if (synth) synth.cancel();
+}
+
+function unlockSpeech(){
+  if (!synth || unlockSpeech.done) return;
+  unlockSpeech.done = true;
+  const u = new SpeechSynthesisUtterance(' ');
+  u.volume = 0;
+  synth.speak(u);
+}
+
+/* ═══════════ Écoute : autorisation micro + reconnaissance vocale ═══════════ */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let rec = null, recMode = null, awaiting = false, awaitTimer = 0;
+let micPermission = 'unknown'; // unknown | prompt | granted | denied | unavailable
+const WAKE = /\bron\b[\s,.!?:]*(.*)$/i;
+
+function setMicStatus(kind, message){
+  const el = $('micStatus');
+  if (!el) return;
+  el.className = kind || '';
+  el.textContent = message;
+  const btn = $('grantMicBtn');
+  if (btn){
+    btn.textContent = micPermission === 'granted' ? 'Micro autorisé ✓' : 'Autoriser le micro';
+    btn.disabled = micPermission === 'granted';
+  }
+}
+
+function micErrorMessage(err){
+  const n = err && err.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Accès au micro refusé. Autorise le microphone dans les réglages du navigateur pour ce site.';
+  if (n === 'NotFoundError' || n === 'DevicesNotFoundError') return 'Aucun microphone détecté sur cet appareil.';
+  if (n === 'NotReadableError' || n === 'TrackStartError') return 'Le microphone est déjà utilisé ou indisponible. Ferme les autres applications qui l’utilisent.';
+  if (n === 'OverconstrainedError') return 'Le microphone disponible ne correspond pas aux contraintes audio demandées.';
+  return 'Impossible d’ouvrir le microphone. Vérifie les permissions du navigateur.';
+}
+
+async function refreshMicPermission(){
+  if (!window.isSecureContext){
+    micPermission = 'unavailable';
+    setMicStatus('bad', 'Le micro exige une page sécurisée : ouvre RON en HTTPS ou sur localhost.');
+    return micPermission;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    micPermission = 'unavailable';
+    setMicStatus('bad', 'Ce navigateur ne fournit pas l’accès microphone via MediaDevices.');
+    return micPermission;
+  }
+  if (navigator.permissions && navigator.permissions.query){
+    try {
+      const st = await navigator.permissions.query({ name: 'microphone' });
+      micPermission = st.state;
+      if (st.state === 'granted') setMicStatus('ok', 'Microphone autorisé. RON peut écouter.');
+      else if (st.state === 'denied') setMicStatus('bad', 'Microphone bloqué par le navigateur. Modifie l’autorisation du site puis recharge RON.');
+      else setMicStatus('', 'Le navigateur demandera l’autorisation du microphone au prochain clic.');
+      st.onchange = () => refreshMicPermission();
+      return micPermission;
+    } catch (e) { /* Permissions API absente/partielle (notamment Safari) */ }
+  }
+  micPermission = 'prompt';
+  setMicStatus('', 'Clique « Autoriser le micro » pour activer la voix.');
+  return micPermission;
+}
+
+async function ensureMicrophonePermission(showToast = true){
+  if (!window.isSecureContext){
+    micPermission = 'unavailable';
+    const msg = 'Le micro nécessite HTTPS ou localhost.';
+    setMicStatus('bad', msg);
+    if (showToast) toast(msg);
+    return false;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    micPermission = 'unavailable';
+    const msg = 'Accès microphone non pris en charge par ce navigateur.';
+    setMicStatus('bad', msg);
+    if (showToast) toast(msg);
+    return false;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false
+    });
+    stream.getTracks().forEach(t => t.stop());
+    micPermission = 'granted';
+    setMicStatus('ok', 'Microphone autorisé. RON peut écouter.');
+    if (showToast) toast('Microphone autorisé.');
+    return true;
+  } catch (err) {
+    micPermission = (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) ? 'denied' : 'unavailable';
+    const msg = micErrorMessage(err);
+    setMicStatus('bad', msg);
+    if (showToast) toast(msg);
+    return false;
+  }
+}
+
+function stopRec(){
+  if (!rec) return;
+  const r = rec;
+  rec = null; recMode = null;
+  r.onend = null; r.onresult = null; r.onerror = null;
+  try { r.abort(); } catch (e) {}
+  $('micBtn').classList.remove('on');
+}
+
+function busy(){ return state === 'thinking' || state === 'speaking' || recMode === 'ptt'; }
+
+function startWake(){
+  if (!SR || micPermission !== 'granted' || !cfg.wake || !cfg.endpoint || !cfg.model || rec || busy()) return;
+  const r = new SR();
+  r.lang = 'fr-FR'; r.continuous = true; r.interimResults = true;
+  rec = r; recMode = 'wake';
+  r.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      const res = e.results[i], txt = res[0].transcript;
+      if (!res.isFinal){ if (awaiting) $('youLine').textContent = txt; continue; }
+      if (awaiting){ clearTimeout(awaitTimer); awaiting = false; stopRec(); handleUser(txt); return; }
+      const m = txt.match(WAKE);
+      if (m){
+        const cmd = (m[1] || '').trim();
+        if (cmd.length > 1){ stopRec(); handleUser(cmd); return; }
+        awaiting = true;
+        setState('listening');
+        $('micBtn').classList.add('on');
+        clearTimeout(awaitTimer);
+        awaitTimer = setTimeout(() => { awaiting = false; $('micBtn').classList.remove('on'); setState('idle'); }, 8000);
+      }
+    }
+  };
+  r.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      cfg.wake = false; $('wakeChk').checked = false; safeStorage.set('wake', false);
+      toast('Micro refusé : le réveil par « Ron » est coupé.');
+    }
+  };
+  r.onend = () => { if (rec === r){ rec = null; recMode = null; } setTimeout(startWake, 350); };
+  try { r.start(); } catch (e) { rec = null; recMode = null; }
+}
+
+async function startPTT(){
+  if (!SR){ toast('La reconnaissance vocale demande Chrome, Edge ou Safari. Écris ton message.'); return; }
+  if (!(await ensureMicrophonePermission(false))) return;
+  if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)){ openPanel(); return; }
+  if (currentXhr) currentXhr.abort();
+  stopSpeaking();
+  stopRec();
+  awaiting = false; clearTimeout(awaitTimer);
+  const r = new SR();
+  r.lang = 'fr-FR'; r.continuous = false; r.interimResults = true;
+  rec = r; recMode = 'ptt';
+  let finalTxt = '';
+  setState('listening');
+  $('micBtn').classList.add('on');
+  $('ronLine').textContent = '';
+  r.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      if (e.results[i].isFinal) finalTxt += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    $('youLine').textContent = (finalTxt + ' ' + interim).trim();
+  };
+  r.onerror = e => {
+    if (e.error === 'no-speech') toast("Je n'ai rien entendu.");
+    else if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){ micPermission = 'denied'; setMicStatus('bad', 'Microphone refusé par le navigateur. Autorise-le dans les réglages du site.'); toast('Autorise le micro pour parler à Ron.'); }
+  };
+  r.onend = () => {
+    if (rec === r){ rec = null; recMode = null; }
+    $('micBtn').classList.remove('on');
+    if (finalTxt.trim()) handleUser(finalTxt.trim());
+    else { setState('idle'); startWake(); }
+  };
+  try { r.start(); } catch (e) { rec = null; recMode = null; setState('idle'); }
+}
+
+/* ═══════════ Boucle de conversation agentique ═══════════ */
+let sentenceBuf = '';
+
+async function handleUser(text){
+  text = String(text || '').trim();
+  if (!text) return;
+  if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)){ openPanel(); return; }
+  unlockSpeech(); stopRec(); stopSpeaking();
+  if (currentXhr) currentXhr.abort();
+  $('youLine').textContent = text;
+  $('ronLine').textContent = '';
+  history.push({ role: 'user', content: text });
+  setState('thinking'); sentenceBuf = ''; streamDone = false;
+  try {
+    const agentCtx = await buildAgentContext(text);
+    setThinkingDetail('RON synthétise…');
+    const messages = [
+      { role:'system', content:SYSTEM() + ' Domaine actif: ' + agentCtx.domain.name + '. ' + agentCtx.domain.brief },
+      ...history.slice(-12)
+    ];
+    if (agentCtx.extra) messages.push({ role:'system', content:'Travail interne multi-agents à utiliser et corriger si nécessaire:\n' + agentCtx.extra });
+    const full = await chatStream(messages, delta => {
+      const jl = $('ronLine'); jl.textContent += delta; jl.scrollTop = jl.scrollHeight;
+      sentenceBuf += delta; let m;
+      while ((m = sentenceBuf.match(/^([\s\S]*?[.!?…:;\n])(\s+)/))){
+        enqueueSpeech(m[1]); sentenceBuf = sentenceBuf.slice(m[0].length);
+      }
+    });
+    streamDone = true;
+    if (sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
+    sentenceBuf = '';
+    history.push({ role:'assistant', content:full || '…' });
+    if (history.length > 40) history.splice(0, history.length - 40);
+    if (!speakingNow) onSpeechDrained();
+  } catch(err){
+    streamDone = true;
+    history.pop();
+    if (err.message === 'abort') return;
+    setState('error', err.message); toast(err.message);
+    setTimeout(() => { if (state === 'error'){ setState('idle'); startWake(); } }, 5000);
+  }
+}
+
+function onSpeechDrained(){
+  if (state === 'error') return;
+  setState('idle');
+  startWake();
+}
+
+function stopAll(){
+  if (currentXhr) currentXhr.abort();
+  stopSpeaking(); stopRec();
+  awaiting = false; clearTimeout(awaitTimer);
+  streamDone = true;
+  setState('idle');
+  startWake();
+}
+
+/* ═══════════ États ═══════════ */
+let state = 'idle';
+const tgt = { listen: 0, think: 0, speak: 0 };
+
+function setState(s, detail){
+  state = s;
+  tgt.listen = s === 'listening' ? 1 : 0;
+  tgt.think = s === 'thinking' ? 1 : 0;
+  tgt.speak = s === 'speaking' ? 1 : 0;
+  const el = $('state');
+  el.className = s;
+  const labels = {
+    listening: "J'écoute…",
+    thinking: 'Je réfléchis…',
+    speaking: 'Je réponds',
+    error: detail || 'Erreur'
+  };
+  if (s === 'idle'){
+    el.textContent = (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
+      : (cfg.wake && SR) ? 'Dis « Ron » ou touche le micro'
+      : SR ? 'Touche le micro ou écris' : 'Écris ton message';
+  } else el.textContent = labels[s];
+}
+
+/* ═══════════ Panneau ═══════════ */
+function openPanel(){ $('panel').classList.add('open'); setTimeout(() => $('keyIn').focus(), 200); }
+function closePanel(){ $('panel').classList.remove('open'); }
+
+async function saveSettings(){
+  const key = sanitizeKey($('keyIn').value); $('keyIn').value = key;
+  cfg.provider = $('providerSel').value;
+  cfg.endpoint = $('endpointIn').value.trim().replace(/\/+$/, '');
+  cfg.model = $('modelIn').value.trim();
+  cfg.agentMode = $('agentSel').value;
+  cfg.wake = $('wakeChk').checked; cfg.remember = $('rememberChk').checked;
+  if (cfg.wake && micPermission !== 'granted'){ const ok = await ensureMicrophonePermission(false); if (!ok){ cfg.wake = false; $('wakeChk').checked = false; } }
+  const vn = $('voiceSel').value;
+  if (vn){ cfg.voiceName = vn; voice = voices.find(v => v.name === vn) || voice; }
+  if (!cfg.endpoint || !cfg.model){ $('keyStatus').className='bad'; $('keyStatus').textContent='Renseigne endpoint et modèle.'; return; }
+  if ((PROVIDERS[cfg.provider] || {}).needsKey && !key){ $('keyStatus').className='bad'; $('keyStatus').textContent='Ce fournisseur demande une clé API.'; return; }
+  cfg.key = key;
+  await safeStorage.set('provider', cfg.provider);
+  await safeStorage.set('endpoint', cfg.endpoint);
+  await safeStorage.set('model', cfg.model);
+  await safeStorage.set('agentMode', cfg.agentMode);
+  await safeStorage.set('wake', cfg.wake);
+  await safeStorage.set('remember', cfg.remember);
+  await safeStorage.set('voice', cfg.voiceName);
+  if (cfg.remember && key) await safeStorage.set('key', key); else await safeStorage.del('key');
+  const st=$('keyStatus'); st.className=''; st.textContent='Test du serveur…';
+  const code = await testConnection();
+  if (code === 200){
+    st.className='ok'; st.textContent='Connexion valide. Ron est prêt.';
+    unlockSpeech(); stopRec(); setState('idle'); startWake(); setTimeout(closePanel, 700);
+  } else if (code === 401){ st.className='bad'; st.textContent='Authentification refusée.';
+  } else if (code === 0){ st.className='bad'; st.textContent='Serveur injoignable. Vérifie endpoint, CORS et réseau.';
+  } else { st.className='bad'; st.textContent='Le serveur répond avec le code ' + code + '.'; }
+}
+
+async function clearKey(){
+  cfg.key = ''; $('keyIn').value = '';
+  await safeStorage.del('key');
+  stopAll();
+  $('keyStatus').className = ''; $('keyStatus').textContent = 'Clé API effacée.';
+  setState('idle');
+}
+
+/* ═══════════ Tête en particules (Three.js) ═══════════ */
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let renderer, scene, camera, head, mat;
+const pointer = { x: 0, y: 0 };
+const cur = { listen: 0, think: 0, speak: 0, mouth: 0, yaw: 0, pitch: 0, roll: 0 };
+
+function gauss(){ let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+function buildHead(N){
+  const g = (v, s) => Math.exp(-(v * v) / (s * s));
+  const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const nose = y => y > 0.14 ? 0.15 * g(y - 0.14, 0.07) : y > -0.24 ? 0.15 + 0.85 * (0.14 - y) / 0.38 : g(y + 0.24, 0.07);
+  const nSurf = Math.floor(N * 0.72), nNeck = Math.floor(N * 0.08), nDust = Math.floor(N * 0.07), nEye = Math.floor(N * 0.035), nFeat = N - nSurf - nNeck - nDust - nEye;
+  const pos = new Float32Array(N * 3), rnd = new Float32Array(N * 4), kind = new Float32Array(N), mouth = new Float32Array(N);
+  let i = 0;
+  const put = (x, y, z, k, mw) => {
+    pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+    rnd[i * 4] = Math.random(); rnd[i * 4 + 1] = Math.random(); rnd[i * 4 + 2] = Math.random(); rnd[i * 4 + 3] = Math.random();
+    kind[i] = k; mouth[i] = mw; i++;
+  };
+  let s = 0;
+  while (s < nSurf){
+    let dx = gauss(), dy = gauss(), dz = gauss();
+    const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+    if (dz < -0.2 && Math.random() < 0.45) continue;
+    let x = dx * 0.74, y = dy * 0.98, z = dz * 0.84;
+    const t = sm(-0.15, -0.95, y);
+    x *= 1 - 0.34 * t;
+    z *= z > 0 ? 1 - 0.1 * t : 1 - 0.5 * t;
+    const ax = Math.abs(x);
+    let mw = 0;
+    if (z > 0.15){
+      const ff = sm(0.15, 0.45, z);
+      z += ff * (
+          0.13 * g(x, 0.075) * nose(y)
+        + 0.04 * g(x, 0.12) * g(y + 0.24, 0.04)
+        - 0.12 * g(ax - 0.27, 0.11) * g(y - 0.1, 0.075)
+        + 0.055 * g(ax - 0.26, 0.17) * g(y - 0.24, 0.05)
+        + 0.03 * g(ax - 0.36, 0.12) * g(y + 0.05, 0.1)
+        + 0.045 * g(x, 0.16) * g(y + 0.44, 0.035)
+        + 0.04 * g(x, 0.14) * g(y + 0.54, 0.035)
+        - 0.035 * g(x, 0.17) * g(y + 0.49, 0.012)
+        + 0.05 * g(x, 0.2) * g(y + 0.8, 0.1));
+      if (y < -0.49) mw = ff * g(x, 0.3) * Math.min(1, (-0.49 - y) / 0.05);
+    }
+    x += Math.sign(x) * 0.035 * g(z + 0.02, 0.09) * g(y - 0.02, 0.14) * sm(0.55, 0.66, ax);
+    const sc = Math.random() < 0.12 ? 0.9 + Math.random() * 0.1 : 1;
+    put(x * sc, y * sc, z * sc, 0, mw);
+    s++;
+  }
+  for (let j = 0; j < nNeck; j++){
+    const a = Math.random() * Math.PI * 2;
+    put(Math.cos(a) * 0.26, -0.62 - Math.random() * 0.8, Math.sin(a) * 0.25 - 0.1, 2, 0);
+  }
+  for (let j = 0; j < nEye; j++){
+    const side = j % 2 ? 1 : -1, r = Math.sqrt(Math.random()) * 0.05, a = Math.random() * Math.PI * 2;
+    put(side * 0.27 + Math.cos(a) * r, 0.1 + Math.sin(a) * r * 0.8, 0.67 + Math.random() * 0.01, 1, 0);
+  }
+  // Traits haute densité : arcades, arête du nez, lèvres et contour mandibulaire.
+  for (let j = 0; j < nFeat; j++){
+    const q = j / Math.max(1, nFeat - 1);
+    const mode = j % 4;
+    if (mode === 0){
+      const side = (j & 1) ? 1 : -1, u = (Math.random() - 0.5) * 0.22;
+      const x = side * 0.27 + u, y = 0.20 + 0.035 * Math.cos(u * 15) + gauss() * 0.009;
+      put(x, y, 0.69 + 0.035 * Math.cos(u * 11), 4, 0);
+    } else if (mode === 1){
+      const y = 0.16 - Math.random() * 0.48;
+      put(gauss() * 0.018, y, 0.78 - Math.abs(y + 0.06) * 0.10 + Math.random() * 0.018, 4, 0);
+    } else if (mode === 2){
+      const a = Math.random() * Math.PI * 2;
+      put(Math.cos(a) * 0.18, -0.46 + Math.sin(a) * 0.045, 0.73 + Math.cos(a) * 0.018, 4, 1);
+    } else {
+      const a = -2.75 + q * 2.36;
+      const side = (j & 1) ? 1 : -1;
+      put(side * (0.52 + 0.10 * Math.cos(a)), -0.34 + 0.42 * Math.sin(a), 0.34 + 0.17 * Math.cos(a), 4, 0);
+    }
+  }
+
+  for (let j = 0; j < nDust; j++){
+    let dx = gauss(), dy = gauss(), dz = gauss();
+    const l = Math.hypot(dx, dy, dz) || 1, R = 1.6 + Math.random() * 1.6;
+    put(dx / l * R, dy / l * R * 0.8, dz / l * R, 3, 0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aRnd', new THREE.BufferAttribute(rnd, 4));
+  geo.setAttribute('aKind', new THREE.BufferAttribute(kind, 1));
+  geo.setAttribute('aMouth', new THREE.BufferAttribute(mouth, 1));
+  return geo;
+}
+
+const VERT = `
+attribute vec4 aRnd; attribute float aKind; attribute float aMouth;
+uniform float uTime, uIntro, uMouth, uListen, uThink, uSpeak, uSize, uScale, uCalm;
+varying vec3 vCol; varying float vA;
+void main(){
+  vec3 p = position;
+  float k = aKind;
+  p.y -= uMouth * 0.075 * aMouth;
+  p.z -= uMouth * 0.015 * aMouth;
+  if (k > 2.5){
+    float a = uTime * 0.04 * (0.4 + aRnd.x);
+    float c = cos(a), s = sin(a);
+    p.xz = mat2(c, -s, s, c) * p.xz;
+    p.y += sin(uTime * 0.3 + aRnd.y * 6.2831) * 0.05;
+  } else {
+    float n = sin(aRnd.x * 6.2831 + uTime * (0.7 + aRnd.y * 1.3));
+    float amp = (0.003 + 0.028 * uThink + 0.01 * uListen) * (1.0 - uCalm * 0.8);
+    p += normalize(p + vec3(0.0, 0.0001, 0.0)) * n * amp;
+    float sw = uThink * 0.35 * sin(uTime * 1.7 + p.y * 5.0) * (aRnd.z - 0.5);
+    float c = cos(sw), s = sin(sw);
+    p.xz = mat2(c, -s, s, c) * p.xz;
+  }
+  float d = clamp(uIntro * 1.6 - aRnd.w * 0.6, 0.0, 1.0);
+  d = d * d * (3.0 - 2.0 * d);
+  vec3 scat = (aRnd.xyz * 2.0 - 1.0) * vec3(4.0, 3.0, 3.0);
+  p = mix(scat, p, d);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  float sz = uSize * (0.55 + aRnd.w * 0.9);
+  if (k > 0.5 && k < 1.5) sz *= 1.9;
+  if (k > 2.5 && k < 3.5) sz *= 0.8;
+  if (k > 3.5) sz *= 1.35;
+  gl_PointSize = sz * uScale / -mv.z;
+  vec3 ice = vec3(0.62, 0.91, 1.0);
+  vec3 amber = vec3(1.0, 0.70, 0.28);
+  vec3 frost = vec3(0.88, 0.97, 1.0);
+  vec3 col = mix(ice, amber, uThink * 0.85);
+  col = mix(col, frost, uSpeak * 0.35 + aMouth * uMouth * 0.6);
+  float a = 0.35 + 0.5 * aRnd.y;
+  float scanY = mix(-1.3, 1.2, fract(uTime * 0.55));
+  float q = (position.y - scanY) / 0.035;
+  float band = exp(-q * q);
+  a += uListen * band * 1.2;
+  col = mix(col, frost, uListen * band);
+  if (k > 0.5 && k < 1.5){ col = mix(frost, amber, uThink * 0.6); a = 0.95; }
+  if (k > 1.5 && k < 2.5){ a *= smoothstep(-1.6, -0.7, position.y) * 0.8; }
+  if (k > 2.5 && k < 3.5){ a = 0.18 + 0.2 * aRnd.x; }
+  if (k > 3.5){ col = mix(frost, ice, 0.35); a = 0.82 + 0.18 * aRnd.x; }
+  float wz = (modelMatrix * vec4(p, 1.0)).z;
+  if (k < 2.5) a *= mix(0.3, 1.0, smoothstep(-0.9, 0.6, wz));
+  a *= 0.3 + 0.7 * d;
+  vCol = col; vA = a;
+}`;
+
+const FRAG = `
+varying vec3 vCol; varying float vA;
+void main(){
+  float d = length(gl_PointCoord - 0.5);
+  if (d > 0.5) discard;
+  float glow = smoothstep(0.5, 0.0, d);
+  float core = smoothstep(0.16, 0.0, d);
+  float a = glow * 0.52 + core * 0.9;
+  gl_FragColor = vec4(vCol * (0.85 + core * 0.55), a * vA);
+}`;
+
+function initScene(){
+  const canvas = $('stage');
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
+  } catch (e) {
+    toast('WebGL indisponible : la tête ne peut pas s\'afficher, mais Ron fonctionne.');
+    return false;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+  const small = Math.min(innerWidth, innerHeight) < 700;
+  const geo = buildHead(small ? 30000 : 62000);
+  mat = new THREE.ShaderMaterial({
+    vertexShader: VERT, fragmentShader: FRAG,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime: { value: 0 }, uIntro: { value: reduceMotion ? 1 : 0 }, uMouth: { value: 0 },
+      uListen: { value: 0 }, uThink: { value: 0 }, uSpeak: { value: 0 },
+      uSize: { value: 0.022 }, uScale: { value: 400 }, uCalm: { value: reduceMotion ? 1 : 0 }
+    }
+  });
+  head = new THREE.Group();
+  head.add(new THREE.Points(geo, mat));
+  head.position.y = 0.18;
+  scene.add(head);
+  resize();
+  addEventListener('resize', resize);
+  addEventListener('pointermove', e => {
+    pointer.x = (e.clientX / innerWidth) * 2 - 1;
+    pointer.y = (e.clientY / innerHeight) * 2 - 1;
+  }, { passive: true });
+  return true;
+}
+
+function resize(){
+  if (!renderer) return;
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.position.set(0, 0, w / h < 0.8 ? 7.4 : 5.4);
+  camera.updateProjectionMatrix();
+  mat.uniforms.uScale.value = renderer.getPixelRatio() * h * 0.5;
+}
+
+const clock = { start: performance.now(), last: performance.now() };
+function frame(now){
+  requestAnimationFrame(frame);
+  if (!renderer) return;
+  const t = (now - clock.start) / 1000;
+  const k = Math.min(1, (now - clock.last) / 16.7) * 0.08;
+  clock.last = now;
+  cur.listen += (tgt.listen - cur.listen) * k;
+  cur.think += (tgt.think - cur.think) * k;
+  cur.speak += (tgt.speak - cur.speak) * k;
+  mouthPulse *= 0.9;
+  const talk = state === 'speaking'
+    ? Math.max(mouthPulse * 0.9, 0.25 + 0.3 * Math.abs(Math.sin(t * 11.5) * Math.sin(t * 6.7)))
+    : 0;
+  cur.mouth += (talk - cur.mouth) * 0.35;
+  const u = mat.uniforms;
+  u.uTime.value = t;
+  if (u.uIntro.value < 1) u.uIntro.value = Math.min(1, u.uIntro.value + 0.0075);
+  u.uListen.value = cur.listen; u.uThink.value = cur.think; u.uSpeak.value = cur.speak; u.uMouth.value = cur.mouth;
+  const idle = reduceMotion ? 0 : 1;
+  const yaw = pointer.x * 0.45 + Math.sin(t * 0.25) * 0.12 * idle;
+  const pitch = pointer.y * 0.18 + Math.sin(t * 0.33) * 0.03 * idle;
+  const roll = cur.think * 0.06 * Math.sin(t * 0.9);
+  cur.yaw += (yaw - cur.yaw) * 0.05;
+  cur.pitch += (pitch - cur.pitch) * 0.05;
+  cur.roll += (roll - cur.roll) * 0.05;
+  head.rotation.set(cur.pitch, cur.yaw, cur.roll);
+  const breathe = reduceMotion ? 1 : 1 + Math.sin(t * 0.8) * 0.004 + cur.speak * 0.006;
+  head.scale.setScalar(breathe);
+  renderer.render(scene, camera);
+}
+
+/* ═══════════ Démarrage ═══════════ */
+async function boot(){
+  if (window.THREE && initScene()) requestAnimationFrame(frame);
+  else if (!window.THREE) toast('Three.js ne s\'est pas chargé : vérifie ta connexion.');
+  await loadCfg();
+  if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+  else $('voiceSel').innerHTML = '<option value="">Synthèse vocale indisponible</option>';
+  if (!SR){ $('micBtn').hidden = true; $('wakeChk').disabled = true; }
+  await refreshMicPermission();
+  setState('idle');
+  if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) setTimeout(openPanel, reduceMotion ? 0 : 1200);
+  else if (micPermission === 'granted') startWake();
+
+  $('grantMicBtn').addEventListener('click', async () => {
+    const ok = await ensureMicrophonePermission(true);
+    if (ok){
+      setState('idle');
+      if (cfg.wake) startWake();
+    }
+  });
+  $('micBtn').addEventListener('click', () => {
+    unlockSpeech();
+    if (recMode === 'ptt' && rec){ try { rec.stop(); } catch (e) {} return; }
+    startPTT();
+  });
+  $('textForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('textIn').value;
+    $('textIn').value = '';
+    handleUser(v);
+  });
+  $('providerSel').addEventListener('change', () => applyProviderPreset(true));
+  $('wakeChk').addEventListener('change', async () => {
+    if ($('wakeChk').checked){
+      const ok = await ensureMicrophonePermission(false);
+      if (!ok) $('wakeChk').checked = false;
+    } else {
+      stopRec();
+    }
+  });
+  $('settingsBtn').addEventListener('click', openPanel);
+  $('panelClose').addEventListener('click', closePanel);
+  $('saveBtn').addEventListener('click', saveSettings);
+  $('clearBtn').addEventListener('click', clearKey);
+  $('voiceSel').addEventListener('change', () => {
+    const v = voices.find(x => x.name === $('voiceSel').value);
+    if (v){ voice = v; cfg.voiceName = v.name; safeStorage.set('voice', v.name); }
+  });
+  addEventListener('keydown', e => {
+    const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement && document.activeElement.tagName);
+    if (e.key === 'Escape'){ if ($('panel').classList.contains('open')) closePanel(); else stopAll(); }
+    else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
+  });
+  addEventListener('pointerdown', unlockSpeech, { once: true });
+}
+boot();
+</script>
+</body>
+</html>
