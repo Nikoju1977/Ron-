@@ -603,7 +603,7 @@ async function acquireRateSlot(){
   rateRuntime.gate=rateRuntime.gate.catch(()=>{}).then(run);
   await rateRuntime.gate;
 }
-function roleBudgetfunction roleBudget(requested, role){
+function roleBudget(requested, role){
   if(cfg.provider!=='mistral') return requested;
   const p=rateProfile();
   const cap=p[role] || requested;
@@ -716,7 +716,7 @@ async function chatOnce(messages, temperature=0.2, maxTokens=900, routing={}){
   throw lastError || new Error('Aucun modèle LLM disponible.');
 }
 
-async function apiErrorasync function apiError(status, response){
+async function apiError(status, response){
   let detail='';
   try { const j=await response.clone().json(); detail=(j.error && (j.error.message || j.error)) || ''; } catch(e){}
   if (status === 400) return 'Requête ou modèle refusé par le serveur LLM.' + (detail ? ' ' + detail : '');
@@ -790,7 +790,7 @@ function chatStream(messages, onDelta, routing={}){
   });
 }
 
-function setThinkingDetailfunction setThinkingDetail(txt){
+function setThinkingDetail(txt){
   state = 'thinking'; tgt.think = 1; tgt.listen = 0; tgt.speak = 0;
   const el=$('state'); el.className='thinking'; el.textContent=txt;
 }
@@ -850,7 +850,7 @@ async function buildAgentContext(userText){
   }
 }
 
-async function testConnectionasync function testConnection(){
+async function testConnection(){
   try {
     if (cfg.provider === 'mistral'){
       if(Date.now() < rateRuntime.cooldownUntil){
@@ -879,7 +879,7 @@ async function testConnectionasync function testConnection(){
   }
 }
 
-/* ═══════════ RON DOTS/* ═══════════ RON DOTS : responsabilités persistantes locales ═══════════ */
+/* ═══════════ RON DOTS : responsabilités persistantes locales ═══════════ */
 const dotsRuntime = {
   missions: [], log: [], running: false, paused: false, timer: 0, loaded: false
 };
@@ -1021,7 +1021,7 @@ function scheduleDots(delay){
   dotsRuntime.timer = setTimeout(() => runDotsCycle(false), d);
 }
 
-async function dotsCommandasync function dotsCommand(text){
+async function dotsCommand(text){
   const raw = String(text || '').trim();
   const low = raw.toLowerCase();
   if (!low.startsWith('/dots')) return false;
