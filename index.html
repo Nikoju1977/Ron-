@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#02070D">
+<link rel="preconnect" href="https://api.mistral.ai" crossorigin>
+<link rel="dns-prefetch" href="//api.mistral.ai">
 <title>RON — Studio Niko Design · Mistral Auto Router</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -511,9 +513,11 @@ const COMPLEX_RE = /\b(complexe|approfondi|d[eé]taill[eé]|analyse|raisonnement
 
 /* ═══════════ Mistral Rate Guard : débit agentique adaptatif ═══════════ */
 const RATE_PROFILES = {
-  eco:      { minGap:8000, max429Retries:1, cacheMs:15*60*1000, history:5, dotsFloor:15*60*1000, planner:220, expert:420, audit:260, dots:320, final:720 },
-  balanced: { minGap:5000, max429Retries:1, cacheMs:10*60*1000, history:7, dotsFloor:10*60*1000, planner:300, expert:620, audit:360, dots:400, final:900 },
-  quality:  { minGap:3000, max429Retries:1, cacheMs:5*60*1000,  history:10,dotsFloor:5*60*1000,  planner:420, expert:760, audit:520, dots:480, final:1100 }
+  // Le chat Mistral passe désormais par UNE seule requête streamée par tour.
+  // Le délai court évite seulement les doubles clics/rafales accidentelles.
+  eco:      { minGap:900,  max429Retries:0, cacheMs:15*60*1000, history:5, dotsFloor:15*60*1000, planner:220, expert:420, audit:260, dots:320, final:620 },
+  balanced: { minGap:1100, max429Retries:0, cacheMs:10*60*1000, history:7, dotsFloor:10*60*1000, planner:300, expert:620, audit:360, dots:400, final:780 },
+  quality:  { minGap:1400, max429Retries:0, cacheMs:5*60*1000,  history:10,dotsFloor:5*60*1000,  planner:420, expert:760, audit:520, dots:480, final:980 }
 };
 const rateRuntime = {
   gate:Promise.resolve(), nextAt:0, cooldownUntil:0, remaining:null, last429:0,
@@ -845,12 +849,91 @@ async function mistralResponseDetail(r){
 function oneCallAgentInstruction(domain){
   const mode=cfg.agentMode||'direct';
   const council = mode==='council'
-    ? "Avant de répondre, effectue silencieusement trois passes internes dans CE MÊME appel : planificateur, expert, puis vérificateur contradicteur. Ne montre que la synthèse finale."
+    ? "Raisonne silencieusement en planificateur, expert puis vérificateur dans ce même appel. Donne seulement la synthèse."
     : mode==='agentic'
-      ? "Avant de répondre, fais silencieusement une passe de planification puis une passe d'expertise dans CE MÊME appel. Ne montre que la synthèse finale."
+      ? "Planifie puis vérifie silencieusement dans ce même appel. Donne seulement la réponse."
       : "Réponds directement.";
-  return SYSTEM() + "\nDomaine actif: " + domain.name + ". " + domain.brief + "\n" + council +
-    "\nContrainte API : une seule génération doit suffire. Sois dense, précis et sans répétition inutile.";
+  return SYSTEM() + "\nDomaine: " + domain.name + ". " + domain.brief + "\n" + council +
+    "\nCommence par la réponse utile immédiatement. Sois concis sauf si l'utilisateur demande du détail.";
+}
+function conversationTextChunk(ev){
+  const d=(ev && ev.data && typeof ev.data==='object') ? ev.data : ev;
+  if(!d || typeof d!=='object') return '';
+  const type=String(d.type || ev.type || '');
+  if(type && type!=='message.output.delta') return '';
+  const value=d.content ?? d.delta ?? d.text;
+  if(typeof value==='string') return value;
+  if(Array.isArray(value)) return value.map(x=>typeof x==='string' ? x : (x && (x.text||x.content)) || '').join('');
+  if(value && typeof value.text==='string') return value.text;
+  return '';
+}
+function conversationIdFromEvent(ev){
+  const d=(ev && ev.data && typeof ev.data==='object') ? ev.data : ev;
+  if(!d || typeof d!=='object') return '';
+  return String(d.conversation_id || d.conversationId || d.id && String(d.type||'').startsWith('conversation.') ? d.id : '');
+}
+function fastTokenBudget(userText){
+  const n=String(userText||'').length;
+  if(n<120) return roleBudget(420,'final');
+  if(n<420) return roleBudget(620,'final');
+  return roleBudget(820,'final');
+}
+async function readConversationStream(r,onDelta){
+  if(!r.body || !r.body.getReader) throw new Error('Streaming non supporté par ce navigateur.');
+  const reader=r.body.getReader();
+  const decoder=new TextDecoder();
+  let buf='', full='', conversationId='', first=true;
+
+  while(true){
+    const {value,done}=await reader.read();
+    if(done) break;
+    buf += decoder.decode(value,{stream:true});
+    const blocks=buf.split(/\r?\n\r?\n/);
+    buf=blocks.pop() || '';
+
+    for(const block of blocks){
+      const lines=block.split(/\r?\n/);
+      for(const line of lines){
+        if(!line.startsWith('data:')) continue;
+        const raw=line.slice(5).trim();
+        if(!raw || raw==='[DONE]') continue;
+        try{
+          const ev=JSON.parse(raw);
+          const cid=conversationIdFromEvent(ev);
+          if(cid) conversationId=cid;
+          const chunk=conversationTextChunk(ev);
+          if(chunk){
+            if(first){
+              first=false;
+              try{
+                const el=$('state');
+                if(el) el.textContent='RON répond…';
+              }catch(e){}
+            }
+            full+=chunk;
+            if(onDelta) onDelta(chunk);
+          }
+        }catch(e){}
+      }
+    }
+  }
+
+  // Some servers may send a final event without a blank-line separator.
+  if(buf.trim()){
+    for(const line of buf.split(/\r?\n/)){
+      if(!line.startsWith('data:')) continue;
+      const raw=line.slice(5).trim();
+      if(!raw || raw==='[DONE]') continue;
+      try{
+        const ev=JSON.parse(raw);
+        const cid=conversationIdFromEvent(ev);
+        if(cid) conversationId=cid;
+        const chunk=conversationTextChunk(ev);
+        if(chunk){ full+=chunk; if(onDelta) onDelta(chunk); }
+      }catch(e){}
+    }
+  }
+  return {text:full.trim(),conversationId};
 }
 async function mistralConversationReply(userText, onDelta){
   await loadMistralConversation();
@@ -865,35 +948,40 @@ async function mistralConversationReply(userText, onDelta){
   await acquireRateSlot();
   const isStart=!mistralConversation.id;
   const url=isStart ? apiBase()+'/conversations' : apiBase()+'/conversations/'+encodeURIComponent(mistralConversation.id);
+  const budget=fastTokenBudget(userText);
   const body=isStart ? {
     model:model,
     inputs:userText,
     instructions:oneCallAgentInstruction(domain),
     store:true,
-    stream:false,
-    completion_args:{temperature:0.3,max_tokens:roleBudget(820,'final')}
+    stream:true,
+    completion_args:{temperature:0.25,max_tokens:budget}
   } : {
     inputs:userText,
     store:true,
-    stream:false,
-    completion_args:{temperature:0.3,max_tokens:roleBudget(820,'final')}
+    stream:true,
+    completion_args:{temperature:0.25,max_tokens:budget}
   };
 
-  let r=await fetch(url,{method:'POST',headers:apiHeaders(false),body:JSON.stringify(body)});
+  const headers=apiHeaders(false);
+  headers['Accept']='text/event-stream';
+  let r=await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)});
   absorbRateHeaders(r.headers);
 
+  // Conversation expirée/invalide : recréation une seule fois.
   if(!isStart && (r.status===400 || r.status===404)){
     await resetMistralConversation();
     await acquireRateSlot();
+    const h=apiHeaders(false); h['Accept']='text/event-stream';
     r=await fetch(apiBase()+'/conversations',{
-      method:'POST',headers:apiHeaders(false),
+      method:'POST',headers:h,
       body:JSON.stringify({
         model:model,
         inputs:userText,
         instructions:oneCallAgentInstruction(domain),
         store:true,
-        stream:false,
-        completion_args:{temperature:0.3,max_tokens:roleBudget(820,'final')}
+        stream:true,
+        completion_args:{temperature:0.25,max_tokens:budget}
       })
     });
     absorbRateHeaders(r.headers);
@@ -913,19 +1001,17 @@ async function mistralConversationReply(userText, onDelta){
     throw e;
   }
 
+  const streamed=await readConversationStream(r,onDelta);
   registerMistralSuccess();
-  const j=await r.json();
-  const id=String(j.conversation_id||'');
-  if(id){
-    mistralConversation.id=id;
+
+  if(streamed.conversationId){
+    mistralConversation.id=streamed.conversationId;
     mistralConversation.model=model;
-    await safeStorage.set('mistralConversationId',id);
+    await safeStorage.set('mistralConversationId',streamed.conversationId);
     await safeStorage.set('mistralConversationModel',model);
   }
-  const text=extractConversationText(j);
-  if(!text) throw new Error('Mistral a répondu sans texte exploitable.');
-  if(onDelta) onDelta(text);
-  return {text:text,domain:domain};
+  if(!streamed.text) throw new Error('Mistral a répondu sans texte exploitable.');
+  return {text:streamed.text,domain:domain};
 }
 
 async function buildAgentContext(userText){
@@ -1442,10 +1528,22 @@ async function handleUser(text){
     let full='', domain=detectDomain(text);
 
     if(cfg.provider==='mistral'){
-      setThinkingDetail('RON réfléchit · 1 appel Mistral…');
+      const startedAt=performance.now();
+      let firstTokenAt=0;
+      setThinkingDetail('RON contacte Mistral…');
       const out=await mistralConversationReply(text, chunk=>{
+        if(!firstTokenAt){
+          firstTokenAt=performance.now();
+          const ms=Math.round(firstTokenAt-startedAt);
+          const el=$('state'); if(el) el.textContent='RON répond · '+(ms/1000).toFixed(1)+' s';
+        }
         full+=chunk;
         const jl=$('ronLine'); jl.textContent=full; jl.scrollTop=jl.scrollHeight;
+        sentenceBuf+=chunk; let m;
+        while((m=sentenceBuf.match(/^([\s\S]*?[.!?…:;\n])(\s+|$)/))){
+          enqueueSpeech(m[1]);
+          sentenceBuf=sentenceBuf.slice(m[0].length);
+        }
       });
       domain=out.domain;
     } else {
@@ -1468,9 +1566,9 @@ async function handleUser(text){
 
     streamDone = true;
     if(cfg.provider==='mistral'){
-      if(full.trim()) enqueueSpeech(full);
+      if(sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
     } else {
-      if (sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
+      if(sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
     }
     sentenceBuf = '';
     history.push({ role:'assistant', content:full || '…' });
