@@ -846,94 +846,22 @@ async function mistralResponseDetail(r){
   }
   return detail.slice(0,500);
 }
-function oneCallAgentInstruction(domain){
+function oneCallAgentInstruction(domain,userText=''){
   const mode=cfg.agentMode||'direct';
-  const council = mode==='council'
-    ? "Raisonne silencieusement en planificateur, expert puis vérificateur dans ce même appel. Donne seulement la synthèse."
-    : mode==='agentic'
-      ? "Planifie puis vérifie silencieusement dans ce même appel. Donne seulement la réponse."
-      : "Réponds directement.";
+  const fast=(cfg.rateMode||'eco')==='eco';
+  const complex=taskComplexity(userText,domain)!=='low';
+  let council='Réponds directement.';
+  if(!fast || complex){
+    council = mode==='council'
+      ? "Fais brièvement et silencieusement : plan, expertise, vérification. Donne seulement la synthèse."
+      : mode==='agentic'
+        ? "Planifie puis vérifie brièvement et silencieusement. Donne seulement la réponse."
+        : "Réponds directement.";
+  } else if(mode!=='direct'){
+    council="Réponds immédiatement. Fais seulement une vérification mentale brève des faits importants.";
+  }
   return SYSTEM() + "\nDomaine: " + domain.name + ". " + domain.brief + "\n" + council +
-    "\nCommence par la réponse utile immédiatement. Sois concis sauf si l'utilisateur demande du détail.";
-}
-function conversationTextChunk(ev){
-  const d=(ev && ev.data && typeof ev.data==='object') ? ev.data : ev;
-  if(!d || typeof d!=='object') return '';
-  const type=String(d.type || ev.type || '');
-  if(type && type!=='message.output.delta') return '';
-  const value=d.content ?? d.delta ?? d.text;
-  if(typeof value==='string') return value;
-  if(Array.isArray(value)) return value.map(x=>typeof x==='string' ? x : (x && (x.text||x.content)) || '').join('');
-  if(value && typeof value.text==='string') return value.text;
-  return '';
-}
-function conversationIdFromEvent(ev){
-  const d=(ev && ev.data && typeof ev.data==='object') ? ev.data : ev;
-  if(!d || typeof d!=='object') return '';
-  return String(d.conversation_id || d.conversationId || d.id && String(d.type||'').startsWith('conversation.') ? d.id : '');
-}
-function fastTokenBudget(userText){
-  const n=String(userText||'').length;
-  if(n<120) return roleBudget(420,'final');
-  if(n<420) return roleBudget(620,'final');
-  return roleBudget(820,'final');
-}
-async function readConversationStream(r,onDelta){
-  if(!r.body || !r.body.getReader) throw new Error('Streaming non supporté par ce navigateur.');
-  const reader=r.body.getReader();
-  const decoder=new TextDecoder();
-  let buf='', full='', conversationId='', first=true;
-
-  while(true){
-    const {value,done}=await reader.read();
-    if(done) break;
-    buf += decoder.decode(value,{stream:true});
-    const blocks=buf.split(/\r?\n\r?\n/);
-    buf=blocks.pop() || '';
-
-    for(const block of blocks){
-      const lines=block.split(/\r?\n/);
-      for(const line of lines){
-        if(!line.startsWith('data:')) continue;
-        const raw=line.slice(5).trim();
-        if(!raw || raw==='[DONE]') continue;
-        try{
-          const ev=JSON.parse(raw);
-          const cid=conversationIdFromEvent(ev);
-          if(cid) conversationId=cid;
-          const chunk=conversationTextChunk(ev);
-          if(chunk){
-            if(first){
-              first=false;
-              try{
-                const el=$('state');
-                if(el) el.textContent='RON répond…';
-              }catch(e){}
-            }
-            full+=chunk;
-            if(onDelta) onDelta(chunk);
-          }
-        }catch(e){}
-      }
-    }
-  }
-
-  // Some servers may send a final event without a blank-line separator.
-  if(buf.trim()){
-    for(const line of buf.split(/\r?\n/)){
-      if(!line.startsWith('data:')) continue;
-      const raw=line.slice(5).trim();
-      if(!raw || raw==='[DONE]') continue;
-      try{
-        const ev=JSON.parse(raw);
-        const cid=conversationIdFromEvent(ev);
-        if(cid) conversationId=cid;
-        const chunk=conversationTextChunk(ev);
-        if(chunk){ full+=chunk; if(onDelta) onDelta(chunk); }
-      }catch(e){}
-    }
-  }
-  return {text:full.trim(),conversationId};
+    "\nCommence par l'information utile. Réponse concise par défaut; développe seulement si nécessaire ou demandé.";
 }
 async function mistralConversationReply(userText, onDelta){
   await loadMistralConversation();
@@ -952,7 +880,7 @@ async function mistralConversationReply(userText, onDelta){
   const body=isStart ? {
     model:model,
     inputs:userText,
-    instructions:oneCallAgentInstruction(domain),
+    instructions:oneCallAgentInstruction(domain,userText),
     store:true,
     stream:true,
     completion_args:{temperature:0.25,max_tokens:budget}
@@ -978,7 +906,7 @@ async function mistralConversationReply(userText, onDelta){
       body:JSON.stringify({
         model:model,
         inputs:userText,
-        instructions:oneCallAgentInstruction(domain),
+        instructions:oneCallAgentInstruction(domain,userText),
         store:true,
         stream:true,
         completion_args:{temperature:0.25,max_tokens:budget}
