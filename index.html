@@ -35,6 +35,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 #ronLine{color:var(--frost);max-height:7.8em;overflow-y:auto;scrollbar-width:none}
 #ronLine::-webkit-scrollbar{display:none}
 #controls{display:flex;align-items:center;gap:12px;width:min(560px,100%)}
+#attachmentStrip{width:min(640px,100%);display:none;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none}
+#attachmentStrip.show{display:flex}
+#attachmentStrip::-webkit-scrollbar{display:none}
+.attachment-chip{flex:0 0 auto;max-width:210px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;background:rgba(3,12,22,.82);padding:7px 9px;color:var(--frost);font-size:12px}
+.attachment-chip img{width:34px;height:34px;border-radius:8px;object-fit:cover;border:1px solid var(--line)}
+.attachment-chip .att-meta{min-width:0}
+.attachment-chip .att-name{max-width:135px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attachment-chip .att-kind{color:var(--mist);font-size:10px;margin-top:2px}
+.attachment-chip button{border:0;background:transparent;color:var(--mist);font-size:18px;line-height:1;cursor:pointer;padding:2px}
+#attachBtn{width:48px;height:48px;flex:0 0 48px;border-radius:50%;border:1px solid var(--line);background:rgba(2,7,13,.55);color:var(--ice);font:26px/1 var(--mono);cursor:pointer}
+#attachBtn.has-files{border-color:var(--ice);box-shadow:0 0 18px rgba(159,232,255,.22)}
+#fileIn{display:none}
+#codeActions{display:none;gap:8px;justify-content:center;flex-wrap:wrap;width:min(640px,100%)}
+#codeActions.show{display:flex}
+.code-action{border:1px solid var(--line);background:rgba(2,7,13,.62);color:var(--ice);font:12px var(--mono);border-radius:10px;padding:8px 11px;cursor:pointer}
+.code-action:hover{border-color:var(--ice)}
+
 #textForm{flex:1;display:flex;border:1px solid var(--line);border-radius:26px;background:rgba(2,7,13,.55);backdrop-filter:blur(6px);overflow:hidden}
 #textIn{flex:1;min-width:0;background:transparent;border:0;color:var(--frost);font:16px var(--mono);padding:13px 18px}
 #textIn::placeholder{color:var(--mist)}
@@ -109,7 +126,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div id="youLine"></div>
     <div id="ronLine"></div>
   </div>
+  <div id="attachmentStrip" aria-live="polite"></div>
+  <div id="codeActions">
+    <button class="code-action" id="copyCodeBtn" type="button">Copier HTML</button>
+    <button class="code-action" id="previewCodeBtn" type="button">Prévisualiser</button>
+    <button class="code-action" id="downloadCodeBtn" type="button">Télécharger .html</button>
+  </div>
   <div id="controls">
+    <button id="attachBtn" type="button" aria-label="Joindre photo, vidéo ou document" title="Joindre un fichier">＋</button>
+    <input id="fileIn" type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.json,.html,.htm,.css,.js,.mjs,.ts,.tsx,.jsx,.xml,.yaml,.yml,.rtf,.odt,.py,.java,.go,.rs,.php,.sql">
     <form id="textForm" autocomplete="off">
       <input id="textIn" type="text" placeholder="Écris à Ron…" aria-label="Message pour Ron" enterkeyhint="send">
       <button id="sendBtn" type="submit">Envoyer</button>
@@ -154,7 +179,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="panel-title">Réglages</div>
     <button class="icon-btn" id="panelClose" aria-label="Fermer les réglages">✕</button>
   </div>
-  <p class="hint">RON peut utiliser Mistral ou un serveur LLM compatible OpenAI : Ollama, LM Studio, vLLM ou ton propre endpoint. Les modèles locaux peuvent rester entièrement sur ta machine.</p>
+  <p class="hint">RON peut utiliser Mistral ou un serveur LLM compatible OpenAI. Avec Mistral, RON accepte aussi photos, vidéos par images-clés, PDF/documents et fichiers texte/code. Les pièces jointes sont envoyées uniquement lorsque tu les soumets.</p>
   <div class="field">
     <label for="providerSel">Moteur LLM</label>
     <select id="providerSel">
@@ -446,6 +471,14 @@ async function loadCfg(){
   $('dotsIntervalSel').value = String(cfg.dotsInterval);
   $('keyIn').value = cfg.key;
   applyProviderPreset(false);
+}
+
+
+const ADVANCED_CODE_RE = /\b(html5?|css3?|javascript|typescript|three\.js|webgl|canvas|site\s*web|page\s*web|landing\s*page|frontend|front-end|interface\s*web|web\s*app|application\s*web|pwa|responsive|animation\s*web|gsap|shader|svg)\b/i;
+function isAdvancedCodeRequest(text){ return ADVANCED_CODE_RE.test(String(text||'')); }
+function codeProInstruction(text){
+  if(!isAdvancedCodeRequest(text)) return '';
+  return "\nMODE CODE PRO : pour toute demande HTML/CSS/JavaScript, produis du code de niveau production. Si une page complète est demandée, fournis un fichier HTML autonome complet avec DOCTYPE, CSS et JavaScript inclus, responsive mobile/desktop, accessible, performant, sans pseudo-code, sans TODO et sans parties omises. Vérifie les sélecteurs, événements, erreurs JS et la compatibilité navigateur. Encadre le livrable principal dans un bloc de code HTML complet.";
 }
 
 const DOMAIN_AGENTS = [
@@ -816,7 +849,8 @@ async function resetMistralConversation(){
   await safeStorage.del('mistralConversationId');
   await safeStorage.del('mistralConversationModel');
 }
-function mistralConversationModel(){
+function mistralConversationModel(userText=''){
+  if(isAdvancedCodeRequest(userText)) return MISTRAL_MODELS.devstral;
   return MISTRAL_MODELS.small;
 }
 function extractConversationText(j){
@@ -861,12 +895,13 @@ function oneCallAgentInstruction(domain,userText=''){
     council="Réponds immédiatement. Fais seulement une vérification mentale brève des faits importants.";
   }
   return SYSTEM() + "\nDomaine: " + domain.name + ". " + domain.brief + "\n" + council +
+    codeProInstruction(userText) +
     "\nCommence par l'information utile. Réponse concise par défaut; développe seulement si nécessaire ou demandé.";
 }
 async function mistralConversationReply(userText, onDelta){
   await loadMistralConversation();
   const domain=detectDomain(userText);
-  const model=mistralConversationModel();
+  const model=mistralConversationModel(userText);
 
   if(mistralConversation.model!==model){
     await resetMistralConversation();
@@ -1220,6 +1255,12 @@ function loadVoices(){
 }
 
 function cleanForSpeech(s){
+  const fence='\u0060\u0060\u0060';
+  while(s.includes(fence)){
+    const a=s.indexOf(fence), b=s.indexOf(fence,a+3);
+    if(b<0) break;
+    s=s.slice(0,a)+' bloc de code '+s.slice(b+3);
+  }
   return s.replace(/https?:\/\/\S+/g, 'lien')
           .replace(/[*_#`>|~]/g, '')
           .replace(/\s+/g, ' ')
@@ -1439,17 +1480,303 @@ async function startPTT(){
 /* ═══════════ Boucle de conversation agentique ═══════════ */
 let sentenceBuf = '';
 
+
+/* ═══════════ Pièces jointes multimodales ═══════════ */
+const mediaRuntime={ pending:[], lastHtml:'', seq:0 };
+const TEXT_EXT_RE=/\.(txt|md|markdown|csv|json|html?|css|m?js|jsx|ts|tsx|xml|ya?ml|rtf|py|java|go|rs|php|sql|c|cc|cpp|h|hpp|sh)$/i;
+const DOC_EXT_RE=/\.(pdf|docx?|pptx?|odt)$/i;
+
+function fileKind(file){
+  const type=String(file.type||'').toLowerCase();
+  const name=String(file.name||'');
+  if(type.startsWith('image/')) return 'image';
+  if(type.startsWith('video/')) return 'video';
+  if(TEXT_EXT_RE.test(name) || type.startsWith('text/') || /json|xml|csv|javascript/.test(type)) return 'text';
+  if(DOC_EXT_RE.test(name) || /pdf|word|presentation|opendocument/.test(type)) return 'document';
+  return 'document';
+}
+function niceBytes(n){
+  if(n<1024) return n+' o';
+  if(n<1024*1024) return (n/1024).toFixed(0)+' Ko';
+  return (n/1024/1024).toFixed(1)+' Mo';
+}
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function renderAttachments(){
+  const strip=$('attachmentStrip'), btn=$('attachBtn');
+  if(!strip||!btn) return;
+  strip.classList.toggle('show',mediaRuntime.pending.length>0);
+  btn.classList.toggle('has-files',mediaRuntime.pending.length>0);
+  strip.innerHTML=mediaRuntime.pending.map(a=>{
+    const thumb=a.thumb ? '<img src="'+a.thumb+'" alt="">' : '';
+    return '<div class="attachment-chip" data-id="'+a.id+'">'+thumb+
+      '<div class="att-meta"><div class="att-name">'+escapeHtml(a.file.name)+'</div><div class="att-kind">'+escapeHtml(a.kind)+' · '+niceBytes(a.file.size)+'</div></div>'+
+      '<button type="button" data-remove="'+a.id+'" aria-label="Retirer">×</button></div>';
+  }).join('');
+  strip.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{
+    const id=b.getAttribute('data-remove');
+    const idx=mediaRuntime.pending.findIndex(x=>x.id===id);
+    if(idx>=0){
+      const a=mediaRuntime.pending[idx];
+      if(a.thumb&&a.thumb.startsWith('blob:')) URL.revokeObjectURL(a.thumb);
+      mediaRuntime.pending.splice(idx,1); renderAttachments();
+    }
+  });
+}
+async function addAttachmentFiles(list){
+  const files=[...list].slice(0,8);
+  for(const file of files){
+    if(mediaRuntime.pending.length>=8){ toast('Maximum 8 pièces jointes par message.'); break; }
+    const kind=fileKind(file);
+    if(file.size>120*1024*1024){ toast(file.name+' est trop volumineux pour RON mobile.'); continue; }
+    const id='att_'+(++mediaRuntime.seq)+'_'+Date.now();
+    let thumb='';
+    if(kind==='image') thumb=URL.createObjectURL(file);
+    mediaRuntime.pending.push({id,file,kind,thumb});
+  }
+  renderAttachments();
+}
+function fileToDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(String(r.result||''));
+    r.onerror=()=>reject(new Error('Lecture impossible : '+file.name));
+    r.readAsDataURL(file);
+  });
+}
+async function compressedImageDataURL(file,maxDim=1600,quality=.84){
+  const src=await fileToDataURL(file);
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+      const scale=Math.min(1,maxDim/Math.max(w,h));
+      w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
+      const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext('2d',{alpha:false});
+      ctx.drawImage(img,0,0,w,h);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=()=>reject(new Error('Image illisible : '+file.name));
+    img.src=src;
+  });
+}
+function seekVideo(video,time){
+  return new Promise((resolve,reject)=>{
+    const done=()=>{cleanup();resolve();};
+    const fail=()=>{cleanup();reject(new Error('Impossible de lire cette vidéo.'));};
+    const cleanup=()=>{video.removeEventListener('seeked',done);video.removeEventListener('error',fail);};
+    video.addEventListener('seeked',done,{once:true});
+    video.addEventListener('error',fail,{once:true});
+    try{video.currentTime=Math.max(0,Math.min(time,Math.max(0,(video.duration||time)-.05)));}catch(e){cleanup();reject(e);}
+  });
+}
+async function extractVideoFrames(file,count=4){
+  const url=URL.createObjectURL(file);
+  const video=document.createElement('video');
+  video.muted=true; video.playsInline=true; video.preload='metadata'; video.src=url;
+  try{
+    await new Promise((resolve,reject)=>{
+      video.onloadedmetadata=resolve;
+      video.onerror=()=>reject(new Error('Format vidéo non lisible par ce navigateur : '+file.name));
+    });
+    const d=Number(video.duration);
+    if(!Number.isFinite(d)||d<=0) throw new Error('Durée vidéo indisponible.');
+    const points=count===4?[.08,.33,.62,.9]:Array.from({length:count},(_,i)=>(i+.5)/count);
+    const frames=[];
+    for(const p of points){
+      await seekVideo(video,d*p);
+      const maxDim=1280, scale=Math.min(1,maxDim/Math.max(video.videoWidth,video.videoHeight));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(video.videoWidth*scale));
+      canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+      canvas.getContext('2d',{alpha:false}).drawImage(video,0,0,canvas.width,canvas.height);
+      frames.push(canvas.toDataURL('image/jpeg',.76));
+    }
+    return frames;
+  } finally { URL.revokeObjectURL(url); }
+}
+async function ocrDocument(file){
+  if(cfg.provider!=='mistral') throw new Error('La lecture OCR des documents nécessite Mistral dans cette version.');
+  if(file.size>20*1024*1024) throw new Error(file.name+' dépasse 20 Mo. Réduis le document pour l’analyse directe.');
+  const dataUrl=await fileToDataURL(file);
+  await acquireRateSlot();
+  setThinkingDetail('RON lit '+file.name+'…');
+  const r=await fetch(apiBase()+'/ocr',{
+    method:'POST',
+    headers:apiHeaders(false),
+    body:JSON.stringify({
+      model:'mistral-ocr-latest',
+      document:{type:'document_url',document_url:dataUrl},
+      include_image_base64:false,
+      table_format:'markdown'
+    })
+  });
+  absorbRateHeaders(r.headers);
+  if(r.status===429){
+    const pause=registerMistral429(r.headers,0);
+    const e=new Error('Mistral OCR est limité par le quota API.'); e.status=429;e.retryAfter=pause;throw e;
+  }
+  if(!r.ok){
+    const detail=await mistralResponseDetail(r);
+    throw new Error('Lecture document impossible ('+r.status+')'+(detail?' : '+detail:''));
+  }
+  registerMistralSuccess();
+  const j=await r.json();
+  const pages=Array.isArray(j.pages)?j.pages:[];
+  let text=pages.map((p,i)=>'--- Page '+(((Number(p.index)||i)+1))+' ---\n'+String(p.markdown||'')).join('\n\n');
+  if(!text.trim() && j.document_annotation) text=String(j.document_annotation);
+  if(text.length>90000) text=text.slice(0,90000)+'\n[…document tronqué pour respecter le contexte…]';
+  return text;
+}
+async function prepareAttachments(items){
+  const imageChunks=[], textParts=[], labels=[];
+  for(const a of items){
+    labels.push(a.file.name);
+    if(a.kind==='image'){
+      setThinkingDetail('RON prépare '+a.file.name+'…');
+      imageChunks.push({type:'image_url',image_url:await compressedImageDataURL(a.file)});
+    }else if(a.kind==='video'){
+      setThinkingDetail('RON extrait les images-clés de '+a.file.name+'…');
+      const frames=await extractVideoFrames(a.file,4);
+      textParts.push('[Vidéo '+a.file.name+' : analyse visuelle de 4 images-clés, sans transcription audio.]');
+      frames.forEach((frame,i)=>{
+        imageChunks.push({type:'image_url',image_url:frame});
+        textParts.push('[Image-clé vidéo '+(i+1)+'/4]');
+      });
+    }else if(a.kind==='text'){
+      const raw=await a.file.text();
+      const txt=raw.length>120000?raw.slice(0,120000)+'\n[…fichier tronqué…]':raw;
+      textParts.push('\n### FICHIER '+a.file.name+'\n'+txt);
+    }else{
+      const txt=await ocrDocument(a.file);
+      textParts.push('\n### DOCUMENT '+a.file.name+' — extraction OCR\n'+txt);
+    }
+  }
+  return {imageChunks,textParts,labels};
+}
+function mediaModelFor(text,hasImages){
+  if(hasImages) return MISTRAL_MODELS.small;
+  if(isAdvancedCodeRequest(text)) return MISTRAL_MODELS.devstral;
+  return MISTRAL_MODELS.small;
+}
+function mediaSystemPrompt(text,domain){
+  return SYSTEM()+'\nDomaine: '+domain.name+'. '+domain.brief+
+    codeProInstruction(text)+
+    "\nTu analyses uniquement les pièces jointes réellement fournies. Pour une vidéo, indique que l'analyse porte sur les images-clés si l'audio n'a pas été transcrit. Pour les documents, distingue le contenu extrait de tes inférences.";
+}
+function mistralMediaStream(userText,prepared,onDelta){
+  const domain=detectDomain(userText);
+  const model=mediaModelFor(userText,prepared.imageChunks.length>0);
+  const docContext=prepared.textParts.join('\n\n');
+  const prompt=(userText||'Analyse ces pièces jointes.')+
+    (docContext?'\n\nCONTENU DES PIÈCES JOINTES:\n'+docContext:'');
+  const content=[{type:'text',text:prompt},...prepared.imageChunks];
+  const messages=[
+    {role:'system',content:mediaSystemPrompt(userText,domain)},
+    {role:'user',content:content}
+  ];
+  return new Promise((resolve,reject)=>{
+    acquireRateSlot().then(()=>{
+      const xhr=new XMLHttpRequest(); currentXhr=xhr;
+      let seen=0,buf='',full='';
+      xhr.open('POST',apiBase()+'/chat/completions');
+      Object.entries(apiHeaders(true)).forEach(([k,v])=>xhr.setRequestHeader(k,v));
+      const parse=()=>{
+        if(xhr.status&&xhr.status!==200)return;
+        buf+=xhr.responseText.slice(seen);seen=xhr.responseText.length;
+        const lines=buf.split('\n');buf=lines.pop();
+        for(const line of lines){
+          const l=line.trim(); if(!l.startsWith('data:'))continue;
+          const raw=l.slice(5).trim(); if(!raw||raw==='[DONE]')continue;
+          try{
+            const j=JSON.parse(raw);
+            const d=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;
+            const chunk=typeof d==='string'?d:Array.isArray(d)?d.map(x=>x&&x.text||'').join(''):'';
+            if(chunk){full+=chunk;onDelta(chunk);}
+          }catch(e){}
+        }
+      };
+      xhr.onprogress=parse;
+      xhr.onload=()=>{
+        currentXhr=null;
+        try{absorbRateHeaders({get:n=>xhr.getResponseHeader(n)});}catch(e){}
+        if(xhr.status===200){registerMistralSuccess();buf+='\n';parse();resolve({text:full,domain,model});return;}
+        if(xhr.status===429){
+          const headers={get:n=>{try{return xhr.getResponseHeader(n);}catch(e){return null;}}};
+          const pause=registerMistral429(headers,0);
+          const e=new Error('Quota Mistral atteint pendant l’analyse des pièces jointes.');e.status=429;e.retryAfter=pause;reject(e);return;
+        }
+        reject(new Error('Analyse multimodale Mistral HTTP '+xhr.status+'.'));
+      };
+      xhr.onerror=()=>{currentXhr=null;reject(new Error('Connexion Mistral impossible pendant l’analyse multimodale.'));};
+      xhr.onabort=()=>{currentXhr=null;reject(new Error('abort'));};
+      const maxTokens=isAdvancedCodeRequest(userText)?fastTokenBudget(userText):roleBudget(900,'final');
+      xhr.send(JSON.stringify({model,stream:true,temperature:.25,max_tokens:maxTokens,messages}));
+    }).catch(reject);
+  });
+}
+function extractHtmlArtifact(text){
+  const s=String(text||'');
+  const fence='\u0060\u0060\u0060';
+  let start=s.toLowerCase().indexOf(fence+'html');
+  if(start>=0){
+    start=s.indexOf('\n',start);
+    if(start>=0){
+      const end=s.indexOf(fence,start+1);
+      if(end>start) return s.slice(start+1,end).trim();
+    }
+  }
+  const d=s.indexOf('<!DOCTYPE html');
+  if(d>=0) return s.slice(d).trim();
+  const h=s.indexOf('<html');
+  if(h>=0) return s.slice(h).trim();
+  return '';
+}
+function updateCodeActions(text){
+  const code=extractHtmlArtifact(text);
+  mediaRuntime.lastHtml=code;
+  const el=$('codeActions');
+  if(el) el.classList.toggle('show',!!code);
+}
+async function copyHtmlArtifact(){
+  if(!mediaRuntime.lastHtml)return;
+  try{await navigator.clipboard.writeText(mediaRuntime.lastHtml);toast('HTML copié.');}
+  catch(e){toast('Copie impossible dans ce navigateur.');}
+}
+function htmlArtifactUrl(){
+  return URL.createObjectURL(new Blob([mediaRuntime.lastHtml],{type:'text/html;charset=utf-8'}));
+}
+function previewHtmlArtifact(){
+  if(!mediaRuntime.lastHtml)return;
+  const url=htmlArtifactUrl(); window.open(url,'_blank','noopener'); setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+function downloadHtmlArtifact(){
+  if(!mediaRuntime.lastHtml)return;
+  const url=htmlArtifactUrl(),a=document.createElement('a');
+  a.href=url;a.download='ron-production.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
 async function handleUser(text){
   text = String(text || '').trim();
-  if (!text) return;
-  if (await dotsCommand(text)) return;
+  const attachments=mediaRuntime.pending.slice();
+  if (!text && !attachments.length) return;
+  if (text && await dotsCommand(text)) return;
+  if(!text) text='Analyse ces pièces jointes et dis-moi ce qui est important.';
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)){ openPanel(); return; }
   unlockSpeech(); stopRec(); stopSpeaking();
   clearTimeout(dotsRuntime.timer);
   if (currentXhr) currentXhr.abort();
-  $('youLine').textContent = text;
+  const attachmentLabel=attachments.length ? ' · '+attachments.map(a=>a.file.name).join(', ') : '';
+  $('youLine').textContent = text + attachmentLabel;
   $('ronLine').textContent = '';
-  history.push({ role: 'user', content: text });
+  $('codeActions').classList.remove('show'); mediaRuntime.lastHtml='';
+  history.push({ role: 'user', content: text + (attachments.length ? '\n[Pièces jointes: '+attachments.map(a=>a.file.name).join(', ')+']' : '') });
+  if(attachments.length){
+    mediaRuntime.pending=[];
+    renderAttachments();
+  }
   setState('thinking'); sentenceBuf = ''; streamDone = false;
 
   try {
@@ -1458,8 +1785,7 @@ async function handleUser(text){
     if(cfg.provider==='mistral'){
       const startedAt=performance.now();
       let firstTokenAt=0;
-      setThinkingDetail('RON contacte Mistral…');
-      const out=await mistralConversationReply(text, chunk=>{
+      const streamChunk=chunk=>{
         if(!firstTokenAt){
           firstTokenAt=performance.now();
           const ms=Math.round(firstTokenAt-startedAt);
@@ -1469,11 +1795,20 @@ async function handleUser(text){
         const jl=$('ronLine'); jl.textContent=full; jl.scrollTop=jl.scrollHeight;
         sentenceBuf+=chunk; let m;
         while((m=sentenceBuf.match(/^([\s\S]*?[.!?…:;\n])(\s+|$)/))){
-          enqueueSpeech(m[1]);
+          if(!isAdvancedCodeRequest(text)) enqueueSpeech(m[1]);
           sentenceBuf=sentenceBuf.slice(m[0].length);
         }
-      });
-      domain=out.domain;
+      };
+      if(attachments.length){
+        setThinkingDetail('RON analyse les pièces jointes…');
+        const prepared=await prepareAttachments(attachments);
+        const out=await mistralMediaStream(text,prepared,streamChunk);
+        domain=out.domain;
+      }else{
+        setThinkingDetail(isAdvancedCodeRequest(text)?'RON développe en Code Pro…':'RON contacte Mistral…');
+        const out=await mistralConversationReply(text,streamChunk);
+        domain=out.domain;
+      }
     } else {
       const agentCtx = await buildAgentContext(text);
       domain=agentCtx.domain;
@@ -1493,12 +1828,9 @@ async function handleUser(text){
     }
 
     streamDone = true;
-    if(cfg.provider==='mistral'){
-      if(sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
-    } else {
-      if(sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
-    }
+    if(sentenceBuf.trim() && !isAdvancedCodeRequest(text)) enqueueSpeech(sentenceBuf);
     sentenceBuf = '';
+    updateCodeActions(full);
     history.push({ role:'assistant', content:full || '…' });
     if (history.length > 40) history.splice(0, history.length - 40);
     if (!speakingNow) onSpeechDrained();
@@ -1937,6 +2269,24 @@ async function boot(){
       if (cfg.wake) startWake();
     }
   });
+  $('attachBtn').addEventListener('click',()=>$('fileIn').click());
+  $('fileIn').addEventListener('change',async e=>{
+    await addAttachmentFiles(e.target.files||[]);
+    e.target.value='';
+  });
+  $('textIn').addEventListener('paste',async e=>{
+    const files=[...(e.clipboardData&&e.clipboardData.files||[])];
+    if(files.length){ e.preventDefault(); await addAttachmentFiles(files); }
+  });
+  $('textForm').addEventListener('dragover',e=>{e.preventDefault();});
+  $('textForm').addEventListener('drop',async e=>{
+    e.preventDefault();
+    const files=[...(e.dataTransfer&&e.dataTransfer.files||[])];
+    if(files.length) await addAttachmentFiles(files);
+  });
+  $('copyCodeBtn').addEventListener('click',copyHtmlArtifact);
+  $('previewCodeBtn').addEventListener('click',previewHtmlArtifact);
+  $('downloadCodeBtn').addEventListener('click',downloadHtmlArtifact);
   $('micBtn').addEventListener('click', () => {
     unlockSpeech();
     if (recMode === 'ptt' && rec){ try { rec.stop(); } catch (e) {} return; }
