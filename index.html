@@ -101,6 +101,24 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .dot-mini{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mist);margin-top:3px}
 @media (max-width:520px){#brand{letter-spacing:.3em}#transcript{font-size:14px}}
 @media (prefers-reduced-motion:reduce){#micBtn.on::after{animation:none}#panel{transition:none}}
+#artifactView{width:min(760px,100%);display:none;max-height:44dvh;overflow:auto;border:1px solid var(--line);border-radius:16px;background:rgba(3,12,22,.88);backdrop-filter:blur(10px);padding:12px}
+#artifactView.show{display:block}
+.artifact-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.artifact-title{font-family:var(--display);font-size:12px;letter-spacing:.12em;color:var(--ice)}
+.artifact-actions{display:flex;gap:7px;flex-wrap:wrap}
+.artifact-btn{border:1px solid var(--line);background:rgba(6,24,42,.74);color:var(--ice);font:12px var(--mono);border-radius:9px;padding:7px 10px;cursor:pointer}
+.artifact-btn:hover{border-color:var(--ice)}
+.artifact-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.artifact-image-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:rgba(2,7,13,.7)}
+.artifact-image-card img{display:block;width:100%;height:auto;max-height:440px;object-fit:contain;background:#02070D}
+.artifact-image-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;font-size:11px;color:var(--mist)}
+.ron-table-wrap{width:100%;overflow:auto;border:1px solid var(--line);border-radius:11px}
+.ron-table{border-collapse:collapse;width:100%;min-width:480px;font-size:12px;text-align:left}
+.ron-table th,.ron-table td{padding:8px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:top}
+.ron-table th{position:sticky;top:0;background:#071A2A;color:var(--ice);font-family:var(--display);font-size:10px;letter-spacing:.06em}
+.ron-table tr:last-child td{border-bottom:0}
+.ron-table th:last-child,.ron-table td:last-child{border-right:0}
+.artifact-note{color:var(--mist);font-size:11px;line-height:1.45;margin-top:8px}
 </style>
 </head>
 <body>
@@ -132,6 +150,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <button class="code-action" id="previewCodeBtn" type="button">Prévisualiser</button>
     <button class="code-action" id="downloadCodeBtn" type="button">Télécharger .html</button>
   </div>
+  <div id="artifactView" aria-live="polite"></div>
   <div id="controls">
     <button id="attachBtn" type="button" aria-label="Joindre photo, vidéo ou document" title="Joindre un fichier">＋</button>
     <input id="fileIn" type="file" multiple accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.json,.html,.htm,.css,.js,.mjs,.ts,.tsx,.jsx,.xml,.yaml,.yml,.rtf,.odt,.py,.java,.go,.rs,.php,.sql">
@@ -179,7 +198,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="panel-title">Réglages</div>
     <button class="icon-btn" id="panelClose" aria-label="Fermer les réglages">✕</button>
   </div>
-  <p class="hint">RON peut utiliser Mistral ou un serveur LLM compatible OpenAI. Avec Mistral, RON accepte aussi photos, audio Voxtral, vidéos avec images-clés + bande-son, PDF/documents et fichiers texte/code. Les pièces jointes sont envoyées uniquement lorsque tu les soumets.</p>
+  <p class="hint">RON peut utiliser Mistral ou un serveur LLM compatible OpenAI. Avec Mistral, RON analyse photos/audio/vidéos/documents, génère des images, crée des tableaux et tableurs CSV/XLSX, et produit du code HTML avancé. Les pièces jointes sont envoyées uniquement lorsque tu les soumets.</p>
   <div class="field">
     <label for="providerSel">Moteur LLM</label>
     <select id="providerSel">
@@ -210,6 +229,30 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <option value="manual">Manuel — utiliser le champ Modèle</option>
     </select>
     <div class="hint" id="mistralRouteHint" style="margin:0">Auto : RON choisit un modèle par rôle et bascule sur un secours si nécessaire.</div>
+  </div>
+  <div class="field">
+    <label for="outputModeSel">Sortie RON</label>
+    <select id="outputModeSel">
+      <option value="auto">Auto — RON détecte le livrable</option>
+      <option value="text">Texte</option>
+      <option value="image">Image</option>
+      <option value="table">Tableau</option>
+      <option value="spreadsheet">Tableur CSV / XLSX</option>
+      <option value="code">Code Pro</option>
+    </select>
+  </div>
+  <div class="field" id="visualStyleField">
+    <label for="visualStyleSel">Style visuel</label>
+    <select id="visualStyleSel">
+      <option value="auto">Auto</option>
+      <option value="photo">Photo ultra-réaliste</option>
+      <option value="drawing">Dessin / illustration</option>
+      <option value="comic">Bande dessinée</option>
+      <option value="painting">Peinture / tableau artistique</option>
+      <option value="infographic">Infographie</option>
+      <option value="diagram">Schéma technique</option>
+    </select>
+    <div class="hint" style="margin:0">Utilisé pour les demandes de génération d’image.</div>
   </div>
   <div class="field" id="mistralRateField">
     <label for="rateModeSel">Protection débit Mistral</label>
@@ -271,8 +314,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <div id="toast" role="alert"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-const RON_BUILD='2026.10.01-cognitive-profile-1';
+const RON_BUILD='2026.10.01-studio-ui-1';
 
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
@@ -406,6 +450,7 @@ const cfg = {
   key: '', provider: 'mistral', endpoint: PROVIDERS.mistral.endpoint,
   model: PROVIDERS.mistral.model, mistralRoute: 'auto', rateMode: 'eco', agentMode: 'council',
   voiceName: '', wake: false, remember: true,
+  outputMode: 'auto', visualStyle: 'auto',
   dotsEnabled: false, dotsMode: 'review', dotsInterval: 120000
 };
 
@@ -452,6 +497,8 @@ async function loadCfg(){
   cfg.mistralRoute = (await safeStorage.get('mistralRoute')) || cfg.mistralRoute;
   cfg.rateMode = (await safeStorage.get('rateMode')) || cfg.rateMode;
   cfg.agentMode = (await safeStorage.get('agentMode')) || cfg.agentMode;
+  cfg.outputMode = (await safeStorage.get('outputMode')) || cfg.outputMode;
+  cfg.visualStyle = (await safeStorage.get('visualStyle')) || cfg.visualStyle;
   cfg.voiceName = (await safeStorage.get('voice')) || '';
   cfg.wake = (await safeStorage.get('wake')) === true;
   cfg.dotsEnabled = (await safeStorage.get('dotsEnabled')) === true;
@@ -466,6 +513,8 @@ async function loadCfg(){
   $('mistralRouteSel').value = cfg.mistralRoute;
   $('rateModeSel').value = cfg.rateMode;
   $('agentSel').value = cfg.agentMode;
+  $('outputModeSel').value = cfg.outputMode;
+  $('visualStyleSel').value = cfg.visualStyle;
   $('wakeChk').checked = cfg.wake;
   $('rememberChk').checked = cfg.remember;
   $('dotsEnabledChk').checked = cfg.dotsEnabled;
@@ -2169,6 +2218,8 @@ async function saveSettings(){
   cfg.mistralRoute = $('mistralRouteSel').value || 'auto';
   cfg.rateMode = $('rateModeSel').value || 'eco';
   cfg.agentMode = $('agentSel').value;
+  cfg.outputMode = $('outputModeSel').value || 'auto';
+  cfg.visualStyle = $('visualStyleSel').value || 'auto';
   cfg.wake = $('wakeChk').checked; cfg.remember = $('rememberChk').checked;
   cfg.dotsEnabled = $('dotsEnabledChk').checked;
   cfg.dotsMode = $('dotsModeSel').value || 'review';
@@ -2185,6 +2236,8 @@ async function saveSettings(){
   await safeStorage.set('mistralRoute', cfg.mistralRoute);
   await safeStorage.set('rateMode', cfg.rateMode);
   await safeStorage.set('agentMode', cfg.agentMode);
+  await safeStorage.set('outputMode', cfg.outputMode);
+  await safeStorage.set('visualStyle', cfg.visualStyle);
   await safeStorage.set('wake', cfg.wake);
   await safeStorage.set('remember', cfg.remember);
   await safeStorage.set('voice', cfg.voiceName);
@@ -2564,6 +2617,8 @@ async function boot(){
   $('providerSel').addEventListener('change', () => applyProviderPreset(true));
   $('mistralRouteSel').addEventListener('change', applyMistralRouteUI);
   $('rateModeSel').addEventListener('change', () => { cfg.rateMode=$('rateModeSel').value||'eco'; applyRateModeUI(); scheduleDots(); });
+  $('outputModeSel').addEventListener('change',()=>{ cfg.outputMode=$('outputModeSel').value||'auto'; });
+  $('visualStyleSel').addEventListener('change',()=>{ cfg.visualStyle=$('visualStyleSel').value||'auto'; });
   $('wakeChk').addEventListener('change', async () => {
     if ($('wakeChk').checked){
       const ok = await ensureMicrophonePermission(false);
