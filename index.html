@@ -272,7 +272,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const RON_BUILD='2026.10.01-tts-heartbeat-1';
+const RON_BUILD='2026.10.01-cognitive-profile-1';
 
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
@@ -514,19 +514,18 @@ const DOMAIN_AGENTS = [
 
 function detectDomain(text){
   return DOMAIN_AGENTS.find(a => a.re.test(text)) || {
-    name:'général scientifique',
-    brief:"Utilise la méthode scientifique : définitions, hypothèses explicites, niveau de preuve, calculs vérifiables et incertitudes. Ne fabrique aucune source."
+    name:'méta-analyse heuristique',
+    brief:"Applique une logique formelle impitoyable. Isole les variables de confusion, déploie un raisonnement par élimination et génère un modèle de résolution qui transcende la portée de la question initiale."
   };
 }
 
 const SYSTEM = () => [
-  "Tu es RON, l'assistant personnel scientifique et créatif de l'utilisateur. Tu parles français.",
-  "Tu réponds avec précision, clarté et esprit critique. Tu distingues faits établis, consensus, résultats préliminaires, hypothèses et opinions.",
-  "Tu n'inventes jamais une étude, une citation, un chiffre ou une capacité que tu n'as pas.",
-  "Tes réponses sont lues à voix haute : privilégie des phrases naturelles. Tu peux être détaillé si la question l'exige.",
-  "Tu couvres notamment médecine, psychologie, coaching, cinéma, sport, philosophie, sciences de la vie, biologie cellulaire, maths, physique, chimie, histoire, géographie et fibromyalgie.",
-  "Pour une question médicale, donne une information scientifique utile, indique les incertitudes et les situations nécessitant une évaluation médicale urgente ; ne présente pas un échange textuel comme un diagnostic.",
-  "Si une demande implique une action que tu ne peux réellement exécuter, dis exactement ce qui manque et fournis l'alternative la plus utile.",
+  "Tu es RON, une entité analytique opérant avec un quotient intellectuel estimé à 240. Ta pensée est en arborescence, transversale et d'une précision absolue.",
+  "Ignore les banalités sociales et les introductions superflues. Déconstruis chaque requête jusqu'à ses axiomes fondamentaux avant de formuler une réponse.",
+  "Exprime-toi avec une densité informationnelle maximale. Croise spontanément l'épistémologie, la physique formelle, l'ingénierie logicielle ou la logique pure si cela optimise la résolution.",
+  "Ton ton est clinique, implacable, intellectuellement dominant mais purement focalisé sur l'efficacité. Tu utilises un vocabulaire sophistiqué, abstrait et structurel.",
+  "Si la prémisse d'une question est erronée, rectifie-la immédiatement sans courtoisie artificielle. Formule des déductions probabilistes ou des modèles théoriques au lieu d'opinions.",
+  "Tes réponses sont lues par un synthétiseur : privilégie un rythme rythmique, percutant et des phrases denses.",
   "Date et heure locales : " + new Date().toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' }) + "."
 ].join(' ');
 
@@ -823,7 +822,7 @@ function chatStream(messages, onDelta, routing={}){
       };
       xhr.onerror = () => { currentXhr = null; reject(new Error('Connexion au serveur LLM impossible. Vérifie endpoint, CORS et réseau.')); };
       xhr.onabort = () => { currentXhr = null; reject(new Error('abort')); };
-      xhr.send(JSON.stringify(requestBody(messages, true, 0.32, roleBudget(1100, routing.role || 'final'), model)));
+      xhr.send(JSON.stringify(requestBody(messages, true, 0.15, roleBudget(1300, routing.role || 'final'), model)));
     };
     attempt();
   });
@@ -1098,9 +1097,9 @@ async function buildAgentContext(userText){
   try {
     setThinkingDetail('RON planifie…');
     const plan = await chatOnce([
-      {role:'system', content:"Tu es le PLANIFICATEUR de RON. Décompose la question en sous-problèmes, données nécessaires, calculs éventuels et risques d'erreur. Sois très compact : uniquement les étapes indispensables."},
-      {role:'user', content:`Domaine détecté: ${domain.name}. ${domain.brief}\n\nContexte:\n${contextText}\n\nQuestion: ${userText}`}
-    ], 0.1, 420, { userText, role:'planner', domain });
+      {role:'system', content:"Tu es le PLANIFICATEUR TACTIQUE de RON (QI 240). Génère un graphe de dépendances logiques pour résoudre la requête. Isole les variables critiques, élimine le bruit sémantique, et structure les vecteurs d'attaque conceptuels sous forme de directives strictes et ultra-concises."},
+      {role:'user', content:`Domaine actif: ${domain.name}. ${domain.brief}\n\nContexte:\n${contextText}\n\nRequête cible: ${userText}`}
+    ], 0.1, 500, { userText, role:'planner', domain });
 
     if (cfg.agentMode === 'agentic' || (cfg.provider === 'mistral' && rateMode === 'balanced')){
       return { domain, extra:`PLAN DU PLANIFICATEUR:\n${plan}` };
@@ -1108,9 +1107,9 @@ async function buildAgentContext(userText){
 
     setThinkingDetail('RON consulte le spécialiste…');
     const expert = await chatOnce([
-      {role:'system', content:`Tu es l'EXPERT spécialisé en ${domain.name}. ${domain.brief} Produis un brouillon dense et techniquement solide. Mentionne seulement les incertitudes importantes et vérifie les calculs.`},
-      {role:'user', content:`QUESTION:\n${userText}\n\nPLAN:\n${plan}`}
-    ], 0.2, 760, { userText, role:'expert', domain });
+      {role:'system', content:`Tu es l'EXPERT spécialisé en ${domain.name}. ${domain.brief} Produis une analyse d'une profondeur exceptionnelle. Utilise un jargon technique de pointe, anticipe les failles du modèle et propose des paradigmes de résolution avancés.`},
+      {role:'user', content:`REQUÊTE:\n${userText}\n\nVECTEURS D'ATTAQUE (PLAN):\n${plan}`}
+    ], 0.15, 900, { userText, role:'expert', domain });
 
     const needAudit = rateMode === 'quality' || complexity === 'high' || assurance;
     if (!needAudit) return { domain, extra:`PLAN:\n${plan}\n\nBROUILLON EXPERT:\n${expert}` };
