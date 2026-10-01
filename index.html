@@ -316,7 +316,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-const RON_BUILD='2026.10.01-studio-ui-1';
+const RON_BUILD='2026.10.01-studio-artifacts-1';
 
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
@@ -526,7 +526,7 @@ async function loadCfg(){
 
 
 const ADVANCED_CODE_RE = /\b(html5?|css3?|javascript|typescript|three\.js|webgl|canvas|site\s*web|page\s*web|landing\s*page|frontend|front-end|interface\s*web|web\s*app|application\s*web|pwa|responsive|animation\s*web|gsap|shader|svg)\b/i;
-function isAdvancedCodeRequest(text){ return ADVANCED_CODE_RE.test(String(text||'')); }
+function isAdvancedCodeRequest(text){ return (cfg.outputMode==='code') || ADVANCED_CODE_RE.test(String(text||'')); }
 function codeProInstruction(text){
   if(!isAdvancedCodeRequest(text)) return '';
   return "\nMODE CODE PRO : pour toute demande HTML/CSS/JavaScript, produis du code de niveau production. Si une page complète est demandée, fournis un fichier HTML autonome complet avec DOCTYPE, CSS et JavaScript inclus, responsive mobile/desktop, accessible, performant, sans pseudo-code, sans TODO et sans parties omises. Vérifie les sélecteurs, événements, erreurs JS et la compatibilité navigateur. Encadre le livrable principal dans un bloc de code HTML complet.";
@@ -2069,6 +2069,295 @@ function downloadHtmlArtifact(){
   a.href=url;a.download='ron-production.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 
+
+/* ═══════════ RON Studio : génération d'artefacts ═══════════ */
+const artifactRuntime={type:'',title:'',images:[],sheets:[],lastText:'',lastMode:'',lastStyle:''};
+const OUTPUT_IMAGE_RE=/\b(g[eé]n[eè]re|cr[eé]e|fabrique|dessine|illustre|imagine|produis|rends?|render)\b[\s\S]{0,70}\b(photo|image|portrait|dessin|illustration|bd|bande dessin[eé]e|peinture|tableau artistique|affiche|poster|visuel|infographie|sch[eé]ma)\b/i;
+const OUTPUT_SHEET_RE=/\b(tableur|excel|xlsx|feuille de calcul|spreadsheet|classeur)\b/i;
+const OUTPUT_TABLE_RE=/\b(tableau comparatif|tableau de donn[eé]es|tableau structur[eé]|matrice|grille comparative|colonnes? et lignes?)\b/i;
+
+function detectOutputMode(text){
+  const forced=cfg.outputMode||'auto';
+  if(forced!=='auto') return forced;
+  const t=String(text||'');
+  if(OUTPUT_SHEET_RE.test(t)) return 'spreadsheet';
+  if(OUTPUT_TABLE_RE.test(t)) return 'table';
+  if(OUTPUT_IMAGE_RE.test(t)) return 'image';
+  if(ADVANCED_CODE_RE.test(t)) return 'code';
+  return 'text';
+}
+function detectImageStyle(text){
+  const forced=cfg.visualStyle||'auto';
+  if(forced!=='auto') return forced;
+  const t=String(text||'').toLowerCase();
+  if(/\b(bd|bande dessin[eé]e|comic|comics|case|planche)\b/i.test(t)) return 'comic';
+  if(/\b(peinture|tableau artistique|huile sur toile|aquarelle|gouache|acrylique)\b/i.test(t)) return 'painting';
+  if(/\b(dessin|illustration|croquis|sketch|line art)\b/i.test(t)) return 'drawing';
+  if(/\b(infographie|infographic)\b/i.test(t)) return 'infographic';
+  if(/\b(sch[eé]ma|diagramme|diagram|plan technique)\b/i.test(t)) return 'diagram';
+  return 'photo';
+}
+function visualStylePrompt(style){
+  const map={
+    photo:"Photographie ultra-réaliste haut de gamme. Physique de la lumière crédible, textures fines, profondeur de champ optique, dynamique réaliste, anatomie cohérente, micro-détails naturels, aucun aspect plastique ou artificiel.",
+    drawing:"Illustration dessinée très détaillée. Trait maîtrisé, volumes lisibles, composition forte, perspective cohérente et finition éditoriale.",
+    comic:"Bande dessinée professionnelle. Narration visuelle claire, composition dynamique, encrage précis, expressions lisibles et continuité graphique cohérente.",
+    painting:"Peinture d'art aboutie. Composition muséale, matière picturale visible, lumière expressive, profondeur et palette cohérentes.",
+    infographic:"Infographie professionnelle. Hiérarchie visuelle nette, composition propre, pictogrammes cohérents, lisibilité maximale et espace négatif maîtrisé.",
+    diagram:"Schéma technique précis. Géométrie propre, connexions lisibles, proportions cohérentes, annotations visuelles sobres et structure pédagogique."
+  };
+  return map[style]||map.photo;
+}
+function buildImageGenerationPrompt(userText,style){
+  return [
+    "Crée l'image demandée par l'utilisateur.",
+    visualStylePrompt(style),
+    "Respecte exactement le sujet, l'action, le cadrage, l'époque, les objets, les couleurs et les contraintes explicitement demandés.",
+    "Évite les artefacts anatomiques, mains incohérentes, objets fusionnés, perspective impossible et détails aléatoires.",
+    "Si du texte doit apparaître dans l'image, réduis-le au strict nécessaire et rends-le lisible.",
+    "DEMANDE : "+String(userText||'')
+  ].join(" ");
+}
+function resetArtifactView(){
+  const el=$('artifactView');
+  if(el){el.classList.remove('show');el.innerHTML='';}
+  artifactRuntime.type='';artifactRuntime.title='';artifactRuntime.images=[];artifactRuntime.sheets=[];
+}
+function collectToolFiles(value,out){
+  out=out||[];
+  if(!value) return out;
+  if(Array.isArray(value)){value.forEach(function(v){collectToolFiles(v,out);});return out;}
+  if(typeof value!=='object') return out;
+  if(value.file_id && (value.type==='tool_file'||value.tool==='image_generation'||value.file_type)){
+    out.push({fileId:String(value.file_id),fileName:String(value.file_name||'ron-image.png'),fileType:String(value.file_type||'png')});
+  }
+  Object.entries(value).forEach(function(entry){
+    const k=entry[0],v=entry[1];
+    if(k!=='file_id'&&k!=='file_name'&&k!=='file_type') collectToolFiles(v,out);
+  });
+  return out;
+}
+async function mistralSignedFileUrl(fileId){
+  const headers=cfg.key?{'Authorization':'Bearer '+cfg.key}:{};
+  const r=await fetch(apiBase()+'/files/'+encodeURIComponent(fileId)+'/url?expiry=24',{headers:headers});
+  if(!r.ok) throw new Error('Impossible de récupérer le fichier image généré ('+r.status+').');
+  const j=await r.json();
+  if(!j.url) throw new Error('Mistral n’a pas fourni d’URL pour l’image générée.');
+  return String(j.url);
+}
+async function generateImageArtifact(userText){
+  if(cfg.provider!=='mistral') throw new Error('La génération d’images est branchée sur l’outil Image Generation de Mistral.');
+  const style=detectImageStyle(userText);
+  setThinkingDetail('RON génère l’image · '+style+'…');
+  await acquireRateSlot();
+  const r=await fetch(apiBase()+'/conversations',{
+    method:'POST',
+    headers:apiHeaders(false),
+    body:JSON.stringify({
+      model:MISTRAL_MODELS.medium,
+      inputs:buildImageGenerationPrompt(userText,style),
+      instructions:"Tu es le moteur visuel de RON. Utilise impérativement l'outil image_generation pour produire l'image demandée. Ne remplace jamais l'image par une simple description.",
+      tools:[{type:'image_generation'}],
+      store:false,
+      stream:false,
+      completion_args:{temperature:0.3}
+    })
+  });
+  absorbRateHeaders(r.headers);
+  if(r.status===429){
+    const pause=registerMistral429(r.headers,0);
+    const e=new Error('Quota Mistral atteint pendant la génération d’image.');e.status=429;e.retryAfter=pause;throw e;
+  }
+  if(!r.ok){
+    const detail=await mistralResponseDetail(r);
+    throw new Error('Génération d’image impossible ('+r.status+')'+(detail?' : '+detail:''));
+  }
+  registerMistralSuccess();
+  const j=await r.json();
+  const files=collectToolFiles(j,[]);
+  if(!files.length) throw new Error('Mistral n’a retourné aucun fichier image.');
+  const images=[];
+  for(const file of files){
+    images.push(Object.assign({},file,{url:await mistralSignedFileUrl(file.fileId)}));
+  }
+  artifactRuntime.type='image';
+  artifactRuntime.title='Image générée';
+  artifactRuntime.images=images;
+  artifactRuntime.lastText=userText;
+  artifactRuntime.lastMode='image';
+  artifactRuntime.lastStyle=style;
+  renderImageArtifact(style);
+  return {summary:'Image générée · '+style,style:style,images:images};
+}
+function renderImageArtifact(style){
+  const el=$('artifactView');if(!el)return;
+  const cards=artifactRuntime.images.map(function(im,i){
+    return '<div class="artifact-image-card">'+
+      '<img src="'+escapeHtml(im.url)+'" alt="Image générée par RON '+(i+1)+'" loading="eager">'+
+      '<div class="artifact-image-meta"><span>'+escapeHtml(im.fileName||('image-'+(i+1)+'.png'))+'</span>'+
+      '<button class="artifact-btn" type="button" data-image-download="'+i+'">Télécharger</button></div></div>';
+  }).join('');
+  el.innerHTML='<div class="artifact-head"><div class="artifact-title">RON · IMAGE · '+escapeHtml(String(style||'auto').toUpperCase())+
+    '</div><div class="artifact-actions"><button class="artifact-btn" id="artifactRegenBtn" type="button">Régénérer</button></div></div>'+
+    '<div class="artifact-gallery">'+cards+'</div>'+
+    '<div class="artifact-note">Image générée par l’outil Mistral Image Generation. Le lien signé reste temporaire.</div>';
+  el.classList.add('show');
+  el.querySelectorAll('[data-image-download]').forEach(function(btn){
+    btn.onclick=function(){downloadGeneratedImage(Number(btn.dataset.imageDownload));};
+  });
+  const regen=$('artifactRegenBtn');if(regen)regen.onclick=regenerateArtifact;
+}
+async function downloadGeneratedImage(index){
+  const im=artifactRuntime.images[index];if(!im)return;
+  try{
+    const r=await fetch(im.url);if(!r.ok)throw new Error('download');
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=im.fileName||'ron-image.png';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},2000);
+  }catch(e){window.open(im.url,'_blank','noopener');}
+}
+function stripCodeFenceJson(raw){
+  let s=String(raw||'').trim();
+  const fence='\u0060\u0060\u0060';
+  if(s.startsWith(fence)){const nl=s.indexOf('\n');if(nl>=0)s=s.slice(nl+1);}
+  if(s.endsWith(fence))s=s.slice(0,-3);
+  s=s.trim();
+  const a=s.indexOf('{'),b=s.lastIndexOf('}');
+  return a>=0&&b>a?s.slice(a,b+1):s;
+}
+function normalizeSheet(sheet,index){
+  index=index||0;
+  const cols=Array.isArray(sheet&&sheet.columns)?sheet.columns.map(function(v){return String(v==null?'':v);}):[];
+  const rawRows=Array.isArray(sheet&&sheet.rows)?sheet.rows:[];
+  const rows=rawRows.map(function(r){
+    const arr=Array.isArray(r)?r:[r];
+    return cols.length?cols.map(function(_,i){return String(arr[i]==null?'':arr[i]);}):arr.map(function(v){return String(v==null?'':v);});
+  });
+  return {name:String((sheet&&sheet.name)||('Feuille '+(index+1))).slice(0,31),columns:cols,rows:rows};
+}
+async function structuredJsonOnce(messages,maxTokens,userText){
+  await acquireRateSlot();
+  const r=await fetch(apiBase()+'/chat/completions',{
+    method:'POST',
+    headers:apiHeaders(false),
+    body:JSON.stringify(requestBody(messages,false,0.05,maxTokens,MISTRAL_MODELS.small))
+  });
+  absorbRateHeaders(r.headers);
+  if(r.status===429){
+    const pause=registerMistral429(r.headers,0);
+    const e=new Error('Quota Mistral atteint pendant la génération du tableau.');e.status=429;e.retryAfter=pause;throw e;
+  }
+  if(!r.ok) throw new Error(await apiError(r.status,r));
+  registerMistralSuccess();
+  const j=await r.json();
+  const cc=j&&j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+  return Array.isArray(cc)?cc.map(function(x){return x.text||x.content||'';}).join(''):String(cc||'');
+}
+async function generateStructuredArtifact(userText,mode){
+  if(cfg.provider!=='mistral') throw new Error('Les tableaux structurés utilisent actuellement le moteur Mistral configuré.');
+  const spreadsheet=mode==='spreadsheet';
+  setThinkingDetail(spreadsheet?'RON construit le tableur…':'RON construit le tableau…');
+  const schema=spreadsheet
+    ? '{"title":"...","filename":"ron-tableur.xlsx","sheets":[{"name":"Feuille 1","columns":["A","B"],"rows":[["...","..."]]}]}'
+    : '{"title":"...","columns":["A","B"],"rows":[["...","..."]]}';
+  const raw=await structuredJsonOnce([
+    {role:'system',content:"Tu es le moteur de données structurées de RON. Transforme la demande en données exactes et exploitables. Réponds UNIQUEMENT par du JSON valide, sans markdown ni commentaire. N’invente pas de faits absents. Si une cellule est calculable, calcule-la. Schéma attendu : "+schema},
+    {role:'user',content:String(userText||'')}
+  ],spreadsheet?2200:1600,userText);
+  let data;
+  try{data=JSON.parse(stripCodeFenceJson(raw));}
+  catch(e){throw new Error('RON n’a pas pu convertir la réponse en tableau structuré.');}
+  let sheets;
+  if(spreadsheet){
+    sheets=Array.isArray(data.sheets)?data.sheets.map(function(s,i){return normalizeSheet(s,i);}):[];
+    if(!sheets.length&&Array.isArray(data.columns))sheets=[normalizeSheet(data,0)];
+  }else{sheets=[normalizeSheet(data,0)];}
+  if(!sheets.length||!sheets[0].columns.length)throw new Error('Aucune colonne exploitable n’a été générée.');
+  artifactRuntime.type=mode;
+  artifactRuntime.title=String(data.title||(spreadsheet?'Tableur RON':'Tableau RON'));
+  artifactRuntime.sheets=sheets;
+  artifactRuntime.lastText=userText;
+  artifactRuntime.lastMode=mode;
+  artifactRuntime.lastStyle='';
+  renderTableArtifact();
+  return {summary:(spreadsheet?'Tableur':'Tableau')+' généré · '+artifactRuntime.title,sheets:sheets};
+}
+function csvCell(v){
+  const s=String(v==null?'':v);
+  return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function sheetToCsv(sheet){
+  return [sheet.columns].concat(sheet.rows).map(function(r){return r.map(csvCell).join(';');}).join('\n');
+}
+function renderTableArtifact(){
+  const el=$('artifactView');if(!el)return;
+  const sheet=artifactRuntime.sheets[0];
+  const head=sheet.columns.map(function(x){return '<th>'+escapeHtml(x)+'</th>';}).join('');
+  const rows=sheet.rows.slice(0,200).map(function(r){
+    return '<tr>'+r.map(function(x){return '<td>'+escapeHtml(x)+'</td>';}).join('')+'</tr>';
+  }).join('');
+  const xlsxBtn=artifactRuntime.type==='spreadsheet'?'<button class="artifact-btn" id="artifactXlsxBtn" type="button">XLSX</button>':'';
+  el.innerHTML='<div class="artifact-head"><div class="artifact-title">RON · '+(artifactRuntime.type==='spreadsheet'?'TABLEUR':'TABLEAU')+
+    ' · '+escapeHtml(artifactRuntime.title)+'</div><div class="artifact-actions">'+
+    '<button class="artifact-btn" id="artifactCopyBtn" type="button">Copier</button>'+
+    '<button class="artifact-btn" id="artifactCsvBtn" type="button">CSV</button>'+xlsxBtn+
+    '<button class="artifact-btn" id="artifactRegenBtn" type="button">Régénérer</button></div></div>'+
+    '<div class="ron-table-wrap"><table class="ron-table"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div class="artifact-note">'+sheet.rows.length+' ligne(s) · '+sheet.columns.length+' colonne(s)'+
+    (artifactRuntime.sheets.length>1?' · '+artifactRuntime.sheets.length+' feuilles':'')+'</div>';
+  el.classList.add('show');
+  $('artifactCopyBtn').onclick=copyArtifactTable;
+  $('artifactCsvBtn').onclick=downloadArtifactCsv;
+  const xb=$('artifactXlsxBtn');if(xb)xb.onclick=downloadArtifactXlsx;
+  $('artifactRegenBtn').onclick=regenerateArtifact;
+}
+async function copyArtifactTable(){
+  const s=artifactRuntime.sheets[0];if(!s)return;
+  const tsv=[s.columns].concat(s.rows).map(function(r){return r.join('\t');}).join('\n');
+  try{await navigator.clipboard.writeText(tsv);toast('Tableau copié.');}catch(e){toast('Copie impossible.');}
+}
+function downloadBlob(blob,name){
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},2000);
+}
+function downloadArtifactCsv(){
+  const s=artifactRuntime.sheets[0];if(!s)return;
+  downloadBlob(new Blob(['\ufeff'+sheetToCsv(s)],{type:'text/csv;charset=utf-8'}),'ron-tableau.csv');
+}
+function downloadArtifactXlsx(){
+  if(!artifactRuntime.sheets.length)return;
+  if(!window.XLSX){toast('Module XLSX indisponible : CSV à la place.');downloadArtifactCsv();return;}
+  const wb=XLSX.utils.book_new();
+  artifactRuntime.sheets.forEach(function(s,i){
+    const ws=XLSX.utils.aoa_to_sheet([s.columns].concat(s.rows));
+    XLSX.utils.book_append_sheet(wb,ws,(s.name||('Feuille '+(i+1))).slice(0,31));
+  });
+  XLSX.writeFile(wb,'ron-tableur.xlsx',{compression:true});
+}
+async function runArtifactRequest(text,mode){
+  resetArtifactView();
+  $('codeActions').classList.remove('show');mediaRuntime.lastHtml='';
+  if(mode==='image')return generateImageArtifact(text);
+  if(mode==='table'||mode==='spreadsheet')return generateStructuredArtifact(text,mode);
+  throw new Error('Type d’artefact non pris en charge : '+mode);
+}
+async function regenerateArtifact(){
+  if(!artifactRuntime.lastText||!artifactRuntime.lastMode)return;
+  const text=artifactRuntime.lastText,mode=artifactRuntime.lastMode;
+  try{
+    setState('thinking');
+    const out=await runArtifactRequest(text,mode);
+    $('ronLine').textContent=out.summary;
+    setState('idle');
+  }catch(err){
+    const msg=(err&&err.message)||String(err);
+    setState('error',msg);toast(msg);
+    setTimeout(function(){setState('idle');},5000);
+  }
+}
+
 async function handleUser(text){
   text = String(text || '').trim();
   const attachments=mediaRuntime.pending.slice();
@@ -2089,9 +2378,23 @@ async function handleUser(text){
     renderAttachments();
   }
   setState('thinking'); sentenceBuf = ''; streamDone = false;
+  const outputMode=attachments.length ? 'text' : detectOutputMode(text);
 
   try {
     let full='', domain=detectDomain(text);
+
+    if(cfg.provider==='mistral' && (outputMode==='image' || outputMode==='table' || outputMode==='spreadsheet')){
+      const out=await runArtifactRequest(text,outputMode);
+      full=out.summary;
+      $('ronLine').textContent=full;
+      streamDone=true;
+      history.push({role:'assistant',content:full});
+      if(history.length>40)history.splice(0,history.length-40);
+      enqueueSpeech(full);
+      if(!speakingNow)onSpeechDrained();
+      return;
+    }
+    resetArtifactView();
 
     if(cfg.provider==='mistral'){
       const startedAt=performance.now();
@@ -2116,7 +2419,8 @@ async function handleUser(text){
         const out=await mistralMediaStream(text,prepared,streamChunk);
         domain=out.domain;
       }else{
-        setThinkingDetail(isAdvancedCodeRequest(text)?'RON développe en Code Pro…':'RON contacte Mistral…');
+        const codeMode=outputMode==='code'||isAdvancedCodeRequest(text);
+        setThinkingDetail(codeMode?'RON développe en Code Pro…':'RON contacte Mistral…');
         const out=await mistralConversationReply(text,streamChunk);
         domain=out.domain;
       }
