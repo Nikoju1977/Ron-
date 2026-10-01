@@ -272,6 +272,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
+const RON_BUILD='2026.10.01-runtime-fix-1';
+
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
 const $ = id => document.getElementById(id);
@@ -898,6 +900,103 @@ function oneCallAgentInstruction(domain,userText=''){
     codeProInstruction(userText) +
     "\nCommence par l'information utile. Réponse concise par défaut; développe seulement si nécessaire ou demandé.";
 }
+
+function fastTokenBudget(userText=''){
+  const text=String(userText||'');
+  if(typeof isAdvancedCodeRequest==='function' && isAdvancedCodeRequest(text)){
+    const mode=(typeof cfg!=='undefined' && cfg.rateMode) ? cfg.rateMode : 'eco';
+    return mode==='quality' ? 3200 : mode==='balanced' ? 2200 : 1400;
+  }
+  const n=text.length;
+  const requested=n<120 ? 420 : n<420 ? 620 : 820;
+  return typeof roleBudget==='function' ? roleBudget(requested,'final') : requested;
+}
+function conversationPayload(ev){
+  if(ev && ev.data && typeof ev.data==='object') return ev.data;
+  return ev && typeof ev==='object' ? ev : {};
+}
+function conversationEventType(ev){
+  const d=conversationPayload(ev);
+  return String(d.type || (ev&&ev.type) || '');
+}
+function conversationIdFromEvent(ev){
+  const d=conversationPayload(ev);
+  if(d.conversation_id) return String(d.conversation_id);
+  if(d.conversationId) return String(d.conversationId);
+  if(conversationEventType(ev)==='conversation.response.started' && d.id) return String(d.id);
+  return '';
+}
+function textFromContentValue(value){
+  if(typeof value==='string') return value;
+  if(Array.isArray(value)){
+    return value.map(x=>{
+      if(typeof x==='string') return x;
+      if(!x || typeof x!=='object') return '';
+      if(typeof x.text==='string') return x.text;
+      if(typeof x.content==='string') return x.content;
+      if(typeof x.delta==='string') return x.delta;
+      return '';
+    }).join('');
+  }
+  if(value && typeof value==='object'){
+    if(typeof value.text==='string') return value.text;
+    if(typeof value.content==='string') return value.content;
+    if(typeof value.delta==='string') return value.delta;
+  }
+  return '';
+}
+function conversationTextChunk(ev){
+  const d=conversationPayload(ev);
+  const type=conversationEventType(ev);
+  if(type && type!=='message.output.delta') return '';
+  return textFromContentValue(
+    d.content!==undefined ? d.content :
+    d.delta!==undefined ? d.delta :
+    d.text!==undefined ? d.text :
+    d.output_text
+  );
+}
+async function readConversationStream(response,onDelta){
+  if(!response || !response.body || !response.body.getReader){
+    throw new Error('Streaming Mistral non supporté par ce navigateur.');
+  }
+  const reader=response.body.getReader();
+  const decoder=new TextDecoder();
+  let buffer='', full='', conversationId='';
+
+  const processBlock=(block)=>{
+    const lines=String(block||'').split(/\r?\n/);
+    for(const line of lines){
+      if(!line.startsWith('data:')) continue;
+      const raw=line.slice(5).trim();
+      if(!raw || raw==='[DONE]') continue;
+      try{
+        const ev=JSON.parse(raw);
+        const cid=conversationIdFromEvent(ev);
+        if(cid) conversationId=cid;
+        const chunk=conversationTextChunk(ev);
+        if(chunk){
+          full+=chunk;
+          if(typeof onDelta==='function') onDelta(chunk);
+        }
+      }catch(e){}
+    }
+  };
+
+  while(true){
+    const part=await reader.read();
+    if(part.done) break;
+    buffer+=decoder.decode(part.value,{stream:true});
+    const blocks=buffer.split(/\r?\n\r?\n/);
+    buffer=blocks.pop() || '';
+    for(const block of blocks) processBlock(block);
+  }
+  buffer+=decoder.decode();
+  if(buffer.trim()) processBlock(buffer);
+
+  return {text:full.trim(),conversationId};
+}
+
 async function mistralConversationReply(userText, onDelta){
   await loadMistralConversation();
   const domain=detectDomain(userText);
@@ -911,7 +1010,7 @@ async function mistralConversationReply(userText, onDelta){
   await acquireRateSlot();
   const isStart=!mistralConversation.id;
   const url=isStart ? apiBase()+'/conversations' : apiBase()+'/conversations/'+encodeURIComponent(mistralConversation.id);
-  const budget=fastTokenBudget(userText);
+  const budget=(typeof fastTokenBudget==='function') ? fastTokenBudget(userText) : 820;
   const body=isStart ? {
     model:model,
     inputs:userText,
@@ -1823,7 +1922,7 @@ function mistralMediaStream(userText,prepared,onDelta){
       };
       xhr.onerror=()=>{currentXhr=null;reject(new Error('Connexion Mistral impossible pendant l’analyse multimodale.'));};
       xhr.onabort=()=>{currentXhr=null;reject(new Error('abort'));};
-      const maxTokens=isAdvancedCodeRequest(userText)?fastTokenBudget(userText):roleBudget(900,'final');
+      const maxTokens=(typeof fastTokenBudget==='function') ? fastTokenBudget(userText) : (typeof roleBudget==='function' ? roleBudget(900,'final') : 900);
       xhr.send(JSON.stringify({model,stream:true,temperature:.25,max_tokens:maxTokens,messages}));
     }).catch(reject);
   });
@@ -1960,7 +2059,8 @@ async function handleUser(text){
       setTimeout(() => { if (state === 'error'){ setState('idle'); startWake(); } }, Math.min(15000,Math.max(5000,sec*1000)));
       return;
     }
-    setState('error', err.message); toast(err.message);
+    const runtimeMsg=(err&&err.message)?err.message:String(err||'Erreur inconnue');
+    setState('error', runtimeMsg); toast(runtimeMsg);
     setTimeout(() => { if (state === 'error'){ setState('idle'); startWake(); if(cfg.provider!=='mistral') scheduleDots(); } }, 5000);
   }
 }
