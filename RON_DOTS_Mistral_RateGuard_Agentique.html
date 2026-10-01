@@ -272,7 +272,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const RON_BUILD='2026.10.01-runtime-fix-1';
+const RON_BUILD='2026.10.01-tts-heartbeat-1';
 
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
@@ -1334,6 +1334,8 @@ window.RON_DOTS = {
 const synth = window.speechSynthesis || null;
 let voices = [], voice = null;
 let speechQueue = [], speakingNow = false, streamDone = true, speakToken = 0, mouthPulse = 0;
+let ttsHeartbeat = null;
+let ttsGuardTimer = null;
 
 function loadVoices(){
   if (!synth) return;
@@ -1373,32 +1375,83 @@ function enqueueSpeech(s){
   if (!speakingNow) nextSpeech();
 }
 
+function clearTtsTimers(){
+  if (ttsHeartbeat !== null){
+    clearInterval(ttsHeartbeat);
+    ttsHeartbeat = null;
+  }
+  if (ttsGuardTimer !== null){
+    clearTimeout(ttsGuardTimer);
+    ttsGuardTimer = null;
+  }
+}
+
 function nextSpeech(){
   const s = speechQueue.shift();
+
   if (!s){
     speakingNow = false;
+    clearTtsTimers();
     if (streamDone) onSpeechDrained();
     return;
   }
+
+  if (!synth){
+    speakingNow = false;
+    clearTtsTimers();
+    if (streamDone) onSpeechDrained();
+    return;
+  }
+
   speakingNow = true;
   setState('speaking');
+
   const tok = ++speakToken;
   const u = new SpeechSynthesisUtterance(s);
   u.lang = voice ? voice.lang : 'fr-FR';
   if (voice) u.voice = voice;
-  u.rate = 1.03; u.pitch = 0.9;
-  const done = () => { if (tok === speakToken){ speakToken++; nextSpeech(); } };
+  u.rate = 1.03;
+  u.pitch = 0.9;
+
+  let finished = false;
+
+  const done = () => {
+    if (finished || tok !== speakToken) return;
+    finished = true;
+    clearTtsTimers();
+    speakToken++;
+    nextSpeech();
+  };
+
   u.onboundary = () => { mouthPulse = 1; };
-  u.onend = done; u.onerror = done;
-  setTimeout(done, s.length * 95 + 4000); // garde-fou : Chrome oublie parfois onend
-  synth.speak(u);
+  u.onend = done;
+  u.onerror = done;
+
+  // Chrome/Android peut suspendre speechSynthesis pendant une longue phrase.
+  clearTtsTimers();
+  ttsHeartbeat = setInterval(() => {
+    if (!synth || !speakingNow || finished || tok !== speakToken) return;
+    try { synth.resume(); } catch (e) {}
+  }, 10000);
+
+  // Garde-fou si le navigateur oublie onend/onerror.
+  ttsGuardTimer = setTimeout(done, Math.max(8000, s.length * 95 + 4000));
+
+  try {
+    synth.speak(u);
+  } catch (e) {
+    done();
+  }
 }
 
 function stopSpeaking(){
   speechQueue = [];
   speakToken++;
   speakingNow = false;
-  if (synth) synth.cancel();
+  clearTtsTimers();
+  if (synth){
+    try { synth.cancel(); } catch (e) {}
+  }
 }
 
 function unlockSpeech(){
