@@ -2358,11 +2358,247 @@ async function regenerateArtifact(){
   }
 }
 
+
+/* ═══════════ Radar 44 : passerelle de données ═══════════ */
+const RADAR44_BASE = 'https://nikoju1977.github.io/radar-de-niko';
+const radar44Cache = new Map();
+
+function radar44Normalize(text){
+  return String(text || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim();
+}
+
+function radar44Intent(text){
+  const low = radar44Normalize(text);
+  const explicit = /(^|\s)\/?radar(?:\s*44)?(\s|$)/.test(low);
+  if(/meteo|weather|quel temps|temperature/.test(low) && /(44|loire.atlantique|nantes|chateaubriant|saint.nazaire)/.test(low)) return 'weather';
+  if(/trafic|circulation|bouchon|route/.test(low) && /(44|loire.atlantique|nantes)/.test(low)) return 'traffic';
+  if(/transport|ter\b|train|sncf|bus|tram|aleop|naolib/.test(low) && /(44|loire.atlantique|nantes|chateaubriant|saint.nazaire)/.test(low)) return 'transport';
+  if(/carburant|essence|gazole|diesel|e10|sp95|sp98/.test(low) && /(44|loire.atlantique)/.test(low)) return 'fuel';
+  if(/vigilance|alerte meteo|crue|inondation/.test(low) && /(44|loire.atlantique)/.test(low)) return 'vigilance';
+  if(/quoi de neuf|actualite|actualites|infos?|nouvelles/.test(low) && /(44|loire.atlantique|nantes|chateaubriant|saint.nazaire)/.test(low)) return 'news';
+  if(explicit){
+    if(/meteo/.test(low)) return 'weather';
+    if(/trafic|circulation/.test(low)) return 'traffic';
+    if(/transport|train|ter\b|bus/.test(low)) return 'transport';
+    if(/carburant|essence|gazole/.test(low)) return 'fuel';
+    if(/vigilance|crue/.test(low)) return 'vigilance';
+    if(/actus?|actualite|infos?|news/.test(low)) return 'news';
+    return 'overview';
+  }
+  return null;
+}
+
+async function radar44Fetch(path, type='json'){
+  const key=type+':'+path;
+  const cached=radar44Cache.get(key);
+  if(cached && Date.now()-cached.at < 90000) return cached.value;
+  const ac=new AbortController();
+  const timer=setTimeout(()=>ac.abort(),8000);
+  try{
+    const sep=path.includes('?')?'&':'?';
+    const r=await fetch(RADAR44_BASE+'/'+path+sep+'_ron='+Date.now(),{
+      cache:'no-store',
+      credentials:'omit',
+      signal:ac.signal
+    });
+    if(!r.ok) throw new Error('Radar 44 HTTP '+r.status);
+    const value=type==='text' ? await r.text() : await r.json();
+    radar44Cache.set(key,{at:Date.now(),value});
+    return value;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+async function radar44Services(){
+  return radar44Fetch('services.json','json');
+}
+
+async function radar44Items(){
+  const raw=await radar44Fetch('radar.jsonl','text');
+  return String(raw||'').split(/\r?\n/).filter(Boolean).map(line=>{
+    try{return JSON.parse(line);}catch(e){return null;}
+  }).filter(Boolean).sort((a,b)=>{
+    const ta=Date.parse(a.publishedAt||a.date||a.createdAt||0)||0;
+    const tb=Date.parse(b.publishedAt||b.date||b.createdAt||0)||0;
+    return tb-ta;
+  });
+}
+
+function radar44Num(v, digits=0){
+  const n=Number(v);
+  return Number.isFinite(n) ? n.toFixed(digits).replace('.',',') : '—';
+}
+
+function radar44Date(v){
+  const d=new Date(v);
+  if(!Number.isFinite(d.getTime())) return '';
+  try{
+    return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(d);
+  }catch(e){ return ''; }
+}
+
+function radar44ItemLabel(item){
+  const title=String(item?.title||item?.name||'Information').replace(/\s+/g,' ').trim();
+  const source=String(item?.media||item?.source||item?.author||'').replace(/\s+/g,' ').trim();
+  const when=radar44Date(item?.publishedAt||item?.date||item?.createdAt);
+  return '• '+title+(source?' — '+source:'')+(when?' · '+when:'');
+}
+
+function radar44WeatherText(s){
+  const w=s?.weather;
+  if(!w || w.status==='error') return 'Météo 44 indisponible dans le dernier relevé.';
+  const rows=Array.isArray(w.locations)?w.locations:[];
+  if(!rows.length) return 'Météo 44 : aucune mesure disponible.';
+  return 'Météo 44 — '+rows.map(x=>{
+    const temp=radar44Num(x.temperature,0)+' °C';
+    const range=(Number.isFinite(Number(x.min))&&Number.isFinite(Number(x.max)))
+      ? ' (min '+radar44Num(x.min,0)+' / max '+radar44Num(x.max,0)+' °C)' : '';
+    const rain=Number.isFinite(Number(x.rainMm)) ? ', pluie '+radar44Num(x.rainMm,1)+' mm' : '';
+    return (x.name||'Lieu')+' : '+temp+', '+(x.condition||'conditions variables')+range+rain;
+  }).join(' · ');
+}
+
+function radar44TrafficText(s){
+  const t=s?.traffic;
+  if(!t || t.status==='error') return 'Trafic 44 indisponible dans le dernier relevé.';
+  const items=Array.isArray(t.items)?t.items:[];
+  let out='Trafic 44';
+  if(Number.isFinite(Number(t.nantesTrackedSegments))) out+=' — '+t.nantesTrackedSegments+' segments suivis côté Nantes Métropole';
+  if(items.length) out+='.\n'+items.slice(0,5).map(radar44ItemLabel).join('\n');
+  else out+=' : aucun signal notable remonté par Radar 44.';
+  return out;
+}
+
+function radar44TransportText(s){
+  const t=s?.transport;
+  if(!t || t.status==='error') return 'Transports 44 indisponibles dans le dernier relevé.';
+  const alerts=Array.isArray(t.alerts)?t.alerts:[];
+  const radar=Array.isArray(t.radar)?t.radar:[];
+  const lines=[];
+  alerts.slice(0,3).forEach(x=>lines.push('• '+String(x).replace(/\s+/g,' ').slice(0,240)));
+  radar.slice(0,4).forEach(x=>lines.push(radar44ItemLabel(x)));
+  return 'Transports 44'+(lines.length?' :\n'+lines.join('\n'):' : aucune perturbation locale notable remontée.');
+}
+
+function radar44FuelText(s){
+  const f=s?.fuel;
+  if(!f || f.status==='error') return 'Carburants 44 indisponibles dans le dernier relevé.';
+  const stats=Array.isArray(f.fuels)?f.fuels:[];
+  if(!stats.length) return 'Carburants 44 : aucune statistique disponible.';
+  return 'Carburants 44 — '+stats.slice(0,6).map(x=>
+    (x.name||'Carburant')+' : min '+radar44Num(x.min,3)+' €/L, moyenne '+radar44Num(x.avg,3)+' €/L'
+  ).join(' · ');
+}
+
+function radar44VigilanceText(s){
+  const v=s?.vigilance;
+  const f=s?.floods;
+  const parts=[];
+  if(v){
+    if(v.status==='unconfigured') parts.push('Vigilance Météo-France non configurée dans Radar 44.');
+    else if(v.status!=='error') parts.push('Vigilance météo : '+(v.color||'niveau inconnu')+(Array.isArray(v.phenomena)&&v.phenomena.length?' — '+v.phenomena.map(x=>x.name+' '+x.color).join(', '):''));
+  }
+  if(f && f.status!=='error') parts.push('Vigicrues : '+(f.color||'niveau inconnu')+(Array.isArray(f.names)&&f.names.length?' — '+f.names.join(', '):''));
+  return parts.length ? parts.join(' · ') : 'Vigilance et crues : données indisponibles dans le dernier relevé.';
+}
+
+function radar44NewsText(items, limit=7){
+  const rows=(Array.isArray(items)?items:[]).slice(0,limit);
+  return rows.length
+    ? 'Dernières informations Radar 44 :\n'+rows.map(radar44ItemLabel).join('\n')
+    : 'Radar 44 ne contient aucune information récente exploitable.';
+}
+
+function radar44OverviewText(services, items){
+  const parts=['RADAR 44 — synthèse'];
+  const weather=services?.weather;
+  if(weather && weather.status!=='error' && Array.isArray(weather.locations) && weather.locations[0]){
+    const x=weather.locations[0];
+    parts.push((x.name||'Loire-Atlantique')+' : '+radar44Num(x.temperature,0)+' °C, '+(x.condition||'conditions variables'));
+  }
+  const vig=services?.vigilance;
+  if(vig && vig.status!=='error' && vig.status!=='unconfigured') parts.push('Vigilance météo : '+(vig.color||'inconnue'));
+  const floods=services?.floods;
+  if(floods && floods.status!=='error') parts.push('Vigicrues : '+(floods.color||'inconnu'));
+  const news=(Array.isArray(items)?items:[]).slice(0,5);
+  if(news.length) parts.push('À la une :\n'+news.map(radar44ItemLabel).join('\n'));
+  return parts.join('\n');
+}
+
+function radar44Remember(userText, answer){
+  history.push({role:'user',content:userText});
+  history.push({role:'assistant',content:answer});
+  if(history.length>40) history.splice(0,history.length-40);
+}
+
+async function radar44Command(text){
+  const intent=radar44Intent(text);
+  if(!intent) return false;
+
+  const raw=String(text||'').trim();
+  unlockSpeech();
+  stopRec();
+  stopSpeaking();
+  clearTimeout(dotsRuntime.timer);
+  if(currentXhr) currentXhr.abort();
+  $('youLine').textContent=raw;
+  $('ronLine').textContent='';
+  $('codeActions').classList.remove('show');
+  mediaRuntime.lastHtml='';
+  setState('thinking');
+  if(typeof setThinkingDetail==='function') setThinkingDetail('RON interroge Radar 44…');
+  streamDone=false;
+
+  try{
+    let answer='';
+    if(intent==='news'){
+      answer=radar44NewsText(await radar44Items());
+    }else if(intent==='overview'){
+      const [services,items]=await Promise.all([radar44Services(),radar44Items()]);
+      answer=radar44OverviewText(services,items);
+    }else{
+      const services=await radar44Services();
+      if(intent==='weather') answer=radar44WeatherText(services);
+      else if(intent==='traffic') answer=radar44TrafficText(services);
+      else if(intent==='transport') answer=radar44TransportText(services);
+      else if(intent==='fuel') answer=radar44FuelText(services);
+      else if(intent==='vigilance') answer=radar44VigilanceText(services);
+    }
+    answer=answer||'Radar 44 a répondu sans contenu exploitable.';
+    $('ronLine').textContent=answer;
+    radar44Remember(raw,answer);
+    streamDone=true;
+    enqueueSpeech(answer);
+    if(!speakingNow) onSpeechDrained();
+  }catch(err){
+    const msg='Radar 44 est momentanément indisponible. '+((err&&err.name)==='AbortError'?'La requête a dépassé 8 secondes.':'Vérifie la publication GitHub Pages de radar-de-niko.');
+    $('ronLine').textContent=msg;
+    radar44Remember(raw,msg);
+    streamDone=true;
+    enqueueSpeech(msg);
+    if(!speakingNow) onSpeechDrained();
+  }
+  return true;
+}
+
+window.RON_RADAR44={
+  base:RADAR44_BASE,
+  refresh:()=>{radar44Cache.clear(); return Promise.all([radar44Services(),radar44Items()]);},
+  services:radar44Services,
+  items:radar44Items,
+  ask:radar44Command
+};
+
+
 async function handleUser(text){
   text = String(text || '').trim();
   const attachments=mediaRuntime.pending.slice();
   if (!text && !attachments.length) return;
   if (text && await dotsCommand(text)) return;
+  if (text && !attachments.length && await radar44Command(text)) return;
   if(!text) text='Analyse ces pièces jointes et dis-moi ce qui est important.';
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)){ openPanel(); return; }
   unlockSpeech(); stopRec(); stopSpeaking();
