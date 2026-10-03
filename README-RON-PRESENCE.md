@@ -73,7 +73,7 @@ Documentation des fournisseurs :
 
 ## Validation
 
-Les trois suites simulées couvrent la conversation, le carnet et son partage volontaire, les interruptions, les erreurs Mistral et le streaming, l'isolation des clés, le catalogue, le filtre gratuit et le nettoyage Markdown. Elles utilisent jsdom et fake-indexeddb ; elles ne consomment aucun quota IA.
+Les quatre suites simulées couvrent la conversation, le carnet et son partage volontaire, les interruptions, les erreurs Mistral et le streaming, l'isolation des clés, le catalogue, le filtre gratuit le nettoyage Markdown et les pauses après limitation. Elles utilisent jsdom et fake-indexeddb ; elles ne consomment aucun quota IA.
 
 Depuis la racine du dépôt :
 
@@ -83,3 +83,15 @@ npm --prefix ron-tests test
 ```
 
 Syntaxe JavaScript vérifiée. Les appels de génération avec une vraie clé, le microphone réel, l'installation, le service worker en navigateur et les rendus sur appareils physiques restent à valider. Compatibilité visée : navigateurs modernes ; aucune garantie pour tous les navigateurs, téléviseurs ou montres.
+
+## Ange et protection des limites
+
+Ron apparaît en ange de particules : deux ailes de plumes, silhouette, auréole dorée, réaction à l’écoute et à la parole. Une version SVG s’affiche si WebGL est indisponible. Le moteur Three.js existant est embarqué et inclus dans le cache public hors connexion.
+
+Après HTTP 429, Ron respecte Retry-After. Sans délai fourni, une pause de protection d’au moins 65 secondes est appliquée, sans relance automatique. Un délai explicite de 30 secondes ou moins autorise au maximum une relance pour la conversation ; DOTS ne relance pas. Un quota/crédit épuisé reconnu dans le message d’erreur bloque les relances automatiques et applique une pause locale de 15 minutes minimum. Cette pause n’annonce pas le renouvellement réel du quota.
+
+Le compteur reste visible et les délais sont conservés par fournisseur/endpoint dans la session de l’onglet, y compris après rechargement et enregistrement des réglages. Aucun secret n’est stocké dans ces délais. Les tâches DOTS attendent et le conseil multi-agents passe temporairement en mode direct après une limitation Mistral. Le bouton Arrêter annule une attente de conversation. Les quotas Mistral restent ceux du compte ; Ron ne peut pas les augmenter. Des onglets ou applications distincts peuvent consommer le même quota.
+
+Documentation : https://docs.mistral.ai/admin/billing-usage/usage-limits
+
+Vérification supplémentaire : rendu WebGL réel dans Chromium, formats ordinateur et téléphone, redimensionnement sans erreur JavaScript. Ces essais ne remplacent pas un test physique du microphone ou de la montre Samsung.

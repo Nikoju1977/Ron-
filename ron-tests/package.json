@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "test": "cd .. && node ron-tests/conversation.cjs && node ron-tests/mistral.cjs && node ron-tests/engines.cjs"
+    "test": "cd .. && node ron-tests/conversation.cjs && node ron-tests/mistral.cjs && node ron-tests/engines.cjs && node ron-tests/limits.cjs"
   },
   "devDependencies": {
     "jsdom": "30.1.1",

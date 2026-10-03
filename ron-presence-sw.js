@@ -1,6 +1,6 @@
 'use strict';
-const CACHE='ron-presence-shell-v2';
-const shell=['ron-presence.html','ron-presence.webmanifest','ron-icon-192.png','ron-icon-512.png','ron-vendor/marked.js','ron-vendor/purify.min.js'].map(p=>new URL(p,self.location.href).href);
+const CACHE='ron-presence-shell-v3';
+const shell=['ron-presence.html','ron-angel.svg','ron-presence.webmanifest','ron-icon-192.png','ron-icon-512.png','ron-vendor/three.min.js','ron-vendor/marked.js','ron-vendor/purify.min.js'].map(p=>new URL(p,self.location.href).href);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(shell))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('ron-presence-shell-')&&k!==CACHE).map(k=>caches.delete(k))))));
 // Exact public shell allowlist only: no API, conversation, audio or health-data caching.
