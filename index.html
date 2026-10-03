@@ -1045,10 +1045,11 @@ async function readConversationStream(response,onDelta){
   return {text:full.trim(),conversationId};
 }
 
-async function mistralConversationReply(userText, onDelta){
+async function mistralConversationReply(userText, onDelta, externalContext=''){
   await loadMistralConversation();
   const domain=detectDomain(userText);
   const model=mistralConversationModel(userText);
+  const effectiveInput=externalContext ? userText+'\n\n'+externalContext : userText;
 
   if(mistralConversation.model!==model){
     await resetMistralConversation();
@@ -1061,13 +1062,13 @@ async function mistralConversationReply(userText, onDelta){
   const budget=(typeof fastTokenBudget==='function') ? fastTokenBudget(userText) : 820;
   const body=isStart ? {
     model:model,
-    inputs:userText,
+    inputs:effectiveInput,
     instructions:oneCallAgentInstruction(domain,userText),
     store:true,
     stream:true,
     completion_args:{temperature:0.25,max_tokens:budget}
   } : {
-    inputs:userText,
+    inputs:effectiveInput,
     store:true,
     stream:true,
     completion_args:{temperature:0.25,max_tokens:budget}
@@ -1087,7 +1088,7 @@ async function mistralConversationReply(userText, onDelta){
       method:'POST',headers:h,
       body:JSON.stringify({
         model:model,
-        inputs:userText,
+        inputs:effectiveInput,
         instructions:oneCallAgentInstruction(domain,userText),
         store:true,
         stream:true,
@@ -2370,16 +2371,10 @@ function radar44Normalize(text){
 }
 
 function radar44Intent(text){
-  const low = radar44Normalize(text);
+  const low = radar44Normalize(text).replace(/[?!.,;:]+$/,'').trim();
   const explicit = /(^|\s)\/?radar(?:\s*44)?(\s|$)/.test(low);
-  if(/meteo|weather|quel temps|temperature/.test(low) && /(44|loire.atlantique|nantes|chateaubriant|saint.nazaire)/.test(low)) return 'weather';
-  if(/trafic|circulation|bouchon|route/.test(low) && /(44|loire.atlantique|nantes)/.test(low)) return 'traffic';
-  if(/transport|ter\b|train|sncf|bus|tram|aleop|naolib/.test(low) && /(44|loire.atlantique|nantes|chateaubriant|saint.nazaire)/.test(low)) return 'transport';
-  if(/carburant|essence|gazole|diesel|e10|sp95|sp98/.test(low) && /(44|loire.atlantique)/.test(low)) return 'fuel';
-  if(/vigilance|alerte meteo|crue|inondation/.test(low) && /(44|loire.atlantique)/.test(low)) return 'vigilance';
-  if(/quoi de neuf|actualite|actualites|infos?|nouvelles/.test(low) && /(44|loire.atlantique|nantes|chateaubriant|saint.nazaire)/.test(low)) return 'news';
   if(explicit){
-    if(/meteo/.test(low)) return 'weather';
+    if(/meteo|weather/.test(low)) return 'weather';
     if(/trafic|circulation/.test(low)) return 'traffic';
     if(/transport|train|ter\b|bus/.test(low)) return 'transport';
     if(/carburant|essence|gazole/.test(low)) return 'fuel';
@@ -2387,6 +2382,13 @@ function radar44Intent(text){
     if(/actus?|actualite|infos?|news/.test(low)) return 'news';
     return 'overview';
   }
+  if(/^(meteo|weather)\s+(44|loire[ -]?atlantique)$/.test(low)) return 'weather';
+  if(/^(trafic|circulation)\s+(44|loire[ -]?atlantique)$/.test(low)) return 'traffic';
+  if(/^(transport|transports)\s+(44|loire[ -]?atlantique)$/.test(low)) return 'transport';
+  if(/^(carburant|carburants|essence)\s+(44|loire[ -]?atlantique)$/.test(low)) return 'fuel';
+  if(/^(vigilance|crue|crues)\s+(44|loire[ -]?atlantique)$/.test(low)) return 'vigilance';
+  if(/^(actualite|actualites|actus|info|infos|news)\s+(44|loire[ -]?atlantique)$/.test(low)) return 'news';
+  if(/^quoi de neuf (dans |en )?(le )?(44|loire[ -]?atlantique)$/.test(low)) return 'news';
   return null;
 }
 
@@ -2528,6 +2530,75 @@ function radar44OverviewText(services, items){
   return parts.join('\n');
 }
 
+
+const RADAR44_GEO_RX=/(?:\b44\b|loire[ -]?atlantique|nantes|chateaubriant|saint[ -]?nazaire|ancenis|pornic|guerande|la baule|reze|vertou|carquefou|orvault|saint[ -]?herblain|clisson|savenay|blain|nozay|derval|pontchateau|pont[ -]?chateau|pornichet|le croisic|batz[ -]?sur[ -]?mer|la turballe|machecoul|coueron)/;
+const RADAR44_LIVE_RX=/(?:aujourd|ce matin|cet apres midi|ce soir|maintenant|en ce moment|actuel|actuelle|dernier|derniere|recent|recente|quoi de neuf|se passe|actualite|actus?|infos?|news|meteo|weather|temps|pluie|vent|temperature|orage|trafic|circulation|bouchon|route|transport|train|ter\b|sncf|bus|tram|aleop|naolib|carburant|essence|gazole|diesel|vigilance|crue|inondation|pollution|qualite de l air|maree|agenda|evenement|concert|festival|sortie|emploi|travail|travaux|coupure|service public)/;
+
+function radar44AutoContextKind(text){
+  const low=radar44Normalize(text);
+  if(!RADAR44_GEO_RX.test(low) || !RADAR44_LIVE_RX.test(low)) return null;
+  const serviceRx=/(?:meteo|weather|temps|pluie|vent|temperature|orage|trafic|circulation|bouchon|route|transport|train|ter\b|sncf|bus|tram|aleop|naolib|carburant|essence|gazole|diesel|vigilance|crue|inondation|pollution|qualite de l air|maree|agenda|evenement|concert|festival|sortie|emploi|travail|travaux|coupure|service public)/;
+  const newsRx=/(?:aujourd|ce matin|ce soir|maintenant|en ce moment|actuel|dernier|recent|quoi de neuf|se passe|actualite|actus?|infos?|news)/;
+  const wantsServices=serviceRx.test(low);
+  const wantsNews=newsRx.test(low);
+  return wantsServices && wantsNews ? 'both' : wantsServices ? 'services' : 'news';
+}
+
+function radar44ListSection(title, box, limit=4){
+  const rows=Array.isArray(box?.items) ? box.items.slice(0,limit) : [];
+  return rows.length ? title+' :\n'+rows.map(radar44ItemLabel).join('\n') : '';
+}
+
+function radar44ServicesContextText(s){
+  const parts=[];
+  if(s?.generatedAt) parts.push('Relevé services généré : '+s.generatedAt);
+  parts.push(radar44WeatherText(s));
+  if(s?.air && s.air.status!=='error'){
+    const a=s.air;
+    parts.push('Air '+(a.place||'44')+' : AQI '+(a.aqi??'—')+' ('+(a.label||'indisponible')+'), PM2.5 '+(a.pm25??'—')+', PM10 '+(a.pm10??'—')+'.');
+  }
+  parts.push(radar44VigilanceText(s));
+  parts.push(radar44TrafficText(s));
+  parts.push(radar44TransportText(s));
+  parts.push(radar44FuelText(s));
+  const agenda=radar44ListSection('Agenda local',s?.agenda);
+  const jobs=radar44ListSection('Emploi local',s?.jobs);
+  const services=radar44ListSection('Services / travaux',s?.services);
+  if(agenda) parts.push(agenda);
+  if(jobs) parts.push(jobs);
+  if(services) parts.push(services);
+  return parts.filter(Boolean).join('\n');
+}
+
+async function radar44ContextFor(text){
+  const kind=radar44AutoContextKind(text);
+  if(!kind) return '';
+  if(typeof setThinkingDetail==='function') setThinkingDetail('RON consulte Radar 44 en arrière-plan…');
+  try{
+    const chunks=[];
+    if(kind==='services' || kind==='both'){
+      chunks.push(radar44ServicesContextText(await radar44Services()));
+    }
+    if(kind==='news' || kind==='both'){
+      chunks.push(radar44NewsText(await radar44Items(),8));
+    }
+    const payload=chunks.filter(Boolean).join('\n\n');
+    if(!payload) return '';
+    return [
+      '[CONTEXTE EXTERNE — RADAR 44]',
+      'Source : Radar 44 / Nikoju1977/radar-de-niko.',
+      'Ces données sont récentes mais peuvent être partielles ou légèrement décalées. Utilise-les uniquement si elles répondent réellement à la question.',
+      'Quand tu t’appuies dessus, mentionne naturellement « selon Radar 44 » ou « Radar 44 indique… ».',
+      'Ne transforme jamais une absence de signal en preuve qu’il ne se passe rien. Respecte les horodatages et ne présente pas une mesure actuelle comme une prévision future.',
+      payload,
+      '[/CONTEXTE EXTERNE — RADAR 44]'
+    ].join('\n');
+  }catch(err){
+    return '';
+  }
+}
+
+
 function radar44Remember(userText, answer){
   history.push({role:'user',content:userText});
   history.push({role:'assistant',content:answer});
@@ -2589,6 +2660,7 @@ window.RON_RADAR44={
   refresh:()=>{radar44Cache.clear(); return Promise.all([radar44Services(),radar44Items()]);},
   services:radar44Services,
   items:radar44Items,
+  context:radar44ContextFor,
   ask:radar44Command
 };
 
@@ -2632,6 +2704,8 @@ async function handleUser(text){
     }
     resetArtifactView();
 
+    const radar44Context = attachments.length ? '' : await radar44ContextFor(text);
+
     if(cfg.provider==='mistral'){
       const startedAt=performance.now();
       let firstTokenAt=0;
@@ -2657,7 +2731,7 @@ async function handleUser(text){
       }else{
         const codeMode=outputMode==='code'||isAdvancedCodeRequest(text);
         setThinkingDetail(codeMode?'RON développe en Code Pro…':'RON contacte Mistral…');
-        const out=await mistralConversationReply(text,streamChunk);
+        const out=await mistralConversationReply(text,streamChunk,radar44Context);
         domain=out.domain;
       }
     } else {
@@ -2668,6 +2742,7 @@ async function handleUser(text){
         { role:'system', content:SYSTEM() + ' Domaine actif: ' + agentCtx.domain.name + '. ' + agentCtx.domain.brief },
         ...history.slice(-historyDepth())
       ];
+      if (radar44Context) messages.push({ role:'system', content:radar44Context });
       if (agentCtx.extra) messages.push({ role:'system', content:'Travail interne multi-agents à utiliser et corriger si nécessaire:\n' + agentCtx.extra });
       full = await chatStream(messages, delta => {
         const jl = $('ronLine'); jl.textContent += delta; jl.scrollTop = jl.scrollHeight;
