@@ -2532,12 +2532,12 @@ function radar44OverviewText(services, items){
 
 
 const RADAR44_GEO_RX=/(?:\b44\b|loire[ -]?atlantique|nantes|chateaubriant|saint[ -]?nazaire|ancenis|pornic|guerande|la baule|reze|vertou|carquefou|orvault|saint[ -]?herblain|clisson|savenay|blain|nozay|derval|pontchateau|pont[ -]?chateau|pornichet|le croisic|batz[ -]?sur[ -]?mer|la turballe|machecoul|coueron)/;
-const RADAR44_LIVE_RX=/(?:aujourd|ce matin|cet apres midi|ce soir|maintenant|en ce moment|actuel|actuelle|dernier|derniere|recent|recente|quoi de neuf|se passe|actualite|actus?|infos?|news|meteo|weather|temps|pluie|vent|temperature|orage|trafic|circulation|bouchon|route|transport|train|ter\b|sncf|bus|tram|aleop|naolib|carburant|essence|gazole|diesel|vigilance|crue|inondation|pollution|qualite de l air|maree|agenda|evenement|concert|festival|sortie|emploi|travail|travaux|coupure|service public)/;
+const RADAR44_LIVE_RX=/(?:aujourd|ce matin|cet apres midi|ce soir|maintenant|en ce moment|actuel|actuelle|dernier|derniere|recent|recente|quoi de neuf|se passe|actualite|actus?|infos?|news|meteo|weather|temps|pluie|pleuv|averse|neige|grele|vent|temperature|orage|trafic|circulation|bouchon|route|transport|train|ter\b|sncf|bus|tram|aleop|naolib|carburant|essence|gazole|diesel|vigilance|crue|inondation|pollution|qualite de l air|maree|agenda|evenement|concert|festival|sortie|emploi|travail|travaux|coupure|service public)/;
 
 function radar44AutoContextKind(text){
   const low=radar44Normalize(text);
   if(!RADAR44_GEO_RX.test(low) || !RADAR44_LIVE_RX.test(low)) return null;
-  const serviceRx=/(?:meteo|weather|temps|pluie|vent|temperature|orage|trafic|circulation|bouchon|route|transport|train|ter\b|sncf|bus|tram|aleop|naolib|carburant|essence|gazole|diesel|vigilance|crue|inondation|pollution|qualite de l air|maree|agenda|evenement|concert|festival|sortie|emploi|travail|travaux|coupure|service public)/;
+  const serviceRx=/(?:meteo|weather|temps|pluie|pleuv|averse|neige|grele|vent|temperature|orage|trafic|circulation|bouchon|route|transport|train|ter\b|sncf|bus|tram|aleop|naolib|carburant|essence|gazole|diesel|vigilance|crue|inondation|pollution|qualite de l air|maree|agenda|evenement|concert|festival|sortie|emploi|travail|travaux|coupure|service public)/;
   const newsRx=/(?:aujourd|ce matin|ce soir|maintenant|en ce moment|actuel|dernier|recent|quoi de neuf|se passe|actualite|actus?|infos?|news)/;
   const wantsServices=serviceRx.test(low);
   const wantsNews=newsRx.test(low);
