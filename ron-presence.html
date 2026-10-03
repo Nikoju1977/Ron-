@@ -643,12 +643,12 @@ const agentCache = new Map();
 const inflightAgents = new Map();
 
 function rateProfile(){ return RATE_PROFILES[cfg.rateMode] || RATE_PROFILES.eco; }
-function sleepMs(ms){ return new Promise(res => setTimeout(res, Math.max(0, ms|0))); }
+function sleepMs(ms){ return new Promise(res => setTimeout(res, Math.max(0, Math.min(2147483647, Number(ms) || 0)))); }
 function compactText(s, max=5000){ s=String(s||'').replace(/\s+/g,' ').trim(); return s.length>max ? s.slice(0,max)+'…' : s; }
 function agentCacheKey(model, messages, routing){
   const role = routing && routing.role || 'agent';
   const body = messages.map(m => m.role + ':' + compactText(m.content, 2200)).join('|');
-  return model + '|' + role + '|' + body;
+  return apiBase() + '|' + model + '|' + role + '|' + body;
 }
 function getAgentCache(key){
   const v=agentCache.get(key); if(!v) return null;
@@ -663,15 +663,17 @@ function retryAfterMs(headers, attempt=0){
   try{
     const raw=headers && headers.get && headers.get('retry-after');
     if(raw){
-      const sec=Number(raw); if(Number.isFinite(sec)) return Math.min(30000, Math.max(500, sec*1000));
-      const date=Date.parse(raw); if(Number.isFinite(date)) return Math.min(30000, Math.max(500, date-Date.now()));
+      const sec=Number(raw); if(Number.isFinite(sec)) return Math.max(500, sec*1000);
+      const date=Date.parse(raw); if(Number.isFinite(date)) return Math.max(500, date-Date.now());
     }
   }catch(e){}
   return Math.min(16000, 1200 * Math.pow(2, attempt));
 }
 function absorbRateHeaders(headers){
   if(cfg.provider!=='mistral' || !headers || !headers.get) return;
-  const rem=Number(headers.get('x-ratelimit-remaining'));
+  const raw=headers.get('x-ratelimit-remaining');
+  if(raw===null || raw===undefined || String(raw).trim()==='') return;
+  const rem=Number(raw);
   if(Number.isFinite(rem)){
     rateRuntime.remaining=rem;
     if(rem<=1) rateRuntime.cooldownUntil=Math.max(rateRuntime.cooldownUntil, Date.now()+rateProfile().minGap*2);
@@ -681,17 +683,67 @@ function setRateCooldown(ms){
   rateRuntime.last429=Date.now();
   rateRuntime.cooldownUntil=Math.max(rateRuntime.cooldownUntil, Date.now()+Math.max(500,ms||0));
 }
-async function acquireRateSlot(){
+async function waitForRate(until, routing={}){
+  while(Date.now()<until){ checkTurn(routing); await sleepMs(Math.min(250,until-Date.now())); }
+  checkTurn(routing);
+}
+async function acquireRateSlot(routing={}){
+  checkTurn(routing);
   if(cfg.provider!=='mistral') return;
-  const profile=rateProfile();
   const run=async()=>{
-    const now=Date.now();
-    const target=Math.max(rateRuntime.nextAt, rateRuntime.cooldownUntil);
-    if(target>now) await sleepMs(target-now);
-    rateRuntime.nextAt=Date.now()+profile.minGap;
+    while(true){
+      checkTurn(routing);
+      const target=Math.max(rateRuntime.nextAt,rateRuntime.cooldownUntil);
+      if(target<=Date.now()) break;
+      await waitForRate(target,routing);
+    }
+    rateRuntime.nextAt=Date.now()+rateProfile().minGap;
   };
   rateRuntime.gate=rateRuntime.gate.catch(()=>{}).then(run);
   await rateRuntime.gate;
+}
+const LLM_TIMEOUT_MS=45000;
+async function fetchLLMJson(url, options={}, routing={}){
+  checkTurn(routing);
+  const controller=new AbortController(); let timedOut=false;
+  const timer=setTimeout(()=>{timedOut=true;controller.abort();},LLM_TIMEOUT_MS);
+  const cancel=setInterval(()=>{if(routing.turn!==undefined&&routing.turn!==turnId)controller.abort();},100);
+  try{
+    const response=await fetch(url,{...options,signal:controller.signal});
+    let payload=null;
+    try{payload=await response.json();}catch(error){if(controller.signal.aborted)throw error;}
+    checkTurn(routing);
+    return {response,payload};
+  }catch(error){
+    checkTurn(routing);
+    if(timedOut)throw new Error('Le serveur ne répond pas dans les 45 secondes. Réessaie ou choisis un modèle plus léger.');
+    throw new Error('Connexion au serveur impossible. Vérifie le réseau, l’adresse et les autorisations CORS.');
+  }finally{clearTimeout(timer);clearInterval(cancel);}
+}
+function completionText(payload){
+  const value=payload?.choices?.[0]?.message?.content;
+  return (Array.isArray(value)?value.map(x=>typeof x.text==='string'?x.text:'').join(''):typeof value==='string'?value:'').trim();
+}
+function unavailableModel(status,payload){
+  const detail=String(payload?.message || payload?.error?.message || payload?.error || payload?.detail || '');
+  return [400,404,422].includes(status) && /model/i.test(detail) && /not found|unknown|invalid|unavailable|not available|does not exist|not support|unsupported/i.test(detail);
+}
+function llmError(status){
+  const descriptions={
+    400:'Requête refusée : vérifie le modèle et réduis la longueur du message.',
+    401:'Clé API refusée. Vérifie ou renouvelle ta clé dans les réglages.',
+    402:'Le compte ne permet pas cette requête. Vérifie les crédits et la facturation chez le fournisseur.',
+    403:'Accès refusé : cette clé ou ce compte ne peut pas utiliser cette ressource.',
+    404:'Modèle ou adresse API introuvable. Vérifie les réglages.',
+    413:'Le message dépasse la taille acceptée. Raccourcis-le ou commence une nouvelle conversation.',
+    422:'Le serveur ne peut pas traiter ces paramètres. Vérifie le modèle et le contenu.',
+    429:'Limite de débit ou de quota atteinte. Patiente avant de réessayer et vérifie les limites de ton compte.',
+    502:'Le service est temporairement indisponible. Réessaie dans un instant.',
+    503:'Le service est temporairement indisponible. Réessaie dans un instant.',
+    504:'Le serveur a dépassé son délai de réponse. Réessaie dans un instant.'
+  };
+  const error=new Error(descriptions[status] || ('Erreur du serveur LLM · HTTP '+status+'.'));
+  error.status=status;return error;
 }
 function roleBudget(requested, role){
   if(cfg.provider!=='mistral') return requested;
@@ -746,123 +798,100 @@ function requestBody(messages, stream, temperature=0.35, maxTokens=1100, model=c
 }
 
 async function chatOnce(messages, temperature=0.2, maxTokens=900, routing={}){
-  const candidates = modelCandidates(routing.userText, routing.role, routing.domain);
-  let lastError = null;
-  for (let i = 0; i < candidates.length; i++){
-    const model = candidates[i];
-    const useCache = cfg.provider === 'mistral' && routing.role && routing.role !== 'final';
-    const cacheKey = useCache ? agentCacheKey(model, messages, routing) : '';
-    const cached = useCache ? getAgentCache(cacheKey) : null;
-    if (cached !== null) return cached;
-    if (useCache && inflightAgents.has(cacheKey)) return inflightAgents.get(cacheKey);
-
-    const work = (async()=>{
-      let retry429 = 0;
-      while (true){
-        await acquireRateSlot();
-        checkTurn(routing);
-        const r = await fetch(apiBase() + '/chat/completions', {
-          method:'POST', headers:apiHeaders(false),
-          body:JSON.stringify(requestBody(messages, false, temperature, roleBudget(maxTokens, routing.role), model))
-        });
-        checkTurn(routing);
-        absorbRateHeaders(r.headers);
-        if (r.ok){
-          if (i > 0) toast('Mistral : bascule automatique vers ' + model + '.');
-          const j = await r.json();
-          checkTurn(routing);
-          const c = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-          const value = Array.isArray(c) ? c.map(x => x.text || x.content || '').join('') : String(c || '').trim();
-          if(useCache) putAgentCache(cacheKey,value);
-          return value;
-        }
-        if (cfg.provider === 'mistral' && r.status === 429 && retry429 < rateProfile().max429Retries){
-          const pause=retryAfterMs(r.headers,retry429++); setRateCooldown(pause);
-          if(retry429===1) toast('Mistral régule le débit · RON temporise automatiquement.');
-          continue;
-        }
-        lastError = new Error(await apiError(r.status, r));
-        // 400/404 = modèle indisponible : fallback de modèle. 429 n'est jamais contourné par un fallback immédiat.
-        if (cfg.provider === 'mistral' && [400,404].includes(r.status) && i < candidates.length - 1) return { __fallback:true };
-        throw lastError;
+  const candidates=modelCandidates(routing.userText,routing.role,routing.domain);
+  let lastError;
+  for(let i=0;i<candidates.length;i++){
+    checkTurn(routing);
+    const model=candidates[i],useCache=cfg.provider==='mistral' && routing.role && routing.role!=='final';
+    const cacheKey=useCache?agentCacheKey(model,messages,routing):'';
+    const cached=useCache?getAgentCache(cacheKey):null;
+    if(cached!==null)return cached;
+    let retry429=0;
+    while(true){
+      await acquireRateSlot(routing);
+      const {response:r,payload}=await fetchLLMJson(apiBase()+'/chat/completions',{
+        method:'POST',headers:apiHeaders(false),
+        body:JSON.stringify(requestBody(messages,false,temperature,roleBudget(maxTokens,routing.role),model))
+      },routing);
+      absorbRateHeaders(r.headers);
+      if(r.ok){
+        const value=completionText(payload);
+        if(!value)throw new Error('Le serveur a renvoyé une réponse vide ou illisible. Réessaie avec un autre modèle.');
+        if(useCache)putAgentCache(cacheKey,value);
+        if(i>0)toast('Modèle de secours : '+model+'.');
+        return value;
       }
-    })();
-    if(useCache) inflightAgents.set(cacheKey,work);
-    try{
-      const value=await work;
-      if(value && value.__fallback) continue;
-      return value;
-    }finally{
-      if(useCache) inflightAgents.delete(cacheKey);
+      if(cfg.provider==='mistral'&&r.status===429){
+        const pause=retryAfterMs(r.headers,retry429);
+        setRateCooldown(pause);
+        // Long account limits are shown immediately rather than holding the UI for minutes.
+        if(pause<=30000&&retry429++<rateProfile().max429Retries){toast('Mistral demande une pause · nouvelle tentative dans '+Math.ceil(pause/1000)+' s.');continue;}
+      }
+      lastError=llmError(r.status);
+      if(cfg.provider==='mistral'&&unavailableModel(r.status,payload)&&i<candidates.length-1)break;
+      throw lastError;
     }
   }
-  throw lastError || new Error('Aucun modèle LLM disponible.');
+  throw lastError || new Error('Aucun modèle disponible.');
 }
 
-async function apiError(status, response){
-  let detail='';
-  try { const j=await response.clone().json(); detail=(j.error && (j.error.message || j.error)) || ''; } catch(e){}
-  if (status === 400) return 'Requête ou modèle refusé par le serveur LLM.' + (detail ? ' ' + detail : '');
-  if (status === 401) return 'Authentification refusée par le serveur LLM.';
-  if (status === 404) return 'Endpoint ou modèle introuvable. Vérifie l’URL et le nom du modèle.';
-  if (status === 429) return 'Limite de requêtes atteinte sur le serveur LLM.';
-  if (status >= 500) return 'Le serveur LLM a rencontré une erreur.';
-  return 'Erreur LLM ' + status + (detail ? ' : ' + detail : '.');
-}
-
-function chatStream(messages, onDelta, routing={}){
-  const candidates = modelCandidates(routing.userText, routing.role, routing.domain);
-  return new Promise((resolve, reject) => {
-    let attemptIndex = 0, retry429 = 0;
-    const attempt = async () => {
-      await acquireRateSlot();
-        checkTurn(routing);
-      const model = candidates[attemptIndex];
-      const xhr = new XMLHttpRequest();
-      currentXhr = xhr;
-      let seen = 0, buf = '', full = '';
-      xhr.open('POST', apiBase() + '/chat/completions');
-      Object.entries(apiHeaders(true)).forEach(([k,v]) => xhr.setRequestHeader(k,v));
-      const parse = () => {
-        if (routing.turn !== undefined && routing.turn !== turnId) return;
-        if (xhr.status && xhr.status !== 200) return;
-        buf += xhr.responseText.slice(seen); seen = xhr.responseText.length;
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines){
-          const l = line.trim(); if (!l.startsWith('data:')) continue;
-          const data = l.slice(5).trim(); if (!data || data === '[DONE]') continue;
-          try {
-            const j = JSON.parse(data);
-            const d = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
-            if (typeof d === 'string' && d){ full += d; onDelta(d); }
-          } catch(e){}
-        }
+function chatStream(messages,onDelta,routing={}){
+  const candidates=modelCandidates(routing.userText,routing.role,routing.domain);
+  return new Promise((resolve,reject)=>{
+    let attemptIndex=0,retry429=0;
+    const attempt=async()=>{
+      await acquireRateSlot(routing);checkTurn(routing);
+      const model=candidates[attemptIndex],xhr=new XMLHttpRequest();currentXhr=xhr;
+      let seen=0,buf='',full='',streamError=null,finished=false;
+      const clear=()=>{if(currentXhr===xhr)currentXhr=null;};
+      const fail=error=>{if(finished)return;finished=true;clear();reject(error);};
+      xhr.open('POST',apiBase()+'/chat/completions');xhr.timeout=LLM_TIMEOUT_MS;
+      Object.entries(apiHeaders(true)).forEach(([k,v])=>xhr.setRequestHeader(k,v));
+      const line=raw=>{
+        const l=raw.trim();if(!l.startsWith('data:'))return;
+        const data=l.slice(5).trim();if(!data||data==='[DONE]')return;
+        try{
+          const j=JSON.parse(data);
+          if(j.error){streamError=new Error('Le serveur a interrompu la réponse. Réessaie.');return;}
+          const chunk=j.choices?.[0]?.delta?.content;
+          const delta=typeof chunk==='string'?chunk:Array.isArray(chunk)?chunk.map(x=>x.text||'').join(''):'';
+          if(delta){full+=delta;onDelta(delta);}
+        }catch(e){streamError=new Error('La réponse du serveur est illisible. Réessaie.');}
       };
-      xhr.onprogress = parse;
-      xhr.onload = async () => {
-        if (routing.turn !== undefined && routing.turn !== turnId){ reject(new Error('abort')); return; }
-        currentXhr = null;
-        try { absorbRateHeaders({get:n=>xhr.getResponseHeader(n)}); } catch(e){}
-        if (xhr.status === 200){
-          buf += '\n'; parse();
-          if (attemptIndex > 0) toast('Mistral : bascule automatique vers ' + model + '.');
-          resolve(full); return;
-        }
-        if (cfg.provider === 'mistral' && xhr.status === 429 && retry429 < rateProfile().max429Retries){
-          let raw=''; try{ raw=xhr.getResponseHeader('retry-after')||''; }catch(e){}
-          let pause=Number(raw)*1000; if(!Number.isFinite(pause)||pause<1) pause=Math.min(16000,1200*Math.pow(2,retry429));
-          retry429++; setRateCooldown(pause);
-          if(retry429===1) toast('Mistral régule le débit · RON temporise automatiquement.');
-          await sleepMs(pause); attempt().catch(reject); return;
-        }
-        if (cfg.provider === 'mistral' && [400,404].includes(xhr.status) && attemptIndex < candidates.length - 1){
-          attemptIndex++; retry429=0; attempt().catch(reject); return;
-        }
-        reject(new Error(xhr.status === 401 ? 'Authentification refusée par le serveur LLM.' : xhr.status === 429 ? 'Limite Mistral persistante malgré la temporisation.' : 'Erreur LLM ' + xhr.status + '.'));
+      const parse=(flush=false)=>{
+        if(finished||(routing.turn!==undefined&&routing.turn!==turnId)||xhr.status!==200)return;
+        buf+=xhr.responseText.slice(seen);seen=xhr.responseText.length;
+        const lines=buf.split('\n');buf=lines.pop();lines.forEach(line);
+        if(flush&&buf.trim()){line(buf);buf='';}
       };
-      xhr.onerror = () => { currentXhr = null; reject(new Error('Connexion au serveur LLM impossible. Vérifie endpoint, CORS et réseau.')); };
-      xhr.onabort = () => { currentXhr = null; reject(new Error('abort')); };
-      xhr.send(JSON.stringify(requestBody(messages, true, 0.35, roleBudget(1300, routing.role || 'final'), model)));
+      xhr.onprogress=()=>parse(false);
+      xhr.onload=()=>{(async()=>{
+        if(finished)return;
+        checkTurn(routing);clear();
+        const headers={get:n=>xhr.getResponseHeader(n)};absorbRateHeaders(headers);
+        if(xhr.status===200){
+          parse(true);
+          if(streamError)throw streamError;
+          if(!full.trim())throw new Error('Le serveur a renvoyé une réponse vide. Réessaie ou change de modèle.');
+          finished=true;resolve(full);return;
+        }
+        let payload=null;try{payload=JSON.parse(xhr.responseText);}catch(e){}
+        if(cfg.provider==='mistral'&&xhr.status===429){
+          const pause=retryAfterMs(headers,retry429);setRateCooldown(pause);
+          if(pause<=30000&&retry429++<rateProfile().max429Retries){
+            finished=true;toast('Mistral demande une pause · nouvelle tentative dans '+Math.ceil(pause/1000)+' s.');
+            attempt().catch(reject);return;
+          }
+        }
+        if(cfg.provider==='mistral'&&unavailableModel(xhr.status,payload)&&attemptIndex<candidates.length-1){
+          attemptIndex++;retry429=0;finished=true;toast('Essai du modèle de secours '+candidates[attemptIndex]+'.');attempt().catch(reject);return;
+        }
+        throw llmError(xhr.status);
+      })().catch(fail);};
+      xhr.onerror=()=>fail(new Error('Connexion au serveur impossible. Vérifie le réseau, l’adresse et les autorisations CORS.'));
+      xhr.ontimeout=()=>fail(new Error('Réponse interrompue après 45 secondes. Réessaie ou choisis un modèle plus léger.'));
+      xhr.onabort=()=>fail(new Error('abort'));
+      xhr.send(JSON.stringify(requestBody(messages,true,0.35,roleBudget(1300,routing.role||'final'),model)));
     };
     attempt().catch(reject);
   });
@@ -917,40 +946,10 @@ async function buildAgentContext(userText, turn){
 }
 
 async function testConnection(){
-  try {
-    const modelHeaders = cfg.key ? {'Authorization':'Bearer '+cfg.key} : {};
-    const modelsRes = await fetch(apiBase() + '/models', { headers:modelHeaders });
-    if (!modelsRes.ok) return { code:modelsRes.status, stage:'models', model:'' };
-
-    if (cfg.provider !== 'mistral') return { code:200, stage:'models', model:cfg.model };
-
-    // Vérification réelle : une mini complétion confirme la clé, le modèle et /chat/completions.
-    const candidates = modelCandidates('test de connexion Mistral', 'final', detectDomain('test de connexion Mistral'));
-    let lastCode = 0;
-    for (let i = 0; i < candidates.length; i++){
-      const model = candidates[i];
-      const r = await fetch(apiBase() + '/chat/completions', {
-        method:'POST',
-        headers:apiHeaders(false),
-        body:JSON.stringify(requestBody([
-          { role:'user', content:'Réponds uniquement par OK.' }
-        ], false, 0, 8, model))
-      });
-      lastCode = r.status;
-      if (r.ok){
-        try {
-          const j = await r.json();
-          const c = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-          if (c !== undefined) return { code:200, stage:'chat', model };
-        } catch(e){}
-        return { code:200, stage:'chat', model };
-      }
-      if (![400,404].includes(r.status)) return { code:r.status, stage:'chat', model };
-    }
-    return { code:lastCode || 404, stage:'chat', model:candidates[0] || cfg.model };
-  } catch(e){
-    return { code:0, stage:'network', model:'' };
-  }
+  try{
+    const reply=await chatOnce([{role:'user',content:'Réponds uniquement par OK.'}],0,32,{role:'final',userText:'test de connexion'});
+    return {code:200,stage:'chat',model:'',message:reply};
+  }catch(error){return {code:error.status||0,stage:'chat',model:'',message:error.message};}
 }
 
 /* ═══════════ RON DOTS : responsabilités persistantes locales ═══════════ */
@@ -1422,6 +1421,8 @@ async function handleUser(text, careContext = ''){
     streamDone = true;
     const index = history.indexOf(userMessage); if (index >= 0) history.splice(index, 1);
     if (err.message === 'abort') return;
+    stopSpeaking();
+    if(!$('textIn').value) $('textIn').value=text;
     setState('error', err.message); toast(err.message);
     setTimeout(() => { if (state === 'error'){ setState('idle'); startWake(); } }, 5000);
   }
@@ -1489,6 +1490,14 @@ async function saveSettings(){
   if (vn){ cfg.voiceName = vn; voice = voices.find(v => v.name === vn) || voice; }
   if (!cfg.endpoint || !cfg.model){ $('keyStatus').className='bad'; $('keyStatus').textContent='Renseigne endpoint et modèle.'; return; }
   if ((PROVIDERS[cfg.provider] || {}).needsKey && !key){ $('keyStatus').className='bad'; $('keyStatus').textContent='Ce fournisseur demande une clé API.'; return; }
+  if(cfg.provider==='mistral'){
+    let url;try{url=new URL(cfg.endpoint);}catch(e){}
+    if(!url || url.origin!=='https://api.mistral.ai' || !['','/','/v1','/v1/'].includes(url.pathname) || url.search || url.hash || url.username || url.password){
+      $('keyStatus').className='bad';$('keyStatus').textContent='Pour Mistral, utilise https://api.mistral.ai/v1. Pour un autre serveur, choisis Personnalisé.';return;
+    }
+    cfg.endpoint='https://api.mistral.ai/v1';$('endpointIn').value=cfg.endpoint;
+  }
+  stopAll();agentCache.clear();inflightAgents.clear();
   cfg.key = key;
   await safeStorage.set('provider', cfg.provider);
   await safeStorage.set('endpoint', cfg.endpoint);
@@ -1502,20 +1511,17 @@ async function saveSettings(){
   await safeStorage.set('dotsEnabled', cfg.dotsEnabled);
   await safeStorage.set('dotsMode', cfg.dotsMode);
   await safeStorage.set('dotsInterval', cfg.dotsInterval);
-  scheduleDots(500); renderDots();
+  renderDots();
   if (cfg.remember && key) await safeStorage.set('key', key); else await safeStorage.del('key');
   const st=$('keyStatus'); st.className=''; st.textContent='Test du serveur…';
-  const test = await testConnection();
+  $('saveBtn').disabled=true;
+  let test;try{test=await testConnection();}finally{$('saveBtn').disabled=false;}
   const code = test && typeof test === 'object' ? test.code : test;
-  if (code === 200){
-    const modelInfo = test && test.model ? ' · ' + test.model : '';
-    st.className='ok'; st.textContent='Connexion Mistral validée par une vraie complétion' + modelInfo + '. Ron est prêt.';
-    unlockSpeech(); stopRec(); setState('idle'); startWake(); setTimeout(closePanel, 1000);
-  } else if (code === 401){ st.className='bad'; st.textContent='Authentification refusée : vérifie la clé API Mistral.';
-  } else if (code === 402){ st.className='bad'; st.textContent='Compte Mistral non autorisé pour cette requête (paiement/quota à vérifier).';
-  } else if (code === 429){ st.className='bad'; st.textContent='Limite de débit Mistral atteinte malgré la régulation automatique. RON appliquera un backoff avant le prochain appel.';
-  } else if (code === 0){ st.className='bad'; st.textContent='Mistral injoignable depuis le navigateur. Vérifie réseau et CORS.';
-  } else { st.className='bad'; st.textContent='Test Mistral échoué à l’étape ' + ((test && test.stage) || 'API') + ' · HTTP ' + code + '.'; }
+  if(code===200){
+    st.className='ok';st.textContent='Connexion validée par une réponse réelle. Ron est prêt.';scheduleDots();
+    unlockSpeech();stopRec();setState('idle');setTimeout(closePanel,1000);
+  }else{st.className='bad';st.textContent=test.message || llmError(code).message;}
+
 }
 
 async function clearKey(){
