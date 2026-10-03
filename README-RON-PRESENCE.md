@@ -29,6 +29,57 @@ Sources techniques :
 - https://developer.android.com/guide/components/intents-common
 - https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable
 
+## Moteurs et modèles
+
+Il n'existe pas de meilleur modèle pour tous les appareils et tous les usages. Les réglages proposent ces points de départ, modifiables :
+
+| Moteur | Point de départ | Accès |
+| --- | --- | --- |
+| Mistral | Routage Mistral existant ou modèle manuel | Clé personnelle, disponibilité selon compte |
+| OpenRouter | `openrouter/free` | Clé personnelle ; offres gratuites avec quotas et disponibilité variables |
+| Groq | `openai/gpt-oss-20b` | Clé personnelle ; quotas selon compte |
+| Ollama | `qwen3.5:4b` | Serveur local installé, modèle téléchargé et matériel suffisant |
+| LM Studio / vLLM / personnalisé | Modèle servi par votre endpoint | Serveur compatible avec l'API de conversation OpenAI |
+
+Le bouton **Actualiser les modèles disponibles** interroge le catalogue du fournisseur sélectionné. La recherche et le filtre gratuit OpenRouter permettent de choisir un identifiant réellement annoncé. Le filtre exige des tarifs prompt, completion et request nuls ; un tarif absent n'est pas considéré comme gratuit. La présence dans le catalogue ne garantit ni accès avec votre compte ni disponibilité au moment de l'appel. Un modèle à poids ouverts n'implique pas une API gratuite, et chaque modèle conserve sa propre licence. LM Studio n'est pas présenté ici comme logiciel open source.
+
+OpenRouter reçoit `provider.data_collection: "deny"` : ce choix peut réduire les fournisseurs disponibles. Il ne rend pas le traitement local et ne garantit pas l'absence de toute conservation technique. Aucun basculement automatique vers un autre fournisseur n'est effectué. Le mode Direct est le choix initial des nouvelles sessions pour limiter le nombre de requêtes.
+
+Les clés sont séparées par fournisseur **et** endpoint. Leur conservation locale est facultative et non chiffrée ; par défaut les nouvelles sessions ne les enregistrent pas durablement. Modifier l'endpoint vide le champ de clé. Enregistrer un autre fournisseur ou endpoint efface le contexte de conversation envoyé au modèle, tout en conservant le carnet séparé. Ne jamais publier sa clé dans GitHub.
+
+### Ollama local
+
+Installer Ollama et exécuter `ollama pull qwen3.5:4b`, puis autoriser l'origine de cette page avec `OLLAMA_ORIGINS=https://nikoju1977.github.io` dans l'environnement du serveur et le redémarrer. Le navigateur peut demander une autorisation de réseau local ou bloquer l'accès selon sa politique de sécurité. Le modèle 4b est un point de départ ; adapter sa taille aux ressources disponibles.
+
+Sur téléphone, `localhost` désigne le téléphone, pas votre ordinateur. Un serveur sur ordinateur exige une connexion accessible et protégée, généralement HTTPS avec authentification. Ne pas exposer un serveur Ollama sans protection sur Internet. Le serveur local doit prendre en charge CORS et l'API `/v1/chat/completions`.
+
+### Composants ouverts
+
+- Marked 18.0.14 : rendu Markdown des réponses terminées.
+- DOMPurify 3.4.16 : nettoyage HTML avec liste restrictive de balises et liens HTTP(S).
+- Les deux bibliothèques et leurs licences sont distribuées dans `ron-vendor/`, sans CDN nécessaire.
+- Ollama et vLLM sont des options de serveurs ouverts ; leurs modèles se téléchargent séparément.
+
+La version mobile réduit le nombre de particules et la cadence de rendu. Le rendu est suspendu lorsque la page est masquée et tient compte de la préférence de réduction des animations.
+
+Documentation des fournisseurs :
+- https://docs.mistral.ai/models
+- https://openrouter.ai/docs/quickstart
+- https://openrouter.ai/docs/guides/routing/provider-selection
+- https://console.groq.com/docs/models
+- https://console.groq.com/docs/reasoning
+- https://ollama.com/library/qwen3.5
+- https://docs.ollama.com/faq
+
 ## Validation
 
-Syntaxe JavaScript et manifeste vérifiés. Les 19 vérifications simulées de conversation, carnet, consentement, commandes, écoute et interruption passent. Le microphone réel, l'installation, le service worker en navigateur et les rendus sur appareils physiques restent à valider. Compatibilité visée : navigateurs modernes ; aucune garantie pour tous les navigateurs, téléviseurs ou montres.
+Les trois suites simulées couvrent la conversation, le carnet et son partage volontaire, les interruptions, les erreurs Mistral et le streaming, l'isolation des clés, le catalogue, le filtre gratuit et le nettoyage Markdown. Elles utilisent jsdom et fake-indexeddb ; elles ne consomment aucun quota IA.
+
+Depuis la racine du dépôt :
+
+```sh
+npm --prefix ron-tests install
+npm --prefix ron-tests test
+```
+
+Syntaxe JavaScript vérifiée. Les appels de génération avec une vraie clé, le microphone réel, l'installation, le service worker en navigateur et les rendus sur appareils physiques restent à valider. Compatibilité visée : navigateurs modernes ; aucune garantie pour tous les navigateurs, téléviseurs ou montres.

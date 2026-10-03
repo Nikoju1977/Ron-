@@ -146,7 +146,11 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 @media(pointer:coarse){.icon-btn{min-width:44px;min-height:44px}#presenceBar button,#modeNav button{min-height:44px}#presenceBar{gap:6px}}
 @media(max-width:350px){.eyebrow{max-width:130px}#top{padding-left:10px;padding-right:10px}#top>div:last-child{gap:5px!important}#modeNav{top:160px}#sendBtn{padding:0 9px}#textIn{padding:13px 10px}#bottom{padding-left:10px;padding-right:10px}#presenceBar button{padding:7px 9px;font-size:12px}#ronLine{max-height:4.8em}}
 @media(max-height:520px){html,body{overflow:auto;min-height:100%}#top{position:relative}#modeNav{position:relative;top:auto;left:auto;transform:none;margin:18px auto;width:max-content}#bottom{position:relative;margin-top:30px;min-height:200px}#fallbackPresence,#stage{opacity:.3}#panel,#dotsPanel{height:100dvh}}
+
+#ronLine p{margin:.5em 0}#ronLine pre{padding:12px;white-space:pre;overflow:auto;background:#061421;border:1px solid var(--line);border-radius:10px;text-align:left}#ronLine code{font:13px ui-monospace,monospace}#ronLine ul,#ronLine ol{padding-left:24px;text-align:left}#ronLine table{border-collapse:collapse;text-align:left;display:block;overflow:auto}#ronLine td,#ronLine th{border:1px solid var(--line);padding:7px}#ronLine a,#localGuide a{color:var(--ice)}#localGuide{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:18px}#localGuide code{overflow-wrap:anywhere}#localGuide summary{cursor:pointer;margin-bottom:10px}#engineHelp{border-left:2px solid var(--ice);padding-left:12px}#freeOnlyRow[hidden],#localGuide[hidden]{display:none}
 </style>
+<script src="./ron-vendor/marked.js" defer></script>
+<script src="./ron-vendor/purify.min.js" defer></script>
 </head>
 <body>
 <canvas id="stage" aria-hidden="true"></canvas><div id="fallbackPresence" aria-hidden="true"><span>R</span></div>
@@ -232,6 +236,8 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <label for="providerSel">Moteur LLM</label>
     <select id="providerSel">
       <option value="mistral">Mistral API</option>
+      <option value="openrouter">OpenRouter · catalogue et modèles gratuits</option>
+      <option value="groq">Groq · modèles hébergés</option>
       <option value="ollama">Ollama local</option>
       <option value="lmstudio">LM Studio local</option>
       <option value="vllm">vLLM local / serveur</option>
@@ -246,6 +252,16 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <label for="modelIn">Modèle</label>
     <input id="modelIn" type="text" autocomplete="off" spellcheck="false" placeholder="qwen3:14b">
   </div>
+  <p class="hint" id="engineHelp"></p>
+  <div class="field">
+    <button class="btn ghost" type="button" id="refreshModelsBtn">Actualiser les modèles disponibles</button>
+    <label for="modelSearch">Rechercher dans le catalogue</label><input id="modelSearch" type="text" placeholder="Qwen, Mistral, Llama, GPT OSS…">
+    <label class="check" id="freeOnlyRow" hidden><input id="freeOnlyChk" type="checkbox" checked> Tarif tokens nul uniquement</label>
+    <label for="modelCatalogSel">Modèles annoncés par ce moteur</label><select id="modelCatalogSel" disabled><option value="">Actualise le catalogue…</option></select>
+    <div class="hint" id="catalogStatus" role="status">Aucun catalogue chargé. La liste peut contenir des modèles ouverts et propriétaires ; gratuit ne signifie pas open source.</div>
+  </div>
+  <details id="localGuide" hidden><summary>Utiliser un moteur local</summary><p class="hint">Sur un ordinateur équipé d’Ollama : <code>ollama pull qwen3.5:4b</code>, puis démarre Ollama et actualise le catalogue. Ce modèle est un point de départ ; la vitesse dépend de ta machine. Si l’accès est bloqué, autorise seulement l’origine de Ron via <code>OLLAMA_ORIGINS=https://nikoju1977.github.io</code>, puis redémarre Ollama. Le navigateur peut demander un accès au réseau local. Ne publie pas ton serveur local sans authentification.</p><p class="hint">Depuis ton S25 FE, localhost désigne le téléphone. L’accès à ton ordinateur demande un serveur HTTPS accessible et protégé ; installer Ron ne télécharge pas le modèle sur le téléphone.</p><a href="https://docs.ollama.com/faq" target="_blank" rel="noopener">Documentation Ollama</a></details>
+  <p class="hint">Changer de moteur enregistré ouvre une nouvelle conversation. Le carnet reste séparé. Aucun transfert automatique vers un autre fournisseur.</p>
   <div class="field" id="mistralRouteField">
     <label for="mistralRouteSel">Routage Mistral</label>
     <select id="mistralRouteSel">
@@ -260,7 +276,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <div class="hint" id="mistralRouteHint" style="margin:0">Auto : RON choisit un modèle par rôle et bascule sur un secours si nécessaire.</div>
   </div>
   <div class="field" id="mistralRateField">
-    <label for="rateModeSel">Protection débit Mistral</label>
+    <label for="rateModeSel">Budget et protection du débit</label>
     <select id="rateModeSel">
       <option value="eco" selected>Éco agentique — moins d’appels / moins de tokens</option>
       <option value="balanced">Équilibré — qualité + protection 429</option>
@@ -272,7 +288,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <label for="keyIn">Clé API <span style="color:var(--mist)">(optionnelle en local)</span></label>
     <input id="keyIn" type="password" autocomplete="off" spellcheck="false" placeholder="Clé si le serveur en demande une">
   </div>
-  <label class="check"><input type="checkbox" id="rememberChk" checked> Mémoriser la configuration sur cet appareil</label>
+  <label class="check"><input type="checkbox" id="rememberChk"> Conserver la clé de ce moteur sur cet appareil (non chiffrée)</label>
   <label class="check"><input type="checkbox" id="dotsEnabledChk"> Activer RON DOTS — responsabilités persistantes</label>
   <div class="field">
     <label for="dotsModeSel">Autonomie DOTS</label>
@@ -472,7 +488,9 @@ function toast(msg){
 /* ═══════════ Réglages & cerveau multi-LLM ═══════════ */
 const PROVIDERS = {
   mistral: { endpoint: 'https://api.mistral.ai/v1', model: 'mistral-large-latest', needsKey: true },
-  ollama: { endpoint: 'http://localhost:11434/v1', model: 'qwen3:14b', needsKey: false },
+  openrouter: { endpoint:'https://openrouter.ai/api/v1', model:'openrouter/free', needsKey:true },
+  groq: { endpoint:'https://api.groq.com/openai/v1', model:'openai/gpt-oss-20b', needsKey:true },
+  ollama: { endpoint: 'http://localhost:11434/v1', model: 'qwen3.5:4b', needsKey: false },
   lmstudio: { endpoint: 'http://localhost:1234/v1', model: 'local-model', needsKey: false },
   vllm: { endpoint: 'http://localhost:8000/v1', model: 'Qwen/Qwen3-14B', needsKey: false },
   custom: { endpoint: 'http://localhost:8000/v1', model: '', needsKey: false }
@@ -488,8 +506,8 @@ const MISTRAL_MODELS = {
 
 const cfg = {
   key: '', provider: 'mistral', endpoint: PROVIDERS.mistral.endpoint,
-  model: PROVIDERS.mistral.model, mistralRoute: 'auto', rateMode: 'eco', agentMode: 'council',
-  voiceName: '', wake: false, remember: true,
+  model: PROVIDERS.mistral.model, mistralRoute: 'auto', rateMode: 'eco', agentMode: 'direct',
+  voiceName: '', wake: false, remember: false, freeOnly:true,
   dotsEnabled: false, dotsMode: 'review', dotsInterval: 120000
 };
 
@@ -509,15 +527,9 @@ function applyMistralRouteUI(){
 }
 
 function applyRateModeUI(){
-  const isMistral = $('providerSel').value === 'mistral';
-  const mode = $('rateModeSel').value || 'eco';
-  $('mistralRateField').style.opacity = isMistral ? '1' : '.45';
-  $('rateModeSel').disabled = !isMistral;
-  const hint = $('rateModeHint');
-  if (!isMistral) hint.textContent = 'La protection de débit s’applique à l’API Mistral.';
-  else if (mode === 'eco') hint.textContent = 'Éco : agents adaptatifs, cache court, contexte réduit, espacement des requêtes et backoff 429.';
-  else if (mode === 'balanced') hint.textContent = 'Équilibré : conserve davantage d’agents, avec budgets de tokens et backoff 429.';
-  else hint.textContent = 'Qualité : conseil complet, mais requêtes toujours séquencées et 429 temporisés.';
+  $('mistralRateField').style.opacity='1';$('rateModeSel').disabled=false;
+  const mode=$('rateModeSel').value||'eco';
+  $('rateModeHint').textContent=mode==='quality'?'Plusieurs appels possibles si le conseil est activé. Consommation et délai plus élevés.':'Budget de réponse réduit et tentatives après 429 régulées. Le mode Direct utilise un seul appel par réponse.';
 }
 
 function applyProviderPreset(force=false){
@@ -531,6 +543,7 @@ function applyProviderPreset(force=false){
 
 async function loadCfg(){
   cfg.provider = (await safeStorage.get('provider')) || cfg.provider;
+  if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='mistral';
   cfg.endpoint = (await safeStorage.get('endpoint')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).endpoint;
   cfg.model = (await safeStorage.get('model')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).model;
   cfg.mistralRoute = (await safeStorage.get('mistralRoute')) || cfg.mistralRoute;
@@ -542,8 +555,13 @@ async function loadCfg(){
   cfg.dotsMode = (await safeStorage.get('dotsMode')) || cfg.dotsMode;
   cfg.dotsInterval = Number(await safeStorage.get('dotsInterval')) || cfg.dotsInterval;
   const rem = await safeStorage.get('remember');
-  cfg.remember = rem === undefined ? true : rem === true;
-  cfg.key = cfg.remember ? sanitizeKey(await safeStorage.get('key')) : '';
+  cfg.remember = rem === true;
+  cfg.freeOnly = (await safeStorage.get('freeOnly')) !== false;
+  const scope=engineScope(cfg.provider,cfg.endpoint);
+  const scopedKey=await safeStorage.get('engineKeyV1:'+scope);
+  cfg.key=cfg.remember?sanitizeKey(scopedKey===undefined?await safeStorage.get('key'):scopedKey):'';
+  if(cfg.key)await safeStorage.set('engineKeyV1:'+scope,cfg.key);
+  await safeStorage.del('key');
   $('providerSel').value = cfg.provider;
   $('endpointIn').value = cfg.endpoint;
   $('modelIn').value = cfg.model;
@@ -689,7 +707,6 @@ async function waitForRate(until, routing={}){
 }
 async function acquireRateSlot(routing={}){
   checkTurn(routing);
-  if(cfg.provider!=='mistral') return;
   const run=async()=>{
     while(true){
       checkTurn(routing);
@@ -746,12 +763,11 @@ function llmError(status){
   error.status=status;return error;
 }
 function roleBudget(requested, role){
-  if(cfg.provider!=='mistral') return requested;
   const p=rateProfile();
   const cap=p[role] || requested;
   return Math.max(8, Math.min(requested, cap));
 }
-function historyDepth(){ return cfg.provider==='mistral' ? rateProfile().history : 12; }
+function historyDepth(){ return rateProfile().history; }
 function highAssuranceDomain(domain){ return !!(domain && /médecine|mathématiques|physique|chimie|biologie cellulaire|sciences de la vie/.test(domain.name)); }
 
 function taskComplexity(userText, domain){
@@ -786,15 +802,26 @@ function modelCandidates(userText='', role='final', domain=null){
   if (cfg.provider !== 'mistral') return [cfg.model];
   const primary = routeMistralModel(userText, role, domain);
   const route = cfg.mistralRoute || 'auto';
-  if (route === 'manual') return [primary];
+  if (route !== 'auto') return [primary];
   const fallbacks = role === 'planner' || role === 'audit'
     ? [MISTRAL_MODELS.medium, MISTRAL_MODELS.large, MISTRAL_MODELS.small]
     : [primary, MISTRAL_MODELS.large, MISTRAL_MODELS.medium, MISTRAL_MODELS.small, cfg.model];
-  return [...new Set(fallbacks.filter(Boolean))];
+  const unique=[...new Set(fallbacks.filter(Boolean))];
+  if(modelCatalog.scope===engineScope(cfg.provider,apiBase())&&modelCatalog.models.length){
+    const known=modelCatalog.models.map(m=>m.id);const available=unique.filter(id=>known.includes(id));
+    if(available.length)return available;
+  }
+  return unique;
 }
 
 function requestBody(messages, stream, temperature=0.35, maxTokens=1100, model=cfg.model){
-  return { model, stream, temperature, max_tokens:maxTokens, messages };
+  const body={ model, stream, temperature, max_tokens:maxTokens, messages };
+  if(cfg.provider==='groq' && /^openai\/gpt-oss-(20b|120b)$/.test(model)){body.reasoning_effort='low';body.include_reasoning=false;}
+  if(cfg.provider==='openrouter'){
+    if(cfg.freeOnly&&!isFreeModelId(model,engineScope(cfg.provider,apiBase())))throw new Error('Le filtre gratuit bloque ce modèle. Vérifie les réglages.');
+    body.provider={data_collection:'deny'};
+  }
+  return body;
 }
 
 async function chatOnce(messages, temperature=0.2, maxTokens=900, routing={}){
@@ -821,11 +848,11 @@ async function chatOnce(messages, temperature=0.2, maxTokens=900, routing={}){
         if(i>0)toast('Modèle de secours : '+model+'.');
         return value;
       }
-      if(cfg.provider==='mistral'&&r.status===429){
+      if(r.status===429){
         const pause=retryAfterMs(r.headers,retry429);
         setRateCooldown(pause);
         // Long account limits are shown immediately rather than holding the UI for minutes.
-        if(pause<=30000&&retry429++<rateProfile().max429Retries){toast('Mistral demande une pause · nouvelle tentative dans '+Math.ceil(pause/1000)+' s.');continue;}
+        if(pause<=30000&&retry429++<rateProfile().max429Retries){toast('Le serveur demande une pause · nouvelle tentative dans '+Math.ceil(pause/1000)+' s.');continue;}
       }
       lastError=llmError(r.status);
       if(cfg.provider==='mistral'&&unavailableModel(r.status,payload)&&i<candidates.length-1)break;
@@ -876,10 +903,10 @@ function chatStream(messages,onDelta,routing={}){
           finished=true;resolve(full);return;
         }
         let payload=null;try{payload=JSON.parse(xhr.responseText);}catch(e){}
-        if(cfg.provider==='mistral'&&xhr.status===429){
+        if(xhr.status===429){
           const pause=retryAfterMs(headers,retry429);setRateCooldown(pause);
           if(pause<=30000&&retry429++<rateProfile().max429Retries){
-            finished=true;toast('Mistral demande une pause · nouvelle tentative dans '+Math.ceil(pause/1000)+' s.');
+            finished=true;toast('Le serveur demande une pause · nouvelle tentative dans '+Math.ceil(pause/1000)+' s.');
             attempt().catch(reject);return;
           }
         }
@@ -910,7 +937,7 @@ async function buildAgentContext(userText, turn){
 
   const complexity = taskComplexity(userText, domain);
   const assurance = highAssuranceDomain(domain);
-  const rateMode = cfg.provider === 'mistral' ? (cfg.rateMode || 'eco') : 'quality';
+  const rateMode = cfg.rateMode || 'eco';
 
   setThinkingDetail('RON planifie…');
   const plan = await chatOnce([
@@ -947,7 +974,7 @@ async function buildAgentContext(userText, turn){
 
 async function testConnection(){
   try{
-    const reply=await chatOnce([{role:'user',content:'Réponds uniquement par OK.'}],0,32,{role:'final',userText:'test de connexion'});
+    const reply=await chatOnce([{role:'user',content:'Réponds uniquement par OK.'}],0,512,{role:'final',userText:'test de connexion'});
     return {code:200,stage:'chat',model:'',message:reply};
   }catch(error){return {code:error.status||0,stage:'chat',model:'',message:error.message};}
 }
@@ -1413,6 +1440,7 @@ async function handleUser(text, careContext = ''){
     streamDone = true;
     if (sentenceBuf.trim()) enqueueSpeech(sentenceBuf);
     sentenceBuf = '';
+    renderRonAnswer(full);
     history.push({ role:'assistant', content:full || '…' });
     if (history.length > 40) history.splice(0, history.length - 40);
     if (!speakingNow) onSpeechDrained();
@@ -1473,63 +1501,41 @@ function openPanel(){ $('panel').classList.add('open'); setTimeout(() => $('keyI
 function closePanel(){ $('panel').classList.remove('open'); }
 
 async function saveSettings(){
-  const key = sanitizeKey($('keyIn').value); $('keyIn').value = key;
-  cfg.provider = $('providerSel').value;
-  cfg.endpoint = $('endpointIn').value.trim().replace(/\/+$/, '');
-  cfg.model = $('modelIn').value.trim();
-  cfg.mistralRoute = $('mistralRouteSel').value || 'auto';
-  cfg.rateMode = $('rateModeSel').value || 'eco';
-  cfg.agentMode = $('agentSel').value;
-  wakePaused = false;
-  cfg.wake = $('wakeChk').checked; cfg.remember = $('rememberChk').checked;
-  cfg.dotsEnabled = $('dotsEnabledChk').checked;
-  cfg.dotsMode = $('dotsModeSel').value || 'review';
-  cfg.dotsInterval = Math.max(60000, Number($('dotsIntervalSel').value) || 120000);
-  if (cfg.wake && micPermission !== 'granted'){ const ok = await ensureMicrophonePermission(false); if (!ok){ cfg.wake = false; $('wakeChk').checked = false; } }
-  const vn = $('voiceSel').value;
-  if (vn){ cfg.voiceName = vn; voice = voices.find(v => v.name === vn) || voice; }
-  if (!cfg.endpoint || !cfg.model){ $('keyStatus').className='bad'; $('keyStatus').textContent='Renseigne endpoint et modèle.'; return; }
-  if ((PROVIDERS[cfg.provider] || {}).needsKey && !key){ $('keyStatus').className='bad'; $('keyStatus').textContent='Ce fournisseur demande une clé API.'; return; }
-  if(cfg.provider==='mistral'){
-    let url;try{url=new URL(cfg.endpoint);}catch(e){}
-    if(!url || url.origin!=='https://api.mistral.ai' || !['','/','/v1','/v1/'].includes(url.pathname) || url.search || url.hash || url.username || url.password){
-      $('keyStatus').className='bad';$('keyStatus').textContent='Pour Mistral, utilise https://api.mistral.ai/v1. Pour un autre serveur, choisis Personnalisé.';return;
-    }
-    cfg.endpoint='https://api.mistral.ai/v1';$('endpointIn').value=cfg.endpoint;
-  }
-  stopAll();agentCache.clear();inflightAgents.clear();
-  cfg.key = key;
-  await safeStorage.set('provider', cfg.provider);
-  await safeStorage.set('endpoint', cfg.endpoint);
-  await safeStorage.set('model', cfg.model);
-  await safeStorage.set('mistralRoute', cfg.mistralRoute);
-  await safeStorage.set('rateMode', cfg.rateMode);
-  await safeStorage.set('agentMode', cfg.agentMode);
-  await safeStorage.set('wake', cfg.wake);
-  await safeStorage.set('remember', cfg.remember);
-  await safeStorage.set('voice', cfg.voiceName);
-  await safeStorage.set('dotsEnabled', cfg.dotsEnabled);
-  await safeStorage.set('dotsMode', cfg.dotsMode);
-  await safeStorage.set('dotsInterval', cfg.dotsInterval);
-  renderDots();
-  if (cfg.remember && key) await safeStorage.set('key', key); else await safeStorage.del('key');
-  const st=$('keyStatus'); st.className=''; st.textContent='Test du serveur…';
-  $('saveBtn').disabled=true;
-  let test;try{test=await testConnection();}finally{$('saveBtn').disabled=false;}
-  const code = test && typeof test === 'object' ? test.code : test;
-  if(code===200){
-    st.className='ok';st.textContent='Connexion validée par une réponse réelle. Ron est prêt.';scheduleDots();
-    unlockSpeech();stopRec();setState('idle');setTimeout(closePanel,1000);
-  }else{st.className='bad';st.textContent=test.message || llmError(code).message;}
-
+  if(savingEngine)return;
+  const st=$('keyStatus');let draft;
+  try{draft=readEngineDraft(true);}catch(error){st.className='bad';st.textContent=error.message;return;}
+  savingEngine=true;$('saveBtn').disabled=true;
+  stopAll();clearTimeout(dotsRuntime.timer);
+  const changed=engineScope(cfg.provider,apiBase())!==draft.scope;
+  if(changed){history.length=0;$('youLine').textContent='';$('ronLine').textContent='Nouveau moteur, nouvelle conversation.';}
+  agentCache.clear();inflightAgents.clear();
+  rateRuntime.nextAt=0;rateRuntime.cooldownUntil=0;rateRuntime.gate=Promise.resolve();
+  Object.assign(cfg,{provider:draft.provider,endpoint:draft.endpoint,model:draft.model,key:draft.key,
+    mistralRoute:$('mistralRouteSel').value||'auto',rateMode:$('rateModeSel').value||'eco',agentMode:$('agentSel').value,
+    wake:$('wakeChk').checked,remember:$('rememberChk').checked,freeOnly:$('freeOnlyChk').checked,
+    dotsEnabled:$('dotsEnabledChk').checked,dotsMode:$('dotsModeSel').value||'review',dotsInterval:Math.max(60000,Number($('dotsIntervalSel').value)||120000)
+  });
+  engineKeys.set(draft.scope,draft.key);draftKeyScope=draft.scope;
+  const vn=$('voiceSel').value;if(vn){cfg.voiceName=vn;voice=voices.find(v=>v.name===vn)||voice;}
+  try{
+    for(const key of ['provider','endpoint','model','mistralRoute','rateMode','agentMode','wake','remember','freeOnly','dotsEnabled','dotsMode','dotsInterval'])await safeStorage.set(key,cfg[key]);
+    await safeStorage.set('voice',cfg.voiceName);
+    if(cfg.remember&&draft.key)await safeStorage.set('engineKeyV1:'+draft.scope,draft.key);else await safeStorage.del('engineKeyV1:'+draft.scope);
+    await safeStorage.del('key');renderDots();
+    st.className='';st.textContent='Test réel de '+cfg.provider+' · '+cfg.model+'…';
+    const started=performance.now(),test=await testConnection();
+    if(test.code===200){st.className='ok';st.textContent='Réponse reçue en '+((performance.now()-started)/1000).toFixed(1)+' s. Moteur prêt.';setState('idle');scheduleDots();}
+    else{st.className='bad';st.textContent=test.message||llmError(test.code).message;}
+  }catch(error){st.className='bad';st.textContent=error.message;}
+  finally{savingEngine=false;$('saveBtn').disabled=false;}
 }
-
 async function clearKey(){
-  cfg.key = ''; $('keyIn').value = '';
-  await safeStorage.del('key');
-  stopAll();
-  $('keyStatus').className = ''; $('keyStatus').textContent = 'Clé API effacée.';
-  setState('idle');
+  stopAll();agentCache.clear();inflightAgents.clear();
+  let scope;try{scope=engineScope($('providerSel').value,normalizeEndpoint($('providerSel').value,$('endpointIn').value));}catch(e){scope=draftKeyScope;}
+  engineKeys.delete(scope);if(scope)await safeStorage.del('engineKeyV1:'+scope);
+  if(scope===engineScope(cfg.provider,apiBase()))cfg.key='';
+  $('keyIn').value='';$('rememberChk').checked=false;await safeStorage.del('key');
+  $('keyStatus').className='';$('keyStatus').textContent='Clé de ce moteur effacée.';setState('idle');
 }
 
 /* ═══════════ Visage en particules (masque arachnéen) ═══════════ */
@@ -1754,11 +1760,11 @@ function initScene(){
     toast('WebGL indisponible : la tête ne peut pas s\'afficher, mais Ron fonctionne.');
     return false;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth<600?1.25:1.75));
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
   const small = Math.min(innerWidth, innerHeight) < 700;
-  const geo = buildHead(small ? 30000 : 62000);
+  const geo = buildHead(small ? 18000 : 42000);
   mat = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -1782,7 +1788,8 @@ function initScene(){
 }
 
 function resize(){
-  if (!renderer) return;
+  if (!renderer || document.hidden) return;
+  if(now-clock.last < (reduceMotion?150:window.innerWidth<600?32:16)) return;
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
@@ -1794,7 +1801,8 @@ function resize(){
 const clock = { start: performance.now(), last: performance.now() };
 function frame(now){
   requestAnimationFrame(frame);
-  if (!renderer) return;
+  if (!renderer || document.hidden) return;
+  if(now-clock.last < (reduceMotion?150:window.innerWidth<600?32:16)) return;
   const t = (now - clock.start) / 1000;
   const k = Math.min(1, (now - clock.last) / 16.7) * 0.08;
   clock.last = now;
@@ -2013,6 +2021,132 @@ function initPlatform(){
   if(!SR){$('listenHint').textContent='Écris-moi : la reconnaissance vocale n’est pas disponible dans ce navigateur.';}
 }
 
+/* Engine catalogue and credential isolation. No cross-provider fallback. */
+const engineKeys = new Map();
+let draftKeyScope='',draftRevision=0,catalogRevision=0,savingEngine=false;
+let modelCatalog={scope:'',models:[],at:null};
+const CLOUD_ENDPOINTS={mistral:'https://api.mistral.ai/v1',openrouter:'https://openrouter.ai/api/v1',groq:'https://api.groq.com/openai/v1'};
+function normalizeEndpoint(provider,raw){
+  const value=String(raw||'').trim().replace(/\/+$/,'');
+  let url;try{url=new URL(value);}catch(e){throw new Error('Renseigne une adresse API complète.');}
+  if(url.username||url.password||url.search||url.hash)throw new Error('L’adresse API ne doit contenir ni identifiant, ni paramètre, ni fragment.');
+  if(CLOUD_ENDPOINTS[provider]){
+    const expected=new URL(CLOUD_ENDPOINTS[provider]);
+    if(url.origin!==expected.origin || !['','/',expected.pathname].includes(url.pathname))throw new Error('Adresse attendue pour ce moteur : '+expected.href);
+    return expected.href;
+  }
+  const loopback=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
+  if(url.protocol!=='https:' && !(url.protocol==='http:'&&loopback))throw new Error('Utilise HTTPS pour un serveur distant, ou HTTP sur localhost pour un moteur local.');
+  return value;
+}
+function engineScope(provider,endpoint){return provider+'|'+endpoint;}
+function readEngineDraft(requireModel=true){
+  const provider=$('providerSel').value;
+  if(!Object.hasOwn(PROVIDERS,provider))throw new Error('Choisis un moteur disponible.');
+  const endpoint=normalizeEndpoint(provider,$('endpointIn').value),scope=engineScope(provider,endpoint);
+  const key=sanitizeKey($('keyIn').value),model=$('modelIn').value.trim();
+  if(key&&draftKeyScope!==scope)throw new Error('L’adresse a changé. Ressaisis la clé destinée à ce serveur.');
+  if(requireModel&&!model)throw new Error('Choisis un modèle dans le catalogue ou saisis son identifiant.');
+  if(PROVIDERS[provider].needsKey&&!key&&!(provider==='openrouter'&&!requireModel))throw new Error('Renseigne la clé API de ce moteur.');
+  if(requireModel&&provider==='openrouter'&&$('freeOnlyChk').checked&&!isFreeModelId(model,scope))throw new Error('Le filtre gratuit est actif : choisis un modèle gratuit du catalogue, ou désactive ce filtre pour utiliser un modèle payant.');
+  return {provider,endpoint,scope,key,model};
+}
+function isFreePrice(pricing){
+  return !!pricing && ['prompt','completion'].every(k=>pricing[k]!==undefined&&pricing[k]!==null&&String(pricing[k]).trim()!==''&&Number(pricing[k])===0) && (pricing.request===undefined||Number(pricing.request)===0);
+}
+function isFreeModelId(id,scope){
+  return id==='openrouter/free'||id.endsWith(':free') || (modelCatalog.scope===scope&&modelCatalog.models.some(m=>m.id===id&&m.free));
+}
+function normalizeModels(payload,provider){
+  if(!Array.isArray(payload?.data))throw new Error('Ce serveur ne renvoie pas de catalogue compatible. Tu peux saisir le modèle manuellement.');
+  const seen=new Set();
+  return payload.data.filter(m=>m&&typeof m.id==='string'&&m.id.length<250&&m.active!==false&&m.capabilities?.completion_chat!==false&&(!m.architecture?.output_modalities||m.architecture.output_modalities.includes('text'))&&!/(embed|rerank|whisper|transcrib|moderation|tts|audio|ocr)/i.test(m.id)).filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;}).map(m=>({
+    id:m.id,name:typeof m.name==='string'?m.name:m.id,context:Number(m.context_length||m.max_context_length||m.context_window)||null,
+    free:provider==='openrouter'&&isFreePrice(m.pricing),pricing:m.pricing||null
+  })).sort((a,b)=>a.name.localeCompare(b.name));
+}
+function renderModelCatalog(){
+  const sel=$('modelCatalogSel');sel.replaceChildren();
+  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choisir un modèle…';sel.append(placeholder);
+  const term=$('modelSearch').value.trim().toLocaleLowerCase('fr');
+  const provider=$('providerSel').value;
+  const filtered=modelCatalog.models.filter(m=>(!term||(m.id+' '+m.name).toLocaleLowerCase('fr').includes(term)) && (!(provider==='openrouter'&&$('freeOnlyChk').checked)||m.free));
+  for(const model of filtered){
+    const option=document.createElement('option');option.value=model.id;
+    option.textContent=model.name+(model.free?' · tarif tokens nul':'')+(model.context?' · '+Math.round(model.context/1000)+'k contexte':'');sel.append(option);
+  }
+  sel.disabled=!filtered.length;
+  if(modelCatalog.models.length)$('catalogStatus').textContent=filtered.length+' modèle(s) affiché(s) · catalogue lu à '+new Date(modelCatalog.at).toLocaleTimeString('fr-FR')+'. Accès réel à confirmer avec « Enregistrer et tester ».';
+}
+async function refreshModels(){
+  const rev=++catalogRevision;let draft;
+  try{draft=readEngineDraft(false);}catch(error){$('catalogStatus').textContent=error.message;return;}
+  $('refreshModelsBtn').disabled=true;$('catalogStatus').textContent='Lecture du catalogue du moteur…';
+  try{
+    const headers=draft.key?{Authorization:'Bearer '+draft.key}:{};
+    const {response,payload}=await fetchLLMJson(draft.endpoint+'/models',{headers},{});
+    if(rev!==catalogRevision)return;
+    if(!response.ok)throw llmError(response.status);
+    const currentScope=engineScope($('providerSel').value,normalizeEndpoint($('providerSel').value,$('endpointIn').value));
+    if(currentScope!==draft.scope)return;
+    modelCatalog={scope:draft.scope,models:normalizeModels(payload,draft.provider),at:Date.now()};
+    renderModelCatalog();
+    if(!modelCatalog.models.length)$('catalogStatus').textContent='Aucun modèle de conversation détecté. Vérifie le serveur ou saisis un modèle manuellement.';
+  }catch(error){if(rev===catalogRevision)$('catalogStatus').textContent=error.message;}
+  finally{if(rev===catalogRevision)$('refreshModelsBtn').disabled=false;}
+}
+function showEngineHelp(){
+  const provider=$('providerSel').value;
+  const help={
+    mistral:'Mistral : clé personnelle. Les alias latest évoluent ; le catalogue permet de choisir un modèle précis. Les poids ouverts et le prix de l’API sont deux sujets distincts.',
+    openrouter:'OpenRouter : une clé ouvre un catalogue de plusieurs éditeurs. Le filtre gratuit concerne le tarif des tokens annoncé, avec quotas et disponibilité variables. Ron demande des fournisseurs sans collecte de données ; certains modèles peuvent donc être indisponibles.',
+    groq:'Groq : modèles hébergés, clé et limites propres à ton compte. Le catalogue permet de voir les identifiants actuellement proposés.',
+    ollama:'Ollama doit être installé et lancé sur l’appareil visé. localhost désigne cet appareil, pas ton ordinateur depuis ton téléphone. Télécharge d’abord un modèle, puis actualise le catalogue.',
+    lmstudio:'LM Studio : démarre le serveur local et charge un modèle. Cette application est un outil local distinct ; elle n’est pas présentée comme un logiciel open source.',
+    vllm:'vLLM : serveur open source à installer sur une machine adaptée. Connecte son API compatible et charge le catalogue.',
+    custom:'API compatible : indique l’URL exacte et la clé de ce serveur. Sur une page HTTPS, l’accès au réseau local dépend des autorisations et du navigateur.'
+  };
+  $('engineHelp').textContent=help[provider]||'';
+  $('freeOnlyRow').hidden=provider!=='openrouter';
+  $('localGuide').hidden=!['ollama','lmstudio','vllm','custom'].includes(provider);
+}
+async function switchEngineDraft(){
+  const rev=++draftRevision;++catalogRevision;
+  $('keyIn').value='';$('rememberChk').checked=false;
+  modelCatalog={scope:'',models:[],at:null};$('catalogStatus').textContent='Actualise pour lire le catalogue de ce moteur.';$('refreshModelsBtn').disabled=false;
+  applyProviderPreset(true);showEngineHelp();renderModelCatalog();
+  const scope=engineScope($('providerSel').value,normalizeEndpoint($('providerSel').value,$('endpointIn').value));draftKeyScope=scope;
+  const saved=await safeStorage.get('engineKeyV1:'+scope);
+  if(rev!==draftRevision)return;
+  $('keyIn').value=engineKeys.get(scope)||sanitizeKey(saved);
+  $('rememberChk').checked=typeof saved==='string'&&saved.length>0;
+}
+function initEngines(){
+  draftKeyScope=engineScope(cfg.provider,cfg.endpoint);engineKeys.set(draftKeyScope,cfg.key);
+  $('freeOnlyChk').checked=cfg.freeOnly;
+  showEngineHelp();
+  $('refreshModelsBtn').onclick=refreshModels;
+  $('modelSearch').oninput=renderModelCatalog;
+  $('freeOnlyChk').onchange=renderModelCatalog;
+  $('modelCatalogSel').onchange=()=>{
+    if(!$('modelCatalogSel').value)return;
+    if($('providerSel').value==='mistral'){$('mistralRouteSel').value='manual';applyMistralRouteUI();}
+    $('modelIn').value=$('modelCatalogSel').value;
+  };
+  $('endpointIn').addEventListener('input',()=>{
+    ++draftRevision;++catalogRevision;$('keyIn').value='';$('rememberChk').checked=false;draftKeyScope='';
+    modelCatalog={scope:'',models:[],at:null};renderModelCatalog();$('refreshModelsBtn').disabled=false;$('catalogStatus').textContent='Adresse modifiée : actualise le catalogue.';
+  });
+  $('keyIn').addEventListener('input',()=>{++draftRevision;++catalogRevision;$('refreshModelsBtn').disabled=false;try{draftKeyScope=engineScope($('providerSel').value,normalizeEndpoint($('providerSel').value,$('endpointIn').value));}catch(e){draftKeyScope='';}});
+}
+function renderRonAnswer(text){
+  const el=$('ronLine');
+  if(!window.marked||!window.DOMPurify||text.length>100000){el.textContent=text;return;}
+  const html=window.marked.parse(text,{async:false,breaks:true});
+  el.innerHTML=window.DOMPurify.sanitize(html,{ALLOWED_TAGS:['p','br','strong','em','del','ul','ol','li','blockquote','pre','code','h1','h2','h3','h4','hr','table','thead','tbody','tr','th','td','a'],ALLOWED_ATTR:['href','title'],ALLOW_DATA_ATTR:false,ALLOW_ARIA_ATTR:false});
+  for(const a of el.querySelectorAll('a')){if(!/^https?:/i.test(a.href)){a.removeAttribute('href');continue;}a.target='_blank';a.rel='noopener noreferrer';}
+}
+
 /* ═══════════ Démarrage ═══════════ */
 async function boot(){
   console.assert(kmpIndexOf('ABABDABACDABABCABAB', 'ABABCABAB') === 10, 'KMP self-test failed');
@@ -2020,6 +2154,7 @@ async function boot(){
   try { if (window.THREE && initScene()){ $('fallbackPresence').hidden = true; requestAnimationFrame(frame); } } catch(e){ $('fallbackPresence').hidden = false; }
   await loadCfg();
   await initCompanion();
+  initEngines();
   initPlatform();
   await loadDotsState();
   scheduleDots(1200);
@@ -2049,7 +2184,7 @@ async function boot(){
     $('textIn').value = '';
     handleUser(v);
   });
-  $('providerSel').addEventListener('change', () => applyProviderPreset(true));
+  $('providerSel').addEventListener('change', switchEngineDraft);
   $('mistralRouteSel').addEventListener('change', applyMistralRouteUI);
   $('rateModeSel').addEventListener('change', () => { cfg.rateMode=$('rateModeSel').value||'eco'; applyRateModeUI(); scheduleDots(); });
   $('wakeChk').addEventListener('change', async () => {

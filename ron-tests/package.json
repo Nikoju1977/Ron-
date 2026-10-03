@@ -1,0 +1,12 @@
+{
+  "name": "ron-presence-tests",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "cd .. && node ron-tests/conversation.cjs && node ron-tests/mistral.cjs && node ron-tests/engines.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.1",
+    "fake-indexeddb": "6.2.5"
+  }
+}
