@@ -33,6 +33,7 @@ async function main(){
   }});
  const d=dom.window.document;
  await until(()=>d.getElementById('state').textContent!=='Initialisation…');
+ await until(()=>libraryStarted===1);
  assert.equal(libraryStarted,1,'Slow knowledge initialization started without blocking the interface');
  assert.equal(d.getElementById('state').textContent!=='Initialisation…',true);
  assert.equal(d.querySelector('script[src="./ron-vendor/three.min.js"]'),null,

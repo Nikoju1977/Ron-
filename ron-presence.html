@@ -476,12 +476,19 @@ const safeStorage = (() => {
   function db(){
     if (dbp) return dbp;
     dbp = new Promise(res => {
+      let completed=false;
+      const finish=value=>{if(completed){if(value)try{value.close();}catch(e){}return;}completed=true;clearTimeout(watchdog);res(value);};
+      // Private mode, older PWA installations and storage upgrades can block
+      // IndexedDB indefinitely. The UI must still start with in-memory data.
+      const watchdog=setTimeout(()=>finish(null),1700);
       try {
-        const r = indexedDB.open('ron-niko', 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('kv');
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => res(null);
-      } catch (e) { res(null); }
+        if(!window.indexedDB){finish(null);return;}
+        const r=indexedDB.open('ron-niko',1);
+        r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('kv'))r.result.createObjectStore('kv');};
+        r.onsuccess=()=>finish(r.result);
+        r.onerror=()=>finish(null);
+        r.onblocked=()=>finish(null);
+      }catch(e){finish(null);}
     });
     return dbp;
   }
@@ -489,13 +496,16 @@ const safeStorage = (() => {
     const d = await db();
     if (!d) return undefined;
     return new Promise(res => {
+      let finished=false;
+      const watchdog=setTimeout(()=>finish(undefined),1700);
+      function finish(value){if(finished)return;finished=true;clearTimeout(watchdog);res(value);}
       try {
-        const t = d.transaction('kv', mode);
-        const rq = fn(t.objectStore('kv'));
-        t.oncomplete = () => res(mode === 'readwrite' ? true : (rq ? rq.result : undefined));
-        t.onerror = () => res(undefined);
-        t.onabort = () => res(undefined);
-      } catch (e) { res(undefined); }
+        const t=d.transaction('kv',mode);
+        const rq=fn(t.objectStore('kv'));
+        t.oncomplete=()=>finish(mode==='readwrite'?true:(rq?rq.result:undefined));
+        t.onerror=()=>finish(undefined);
+        t.onabort=()=>finish(undefined);
+      }catch(e){finish(undefined);}
     });
   }
   return {
@@ -539,6 +549,8 @@ const cfg = {
   voiceName: '', wake: false, remember: false, freeOnly:true, noPaid:true, autoEngine:true,
   dotsEnabled: false, dotsMode: 'review', dotsInterval: 120000
 };
+// null = not checked; false = browser cannot reach an installed local model.
+let localEngineReady=null;
 
 function applyMistralRouteUI(){
   const isMistral = $('providerSel').value === 'mistral';
@@ -1500,6 +1512,12 @@ async function handleUser(text, careContext = ''){
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
+  if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm'].includes(cfg.provider)){
+    $('textIn').value=text;
+    $('ronLine').textContent='RON fonctionne, mais aucun moteur IA local ne répond sur cet appareil. Sur téléphone, localhost ne désigne pas ton ordinateur. Dans Réglages, tu peux préparer le cloud gratuit OpenRouter (clé personnelle nécessaire, quotas possibles) ou relancer la détection locale.';
+    $('connectionHint').textContent='Interface disponible · IA non connectée. Ouvre Réglages pour choisir un moteur gratuit.';
+    setState('error','IA locale non connectée');openPanel();return;
+  }
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)){ $('textIn').value = text; openPanel(); toast('Ton message est conservé. Configure le moteur pour recevoir une réponse.'); return; }
   unlockSpeech(); stopRec(); stopSpeaking();
   if (currentXhr) currentXhr.abort();
@@ -1584,7 +1602,8 @@ function setState(s, detail){
     error: detail || 'Erreur'
   };
   if (s === 'idle'){
-    el.textContent = (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
+    el.textContent = (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm'].includes(cfg.provider)) ? 'IA locale absente · ouvre Réglages'
+      : (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
       : (cfg.wake && SR && !wakePaused) ? 'Dis « Ron » ou touche le micro'
       : SR ? 'Touche le micro ou écris' : 'Écris ton message';
   } else el.textContent = labels[s];
@@ -1599,6 +1618,7 @@ async function saveSettings(){
   const st=$('keyStatus');let draft;
   try{draft=readEngineDraft(true);}catch(error){st.className='bad';st.textContent=error.message;return;}
   ++autoProbeToken;
+  localEngineReady=null;
   savingEngine=true;$('saveBtn').disabled=true;
   stopAll();clearTimeout(dotsRuntime.timer);
   const changed=engineScope(cfg.provider,apiBase())!==draft.scope;
@@ -1622,7 +1642,7 @@ async function saveSettings(){
     st.className='';st.textContent='Test réel de '+cfg.provider+' · '+cfg.model+'…';
     const started=performance.now(),test=await testConnection();
     if(test.code===200){st.className='ok';st.textContent='Réponse reçue en '+((performance.now()-started)/1000).toFixed(1)+' s. Moteur prêt.';setState('idle');scheduleDots();}
-    else{st.className='bad';st.textContent=test.message||llmError(test.code).message;}
+    else{st.className='bad';st.textContent=test.message||llmError(test.code).message; $('connectionHint').textContent='Le moteur IA ne répond pas : vérifie son installation, le réseau et la configuration.';}
   }catch(error){st.className='bad';st.textContent=error.message;}
   finally{savingEngine=false;$('saveBtn').disabled=false;}
 }
@@ -1929,14 +1949,14 @@ function refreshMode(){
   $('modeLabel').textContent = {companion:'Présence attentive',studio:'Création & mise en scène',analysis:'Réflexion & précision'}[companionMode];
 }
 async function initCompanion(){
-  gentleVoice = (await safeStorage.get('gentleVoice')) === true;
-  const savedPatience = await safeStorage.get('listenPatience');
-  listenPatience = [0,2500,4500].includes(savedPatience) ? savedPatience : 2500;
-  const savedMode = await safeStorage.get('companionMode');
-  companionMode = Object.hasOwn(modeInstructions, savedMode) ? savedMode : 'companion';
-  careRemember = (await safeStorage.get('careRememberV1')) === true;
-  if (careRemember){
-    const saved = await safeStorage.get('careEntriesV1');
+  const values=await Promise.all(['gentleVoice','listenPatience','companionMode','careRememberV1','careEntriesV1']
+    .map(key=>safeStorage.get(key)));
+  gentleVoice=values[0]===true;
+  listenPatience=[0,2500,4500].includes(values[1])?values[1]:2500;
+  companionMode=Object.hasOwn(modeInstructions,values[2])?values[2]:'companion';
+  careRemember=values[3]===true;
+  if(careRemember){
+    const saved=values[4];
     if (Array.isArray(saved)) careEntries = saved.filter(e => e && Number.isFinite(Date.parse(e.at))).slice(-60).map(e => ({
       at:e.at, energy:validMetric(e.energy,10), pain:validMetric(e.pain,10), sleep:validMetric(e.sleep,24),
       mood:typeof e.mood === 'string' ? e.mood.slice(0,40) : '', note:typeof e.note === 'string' ? e.note.slice(0,1200) : ''
@@ -2127,6 +2147,7 @@ function showEngineHelp(){
 }
 async function switchEngineDraft(){
   const rev=++draftRevision;++autoProbeToken;++catalogRevision;
+  localEngineReady=null;
   $('keyIn').value='';$('rememberChk').checked=false;
   modelCatalog={scope:'',models:[],at:null};$('catalogStatus').textContent='Actualise pour lire le catalogue de ce moteur.';$('refreshModelsBtn').disabled=false;
   applyProviderPreset(true);showEngineHelp();renderModelCatalog();
@@ -2160,13 +2181,16 @@ async function autoConfigure(mode='startup'){
   else report=await auto.discover({fetcher:window.fetch.bind(window),hints:deviceHints(),timeoutMs:1900});
   if(token!==autoProbeToken||revision!==draftRevision||savingEngine||(mode==='startup'&&(!cfg.autoEngine||state==='thinking'||state==='speaking'||history.length)))return;
   if(!report.selected){
+   localEngineReady=false;
    const suffix=report.status==='no-model'?'Un moteur local répond, mais aucun modèle conversationnel n’est téléchargé.':
     'Aucun moteur local joignable dans ce navigateur (serveur absent, CORS ou autorisation réseau).';
    autoStatus(suffix+' Installe Ollama sur un ordinateur et télécharge qwen3.5:4b, puis relance la détection. Aucun cloud payant activé.');
-   if(mode==='startup')$('connectionHint').textContent='IA locale non détectée. Ouvre Réglages → Détecter et configurer automatiquement.';
+   if(mode==='startup')$('connectionHint').textContent='Interface disponible, IA absente : sur téléphone, Ollama sur un PC n’est pas joignable par localhost. Dans Réglages, utilise « Préparer un cloud gratuit » ou relance la détection locale.';
+   setState('idle');
    return report;
   }
   const selected=report.selected;
+  localEngineReady=true;
   if(!auto.loopback(selected.endpoint))throw Error('Un serveur distant a été refusé.');
   const changed=cfg.provider!==selected.provider || apiBase()!==selected.endpoint || cfg.model!==selected.model;
   if(mode!=='startup' && changed){
@@ -2276,12 +2300,27 @@ function renderRonAnswer(text){
 }
 
 /* ═══════════ Démarrage ═══════════ */
+let bootReady=false;
 async function boot(){
   console.assert(kmpIndexOf('ABABDABACDABABCABAB', 'ABABCABAB') === 10, 'KMP self-test failed');
   console.assert(extractWakeCommand('Salut Ron, explique la relativité') === 'explique la relativité', 'Wake KMP self-test failed');
-  // The UI and event handlers must not wait for WebGL, knowledge indexing, the
-  // mission journal, microphone permissions or background engine discovery.
-  await Promise.all([loadCfg(),initCompanion()]);
+  // Essential controls must work immediately, including while storage is
+  // stalled, offline, private, or waiting on an IndexedDB upgrade.
+  $('settingsBtn').addEventListener('click',openPanel);
+  $('panelClose').addEventListener('click',closePanel);
+  $('textForm').addEventListener('submit',e=>{
+    e.preventDefault();const text=$('textIn').value;$('textIn').value='';handleUser(text);
+  });
+  $('micBtn').addEventListener('click',()=>{
+    unlockSpeech();if(recMode==='ptt'&&rec){clearTimeout(listenTimer);try{rec.stop();}catch(e){}return;}startPTT();
+  });
+  // The interface is usable even when preference storage never responds.
+  // All noncritical configuration continues asynchronously below.
+  setState('idle');
+  const setupResults=await Promise.allSettled([loadCfg(),initCompanion()]);
+  for(const result of setupResults)if(result.status==='rejected')
+    console.warn('RON : un réglage local est indisponible ; fonctionnement dégradé',result.reason);
+  // Even a failed local preference read must not suppress core controls.
   initEngines();
   initPlatform();
   if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
@@ -2296,17 +2335,6 @@ async function boot(){
       setState('idle');
       wakePaused = false; if (cfg.wake) startWake();
     }
-  });
-  $('micBtn').addEventListener('click', () => {
-    unlockSpeech();
-    if (recMode === 'ptt' && rec){ clearTimeout(listenTimer); try { rec.stop(); } catch (e) {} return; }
-    startPTT();
-  });
-  $('textForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const v = $('textIn').value;
-    $('textIn').value = '';
-    handleUser(v);
   });
   $('providerSel').addEventListener('change', switchEngineDraft);
   $('mistralRouteSel').addEventListener('change', applyMistralRouteUI);
@@ -2334,8 +2362,6 @@ async function boot(){
   $('dotsEnabledChk').addEventListener('change', () => { cfg.dotsEnabled=$('dotsEnabledChk').checked; renderDots(); scheduleDots(350); });
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
   $('dotsIntervalSel').addEventListener('change', () => { cfg.dotsInterval=Math.max(60000,Number($('dotsIntervalSel').value)||120000); scheduleDots(); renderDots(); });
-  $('settingsBtn').addEventListener('click', openPanel);
-  $('panelClose').addEventListener('click', closePanel);
   $('saveBtn').addEventListener('click', saveSettings);
   $('clearBtn').addEventListener('click', clearKey);
   $('voiceSel').addEventListener('change', () => {
@@ -2348,7 +2374,8 @@ async function boot(){
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });
-  setState('idle'); // RON is interactive: everything below is noncritical.
+  bootReady=true; // Settings, chat and all command handlers are now bound.
+  setState('idle'); // Everything below is noncritical background work.
   if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
   if(window.RONKnowledge)void window.RONKnowledge.init({store:safeStorage,notify:toast})
     .catch(error=>{console.warn('Bibliothèque RON non initialisée',error);});

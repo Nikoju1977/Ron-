@@ -20,7 +20,7 @@ const dom=new JSDOM(fs.readFileSync('ron-presence.html','utf8'),{
 const w=dom.window,d=w.document,E=s=>w.eval(s),wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let i=0;i<100;i++){if(fn())return;await wait(20);}throw Error('Timed out');}
 async function main(){
- await until(()=>d.getElementById('state').textContent!=='Initialisation…');
+ await until(()=>w.eval('bootReady===true'));
  assert.equal(E('cfg.provider'),'ollama','New installation defaults to no-fee local inference');
  assert.equal(E('cfg.model'),'qwen3.5:4b');
  assert.equal(E('cfg.agentMode'),'agentic');
