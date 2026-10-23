@@ -29,3 +29,10 @@ Accès direct : [RON Présence](ron-presence.html) — également par « IA GRAT
 - **Tests** : exécuter npm --prefix ron-tests install puis npm --prefix ron-tests test.
 
 Voir [installation et limites détaillées](README-RON-PRESENCE.md). Le site statique ne peut installer Ollama sur un ordinateur ni fonctionner comme modèle embarqué autonome sans matériel compatible.
+
+
+### Configuration intelligente et automatique
+
+Sur une nouvelle installation de RON Présence, la configuration intelligente recherche automatiquement les API de modèles **déjà installées sur localhost uniquement** : Ollama, LM Studio et vLLM. Si un modèle de conversation est détecté, RON choisit l'un des modèles installés en fonction d'une estimation prudente des capacités du navigateur (mémoire disponible annoncée et cœurs), active les agents et sauvegarde uniquement les réglages non secrets. Aucun compte, aucun fournisseur payant, aucune connexion à une machine du réseau local et aucune génération IA ne sont lancés au démarrage.
+
+Un bouton **« Détecter et configurer automatiquement »** permet de relancer ce diagnostic. Les réglages manuels existants sont préservés par défaut ; l'utilisateur peut activer/désactiver les nouveaux scans au démarrage. Si aucun serveur n'est joignable, RON affiche une explication et conserve l'option locale. Les autorisations CORS / réseau privé peuvent limiter la détection sur GitHub Pages. Une vérification effective de la génération passe toujours par « Enregistrer et tester ».
