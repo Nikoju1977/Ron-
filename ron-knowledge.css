@@ -19,3 +19,11 @@
 #knowledgeDialog .hint{margin:10px 0}
 #knowledgeCount{font-size:12px;color:var(--mist);margin-top:10px}
 @media(max-width:520px){#knowledgeDialog{padding:15px}.knowledge-form{grid-template-columns:1fr}.knowledge-form .btn{width:100%}}
+
+#freeEngines{border:1px solid var(--ice);background:linear-gradient(130deg,rgba(29,105,98,.24),rgba(9,36,50,.8));border-radius:14px;padding:14px;margin:0 0 20px}
+#freeEngines h3{color:var(--ice);font:600 16px var(--display);margin:0 0 10px}
+#freeEngines .row{flex-wrap:wrap;margin:10px 0}
+#freeEngines .btn{font-size:13px;min-width:165px}
+#freeEngines code{font:12px ui-monospace,monospace;overflow-wrap:anywhere}
+#freeEngineStatus{line-height:1.6;padding:10px;background:rgba(4,15,22,.7);border-radius:10px}
+#freeEngines .check{margin-top:12px;line-height:1.5}
