@@ -2300,6 +2300,7 @@ function renderRonAnswer(text){
 }
 
 /* ═══════════ Démarrage ═══════════ */
+let bootReady=false;
 async function boot(){
   console.assert(kmpIndexOf('ABABDABACDABABCABAB', 'ABABCABAB') === 10, 'KMP self-test failed');
   console.assert(extractWakeCommand('Salut Ron, explique la relativité') === 'explique la relativité', 'Wake KMP self-test failed');
@@ -2373,7 +2374,8 @@ async function boot(){
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });
-  setState('idle'); // RON is interactive: everything below is noncritical.
+  bootReady=true; // Settings, chat and all command handlers are now bound.
+  setState('idle'); // Everything below is noncritical background work.
   if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
   if(window.RONKnowledge)void window.RONKnowledge.init({store:safeStorage,notify:toast})
     .catch(error=>{console.warn('Bibliothèque RON non initialisée',error);});
