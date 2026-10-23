@@ -23,7 +23,7 @@ const change=(id,value)=>{let e=d.getElementById(id);e.checked=value;e.dispatchE
 const msg=async text=>{await E(`handleUser(${JSON.stringify(text)})`);await until(()=>E("state==='idle'"))};
 
 (async()=>{
-await until(()=>d.getElementById('state').textContent!=='Initialisation…');
+await until(()=>w.eval('bootReady===true'));
 E('RATE_PROFILES.eco.minGap=0');
 assert.equal(E("normalizeEndpoint('mistral','https://api.mistral.ai/')"),'https://api.mistral.ai/v1');
 assert.throws(()=>E("normalizeEndpoint('mistral','https://example.org/v1')"),/attendue/);
