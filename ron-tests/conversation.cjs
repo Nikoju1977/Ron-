@@ -22,7 +22,7 @@ async function until(fn){for(let i=0;i<100;i++){if(fn())return;await wait(20)}th
 const change=(id,value)=>{let e=d.getElementById(id);e.checked=value;e.dispatchEvent(new w.Event('change'))};
 const msg=async text=>{await E(`handleUser(${JSON.stringify(text)})`);await until(()=>E("state==='idle'"))};
 (async()=>{
-await until(()=>d.getElementById('state').textContent!=='Initialisation…' && typeof d.getElementById('commandBtn').onclick==='function');
+await until(()=>w.eval('bootReady===true') && typeof d.getElementById('commandBtn').onclick==='function');
 assert.equal(w.__rec.length,0);
 click('commandBtn');d.getElementById('commandSearch').value='bien-être';d.getElementById('commandSearch').dispatchEvent(new w.Event('input'));
 assert.equal(d.querySelectorAll('[data-command]:not([hidden])').length,1);
