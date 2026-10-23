@@ -11,10 +11,7 @@ const CPU='smollm2-135m-cpu';
 const MODEL_IDS=new Set([NATIVE,QWEN,SMOL,CPU]);
 const LANGUAGE_OPTIONS={expectedInputs:[{type:'text',languages:['fr','en']}],expectedOutputs:[{type:'text',languages:['fr']}]};
 const MODULE_URL='https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm';
-const CPU_MODULE_URL='https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm';
-const CPU_MODEL='onnx-community/SmolLM2-135M-Instruct-ONNX-GQA';
 let engine=null,loadedModel='',loading=null,failedLargeModel=false,failedGPU=false;
-let cpuEngine=null,cpuLoading=null;
 const bounded=(promise,ms)=>Promise.race([Promise.resolve(promise).catch(()=>null),new Promise(resolve=>setTimeout(()=>resolve(null),ms))]);
 function textMessage(messages){
  return messages.slice(-12).map(m=>(m.role==='system'?'Consignes':m.role==='assistant'?'RON':'Utilisateur')+': '+String(m.content||'').slice(0,2900)).join('\n\n').slice(-12000)+'\n\nRON:';
@@ -78,42 +75,69 @@ async function getEngine(model,update){
  })().finally(()=>{loading=null;});
  return loading;
 }
-async function getCPUEngine(update,loader){
- if(loader)return loader();
- if(cpuEngine)return cpuEngine;
- if(cpuLoading)return cpuLoading;
- cpuLoading=(async()=>{
-  if(typeof root.WebAssembly?.instantiate!=='function')throw Error('WebAssembly indisponible dans ce navigateur.');
-  progress('RON prépare une IA légère sur le processeur. Premier téléchargement : environ 140 Mo, puis mise en cache…',update);
-  let lib;
-  try{lib=await import(CPU_MODULE_URL);}
-  catch(error){throw Error('Impossible de charger le moteur CPU libre. Vérifie la connexion Internet.');}
-  if(typeof lib.pipeline!=='function')throw Error('Le moteur CPU est incomplet.');
-  // A static GitHub Pages origin is not cross-origin isolated: keep ONNX WASM single-threaded.
-  if(lib.env?.backends?.onnx?.wasm)lib.env.backends.onnx.wasm.numThreads=1;
-  try{
-   const pipeline=await lib.pipeline('text-generation',CPU_MODEL,{
-    device:'wasm',dtype:'q8',
-    progress_callback:event=>{
-     if(event?.status==='progress'&&Number.isFinite(event.progress))
-      progress('Téléchargement IA CPU : '+Math.floor(event.progress)+' %',update);
-     else if(event?.status==='initiate')
-      progress('IA CPU : préparation des fichiers du modèle…',update);
-    }
-   });
-   cpuEngine=pipeline;
-   return pipeline;
-  }catch(error){
-   throw Error('Le modèle CPU n’a pas pu démarrer (stockage, réseau, mémoire ou WebAssembly). '+String(error?.message||error).slice(0,120));
-  }
- })().finally(()=>{cpuLoading=null;});
- return cpuLoading;
+/* CPU inference runs off the UI thread: even ONNX/WASM initialization can
+   block Android Chrome's event loop when executed in the page. */
+let cpuWorker=null,cpuPending=null,cpuSequence=0;
+const CPU_PREP_TIMEOUT_MS=210000,CPU_GENERATE_TIMEOUT_MS=90000;
+function cancelCPU(){
+ const running=cpuPending;cpuPending=null;
+ if(cpuWorker){cpuWorker.terminate();cpuWorker=null;}
+ if(running){clearTimeout(running.timeout);clearInterval(running.pulse);running.reject(Error('abort'));}
+}
+function runCPUWorker(messages,update){
+ if(typeof root.Worker!=='function')
+  return Promise.reject(Error('Ce navigateur ne peut pas lancer l’IA CPU en tâche séparée. Mets Chrome à jour.'));
+ if(cpuPending)cancelCPU();
+ const id=++cpuSequence;
+ let worker;
+ try{worker=cpuWorker||new root.Worker(new URL('./ron-cpu-worker.js',root.location.href),{type:'module'});cpuWorker=worker;}
+ catch(error){return Promise.reject(Error('Impossible de lancer le calcul CPU séparé : '+String(error.message||error).slice(0,100)));}
+ return new Promise((resolve,reject)=>{
+  let stage='loading',since=Date.now();
+  const pending={reject,timeout:null,pulse:null};
+  cpuPending=pending;
+  const finish=(error,answer)=>{
+   if(cpuPending!==pending)return;
+   cpuPending=null;clearTimeout(pending.timeout);clearInterval(pending.pulse);
+   if(error){if(cpuWorker===worker){worker.terminate();cpuWorker=null;}reject(error);}
+   else resolve(answer);
+  };
+  const arm=ms=>{
+   clearTimeout(pending.timeout);
+   pending.timeout=setTimeout(()=>{
+    finish(Error(stage==='generating'
+     ? 'Calcul CPU trop long sur ce téléphone. RON a arrêté le modèle. Ton message est conservé.'
+     : 'Chargement du modèle CPU trop long (ou mémoire insuffisante). RON a interrompu le calcul. Ton message est conservé.'));
+   },ms);
+  };
+  arm(CPU_PREP_TIMEOUT_MS);
+  pending.pulse=setInterval(()=>{
+   const secs=Math.round((Date.now()-since)/1000);
+   progress(stage==='generating'
+    ? 'IA CPU en cours depuis '+secs+' s. Le modèle est lent ; Arrêter reste disponible.'
+    : 'IA CPU : préparation en cours ('+secs+' s). L’interface reste utilisable ; tu peux arrêter.',update);
+  },15000);
+  worker.onmessage=e=>{
+   const data=e.data||{};if(cpuPending!==pending||data.id!==id)return;
+   if(data.type==='progress'){
+    if(data.phase==='generating'&&stage!=='generating'){stage='generating';since=Date.now();arm(CPU_GENERATE_TIMEOUT_MS);}
+    progress(String(data.text||'IA CPU en cours…').slice(0,200),update);
+   }else if(data.type==='done'){finish(null,String(data.answer||''));}
+   else if(data.type==='error'){finish(Error('IA CPU indisponible : '+String(data.message||'erreur inconnue').slice(0,220)));}
+  };
+  worker.onerror=e=>{e.preventDefault?.();finish(Error('Le moteur CPU a rencontré une erreur dans sa tâche séparée. Vérifie Chrome, le stockage et la mémoire.'));};
+  worker.onmessageerror=()=>finish(Error('Le moteur CPU n’a pas pu transmettre sa réponse.'));
+  progress('RON lance une IA sur le processeur, sans bloquer l’écran…',update);
+  try{worker.postMessage({id,messages});}
+  catch(error){finish(Error('Impossible de transmettre ta question au moteur CPU.'));}
+ });
 }
 async function generateCPU(messages,update,loader){
- const pipe=await getCPUEngine(update,loader);
- progress('RON réfléchit sur le processeur. La réponse peut être lente sur téléphone…',update);
+ if(!loader)return runCPUWorker(messages,update);
+ // Injectable in tests only; real use never executes ONNX on the UI thread.
+ const pipe=await loader();
  const compact=messages.slice(-5).map(m=>({role:m.role,content:String(m.content||'').slice(0,m.role==='system'?650:900)}));
- const output=await pipe(compact,{max_new_tokens:128,do_sample:false});
+ const output=await pipe(compact,{max_new_tokens:48,do_sample:false});
  const value=output?.[0]?.generated_text;
  const answer=Array.isArray(value)?value.slice().reverse().find(m=>m.role==='assistant')?.content
    :typeof value==='string'?value:'';
@@ -161,5 +185,5 @@ async function generate(messages,model,update,testing={}){
   catch(cpuError){throw Error('GPU incompatible et secours CPU indisponible. '+String(cpuError?.message||cpuError).slice(0,170));}
  }
 }
-root.RONBrowserAI={ENDPOINT,NATIVE,QWEN,SMOL,CPU,MODEL_IDS,detect,generate};
+root.RONBrowserAI={ENDPOINT,NATIVE,QWEN,SMOL,CPU,MODEL_IDS,detect,generate,cancel:cancelCPU};
 })(window);

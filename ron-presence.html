@@ -1597,7 +1597,11 @@ function onSpeechDrained(){
 }
 
 function stopAll(){
+  // Preserve the unsent question when the user interrupts a slow local model.
+  if(state==='thinking' && !$('textIn').value.trim() && $('youLine').textContent.trim())
+    $('textIn').value=$('youLine').textContent.trim();
   ++turnId; ++micAttempt; wakePaused = true;
+  window.RONBrowserAI?.cancel?.(); // Terminate CPU worker, not just the chat display.
   if (currentXhr) currentXhr.abort();
   stopSpeaking(); stopRec();
   awaiting = false; clearTimeout(awaitTimer);

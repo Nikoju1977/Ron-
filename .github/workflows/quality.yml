@@ -35,6 +35,7 @@ jobs:
           node --check ron-tests/public-bundle.cjs
           node --check ron-tools/build-pages.cjs
           node --check ron-browser-ai.js
+          node --check ron-cpu-worker.js
           node --check ron-tests/browser-ai.cjs
           node -e "const fs=require('fs'),vm=require('vm');for(const f of ['ron-presence.html','index.html']){const s=fs.readFileSync(f,'utf8');const scripts=[...s.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];for(const [i,m] of scripts.entries())new vm.Script(m[1],{filename:f+'#inline-'+i});console.log(f+': '+scripts.length+' inline script(s) valid');}"
       - name: Install test dependencies
