@@ -27,7 +27,8 @@ async function main(){
   }
  });
  const d=dom.window.document,E=code=>dom.window.eval(code);
- await until(()=>d.getElementById('state').textContent!=='Initialisation…');
+ try{await until(()=>d.getElementById('state').textContent!=='Initialisation…',4800);}
+ catch(error){throw Error('RON startup failed with storage blocked. Browser errors: '+JSON.stringify(errors)+'; readyState='+d.readyState+'; state='+d.getElementById('state').textContent+'; '+error.message);}
  assert(!d.getElementById('state').textContent.includes('Initialisation'),'Immediate recovery controls must appear');
  assert.equal(E('cfg.noPaid'),true,'No-spend mode must stay enabled after storage failure');
  d.getElementById('settingsBtn').click();
