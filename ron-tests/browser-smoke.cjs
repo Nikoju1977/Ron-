@@ -55,7 +55,7 @@ async function main(){
   await page.locator('#panelClose').click();
   // Automatic discovery is asynchronous. Submit only after RON has explicitly
   // established that this browser has no local inference server.
-  await page.waitForFunction(()=>document.getElementById('autoEngineStatus')?.textContent.includes('Aucun moteur local joignable'),null,{timeout:10000});
+  await page.waitForFunction(()=>/aucun modèle conversationnel|aucun moteur local joignable/i.test(document.getElementById('autoEngineStatus')?.textContent||''),null,{timeout:10000});
   await page.locator('#textIn').fill('Bonjour');
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
