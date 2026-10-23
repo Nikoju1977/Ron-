@@ -476,12 +476,19 @@ const safeStorage = (() => {
   function db(){
     if (dbp) return dbp;
     dbp = new Promise(res => {
+      let completed=false;
+      const finish=value=>{if(completed){if(value)try{value.close();}catch(e){}return;}completed=true;clearTimeout(watchdog);res(value);};
+      // Private mode, older PWA installations and storage upgrades can block
+      // IndexedDB indefinitely. The UI must still start with in-memory data.
+      const watchdog=setTimeout(()=>finish(null),1700);
       try {
-        const r = indexedDB.open('ron-niko', 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('kv');
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => res(null);
-      } catch (e) { res(null); }
+        if(!window.indexedDB){finish(null);return;}
+        const r=indexedDB.open('ron-niko',1);
+        r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('kv'))r.result.createObjectStore('kv');};
+        r.onsuccess=()=>finish(r.result);
+        r.onerror=()=>finish(null);
+        r.onblocked=()=>finish(null);
+      }catch(e){finish(null);}
     });
     return dbp;
   }
@@ -489,13 +496,16 @@ const safeStorage = (() => {
     const d = await db();
     if (!d) return undefined;
     return new Promise(res => {
+      let finished=false;
+      const watchdog=setTimeout(()=>finish(undefined),1700);
+      function finish(value){if(finished)return;finished=true;clearTimeout(watchdog);res(value);}
       try {
-        const t = d.transaction('kv', mode);
-        const rq = fn(t.objectStore('kv'));
-        t.oncomplete = () => res(mode === 'readwrite' ? true : (rq ? rq.result : undefined));
-        t.onerror = () => res(undefined);
-        t.onabort = () => res(undefined);
-      } catch (e) { res(undefined); }
+        const t=d.transaction('kv',mode);
+        const rq=fn(t.objectStore('kv'));
+        t.oncomplete=()=>finish(mode==='readwrite'?true:(rq?rq.result:undefined));
+        t.onerror=()=>finish(undefined);
+        t.onabort=()=>finish(undefined);
+      }catch(e){finish(undefined);}
     });
   }
   return {
@@ -1929,14 +1939,14 @@ function refreshMode(){
   $('modeLabel').textContent = {companion:'Présence attentive',studio:'Création & mise en scène',analysis:'Réflexion & précision'}[companionMode];
 }
 async function initCompanion(){
-  gentleVoice = (await safeStorage.get('gentleVoice')) === true;
-  const savedPatience = await safeStorage.get('listenPatience');
-  listenPatience = [0,2500,4500].includes(savedPatience) ? savedPatience : 2500;
-  const savedMode = await safeStorage.get('companionMode');
-  companionMode = Object.hasOwn(modeInstructions, savedMode) ? savedMode : 'companion';
-  careRemember = (await safeStorage.get('careRememberV1')) === true;
-  if (careRemember){
-    const saved = await safeStorage.get('careEntriesV1');
+  const values=await Promise.all(['gentleVoice','listenPatience','companionMode','careRememberV1','careEntriesV1']
+    .map(key=>safeStorage.get(key)));
+  gentleVoice=values[0]===true;
+  listenPatience=[0,2500,4500].includes(values[1])?values[1]:2500;
+  companionMode=Object.hasOwn(modeInstructions,values[2])?values[2]:'companion';
+  careRemember=values[3]===true;
+  if(careRemember){
+    const saved=values[4];
     if (Array.isArray(saved)) careEntries = saved.filter(e => e && Number.isFinite(Date.parse(e.at))).slice(-60).map(e => ({
       at:e.at, energy:validMetric(e.energy,10), pain:validMetric(e.pain,10), sleep:validMetric(e.sleep,24),
       mood:typeof e.mood === 'string' ? e.mood.slice(0,40) : '', note:typeof e.note === 'string' ? e.note.slice(0,1200) : ''
@@ -2281,7 +2291,10 @@ async function boot(){
   console.assert(extractWakeCommand('Salut Ron, explique la relativité') === 'explique la relativité', 'Wake KMP self-test failed');
   // The UI and event handlers must not wait for WebGL, knowledge indexing, the
   // mission journal, microphone permissions or background engine discovery.
-  await Promise.all([loadCfg(),initCompanion()]);
+  const setupResults=await Promise.allSettled([loadCfg(),initCompanion()]);
+  for(const result of setupResults)if(result.status==='rejected')
+    console.warn('RON : un réglage local est indisponible ; fonctionnement dégradé',result.reason);
+  // Even a failed local preference read must not suppress core controls.
   initEngines();
   initPlatform();
   if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
