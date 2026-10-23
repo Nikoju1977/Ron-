@@ -24,7 +24,7 @@ async function main(){
  const port=server.address().port;
  let browser;
  try{
-  browser=await chromium.launch({headless:true,args:['--disable-gpu','--disable-dev-shm-usage']});
+  browser=await chromium.launch({headless:true,channel:process.env.CI?'chrome':undefined,args:['--disable-gpu','--disable-dev-shm-usage']});
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   const page=await context.newPage(),exceptions=[];
   page.on('pageerror',error=>exceptions.push(error.message));
