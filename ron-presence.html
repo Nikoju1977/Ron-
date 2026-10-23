@@ -2313,16 +2313,10 @@ async function boot(){
   $('micBtn').addEventListener('click',()=>{
     unlockSpeech();if(recMode==='ptt'&&rec){clearTimeout(listenTimer);try{rec.stop();}catch(e){}return;}startPTT();
   });
-  // Preserve the normal ready signal until initialization finishes. If a
-  // device's storage is stalled, expose rescue controls instead of hanging.
-  const rescueTimer=setTimeout(()=>{
-    if($('state').textContent==='Initialisation…'){
-      setState('idle');
-      $('connectionHint').textContent='Stockage local lent ou indisponible : RON reste accessible. Les réglages enregistrés peuvent ne pas être chargés.';
-    }
-  },2200);
+  // The interface is usable even when preference storage never responds.
+  // All noncritical configuration continues asynchronously below.
+  setState('idle');
   const setupResults=await Promise.allSettled([loadCfg(),initCompanion()]);
-  clearTimeout(rescueTimer);
   for(const result of setupResults)if(result.status==='rejected')
     console.warn('RON : un réglage local est indisponible ; fonctionnement dégradé',result.reason);
   // Even a failed local preference read must not suppress core controls.
