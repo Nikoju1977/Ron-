@@ -28,6 +28,11 @@ async function main(){
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   const page=await context.newPage(),exceptions=[];
   page.on('pageerror',error=>exceptions.push(error.message));
+  // This first scenario intentionally has no native, WebGPU or localhost AI.
+  await page.addInitScript(()=>{
+   Object.defineProperty(window,'LanguageModel',{configurable:true,value:undefined});
+   Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});
+  });
   page.route('http://localhost:*/v1/models',route=>route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'{"data":[]}'}));
   const start=Date.now();
   await page.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
@@ -50,7 +55,7 @@ async function main(){
   await page.locator('#panelClose').click();
   // Automatic discovery is asynchronous. Submit only after RON has explicitly
   // established that this browser has no local inference server.
-  await page.waitForFunction(()=>document.getElementById('connectionHint')?.textContent.includes('IA absente'),null,{timeout:8000});
+  await page.waitForFunction(()=>document.getElementById('autoEngineStatus')?.textContent.includes('Aucun moteur local joignable'),null,{timeout:10000});
   await page.locator('#textIn').fill('Bonjour');
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
