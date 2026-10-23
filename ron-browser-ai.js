@@ -7,8 +7,9 @@ const ENDPOINT='browser://local';
 const NATIVE='chrome-native';
 const QWEN='Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 const SMOL='SmolLM2-360M-Instruct-q4f32_1-MLC';
-const CPU='smollm2-135m-cpu';
-const MODEL_IDS=new Set([NATIVE,QWEN,SMOL,CPU]);
+const CPU='qwen2.5-0.5b-cpu';
+const LEGACY_CPU='smollm2-135m-cpu'; // Migrate existing saved configurations safely.
+const MODEL_IDS=new Set([NATIVE,QWEN,SMOL,CPU,LEGACY_CPU]);
 const LANGUAGE_OPTIONS={expectedInputs:[{type:'text',languages:['fr','en']}],expectedOutputs:[{type:'text',languages:['fr']}]};
 const MODULE_URL='https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm';
 let engine=null,loadedModel='',loading=null,failedLargeModel=false,failedGPU=false;
@@ -84,6 +85,16 @@ function cancelCPU(){
  if(cpuWorker){cpuWorker.terminate();cpuWorker=null;}
  if(running){clearTimeout(running.timeout);clearInterval(running.pulse);running.reject(Error('abort'));}
 }
+function instantFrenchReply(messages){
+ const last=[...messages].reverse().find(m=>m?.role==='user');
+ if(!last)return null;
+ const question=String(last.content||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .toLowerCase().trim().replace(/[\s?!.,]+$/g,'');
+ // Stable factual capability question: no need to invoke 0.5B parameters.
+ if(/^(?:tu |est-ce que tu |ron,? )?(?:peux|sais)(?:-tu)? (?:parler|repondre) (?:en )?francais$/.test(question))
+  return 'Oui, je peux te répondre en français. Que veux-tu savoir ?';
+ return null;
+}
 function runCPUWorker(messages,update){
  if(typeof root.Worker!=='function')
   return Promise.reject(Error('Ce navigateur ne peut pas lancer l’IA CPU en tâche séparée. Mets Chrome à jour.'));
@@ -133,6 +144,8 @@ function runCPUWorker(messages,update){
  });
 }
 async function generateCPU(messages,update,loader){
+ const instant=instantFrenchReply(messages);
+ if(instant)return instant;
  if(!loader)return runCPUWorker(messages,update);
  // Injectable in tests only; real use never executes ONNX on the UI thread.
  const pipe=await loader();
@@ -146,7 +159,7 @@ async function generateCPU(messages,update,loader){
 }
 async function generate(messages,model,update,testing={}){
  if(!MODEL_IDS.has(model))throw Error('Modèle de navigateur non autorisé.');
- if(model===CPU)return generateCPU(messages,update,testing.loadCPU);
+ if(model===CPU||model===LEGACY_CPU)return generateCPU(messages,update,testing.loadCPU);
  if(failedGPU&&model!==NATIVE)return generateCPU(messages,update,testing.loadCPU);
  if(model===NATIVE){
   if(typeof root.LanguageModel?.create!=='function')throw Error('IA intégrée au navigateur indisponible.');
@@ -185,5 +198,5 @@ async function generate(messages,model,update,testing={}){
   catch(cpuError){throw Error('GPU incompatible et secours CPU indisponible. '+String(cpuError?.message||cpuError).slice(0,170));}
  }
 }
-root.RONBrowserAI={ENDPOINT,NATIVE,QWEN,SMOL,CPU,MODEL_IDS,detect,generate,cancel:cancelCPU};
+root.RONBrowserAI={ENDPOINT,NATIVE,QWEN,SMOL,CPU,LEGACY_CPU,MODEL_IDS,detect,generate,cancel:cancelCPU};
 })(window);

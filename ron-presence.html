@@ -528,7 +528,7 @@ function toast(msg){
 
 /* ═══════════ Réglages & cerveau multi-LLM ═══════════ */
 const PROVIDERS = {
-  browser: { endpoint:'browser://local', model:'smollm2-135m-cpu', needsKey:false },
+  browser: { endpoint:'browser://local', model:'qwen2.5-0.5b-cpu', needsKey:false },
   mistral: { endpoint: 'https://api.mistral.ai/v1', model: 'mistral-large-latest', needsKey: true },
   openrouter: { endpoint:'https://openrouter.ai/api/v1', model:'openrouter/free', needsKey:true },
   groq: { endpoint:'https://api.groq.com/openai/v1', model:'openai/gpt-oss-20b', needsKey:true },
@@ -598,6 +598,7 @@ async function loadCfg(){
   if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='ollama';
   cfg.endpoint=saved.endpoint||(PROVIDERS[cfg.provider]||PROVIDERS.custom).endpoint;
   cfg.model=saved.model||(PROVIDERS[cfg.provider]||PROVIDERS.custom).model;
+  if(cfg.provider==='browser' && cfg.model==='smollm2-135m-cpu')cfg.model=PROVIDERS.browser.model;
   cfg.mistralRoute=saved.mistralRoute||cfg.mistralRoute;
   cfg.rateMode=saved.rateMode||cfg.rateMode;
   cfg.agentMode=saved.agentMode||cfg.agentMode;
@@ -2167,7 +2168,7 @@ async function refreshModels(){
 function showEngineHelp(){
   const provider=$('providerSel').value;
   const help={
-    browser:'Sans clé ni paiement : Chrome IA, modèle CPU WebAssembly (compatible même sans GPU) ou WebGPU/WebLLM. Android privilégie le petit modèle CPU. Le premier message peut télécharger environ 140 Mo (CPU) ; réponses plus lentes et qualité limitée. Pas de téléchargement en arrière-plan. La détection ne garantit pas le bon fonctionnement sur tous les téléphones.',
+    browser:'Sans clé ni paiement : Chrome IA, Qwen2.5-0.5B-Instruct multilingue sur CPU WebAssembly (sans GPU), ou WebGPU/WebLLM. Android privilégie Qwen sur CPU pour mieux répondre en français. Premier vrai calcul : environ 512 Mo de poids à télécharger, mémoire et patience nécessaires ; aucune promesse de compatibilité avec tous les téléphones.',
     mistral:'Mistral : clé personnelle. Les alias latest évoluent ; le catalogue permet de choisir un modèle précis. Les poids ouverts et le prix de l’API sont deux sujets distincts.',
     openrouter:'OpenRouter : une clé ouvre un catalogue de plusieurs éditeurs. Le filtre gratuit concerne le tarif des tokens annoncé, avec quotas et disponibilité variables. Ron demande des fournisseurs sans collecte de données ; certains modèles peuvent donc être indisponibles.',
     groq:'Groq : modèles hébergés, clé et limites propres à ton compte. Le catalogue permet de voir les identifiants actuellement proposés.',
@@ -2236,7 +2237,7 @@ async function autoConfigure(mode='startup'){
      await safeStorage.set('autoEngineV1',true);
      const message=fallback.kind==='native'
        ? (fallback.ready ? 'IA Chrome prête : RON peut répondre sans clé et sans serveur.' : 'IA Chrome compatible : modèle à télécharger à la première question, aucune clé requise.')
-       : fallback.kind==='cpu' ? 'Mode Android sans GPU sélectionné : IA CPU légère WebAssembly. Premier message : téléchargement d’environ 140 Mo, réponse potentiellement lente. Aucun compte ni clé.'
+       : fallback.kind==='cpu' ? 'Mode Android sans GPU : Qwen2.5 0,5B multilingue sur CPU. Première question : environ 512 Mo à télécharger, préparation et calcul possiblement lents. Aucune clé API.'
        : 'GPU détecté, non encore testé : RON tente un modèle WebGPU puis se replie sur le CPU si le GPU refuse de démarrer. Aucune clé requise.';
      autoStatus(message,fallback.ready===true);$('freeEngineStatus').textContent=message;
      $('connectionHint').textContent=message;setState('idle');return {selected:{provider:'browser',model:cfg.model}};
