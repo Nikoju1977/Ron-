@@ -2303,8 +2303,18 @@ function renderRonAnswer(text){
 async function boot(){
   console.assert(kmpIndexOf('ABABDABACDABABCABAB', 'ABABCABAB') === 10, 'KMP self-test failed');
   console.assert(extractWakeCommand('Salut Ron, explique la relativité') === 'explique la relativité', 'Wake KMP self-test failed');
-  // The UI and event handlers must not wait for WebGL, knowledge indexing, the
-  // mission journal, microphone permissions or background engine discovery.
+  // Essential controls must work immediately, including while storage is
+  // stalled, offline, private, or waiting on an IndexedDB upgrade.
+  $('settingsBtn').addEventListener('click',openPanel);
+  $('panelClose').addEventListener('click',closePanel);
+  $('textForm').addEventListener('submit',e=>{
+    e.preventDefault();const text=$('textIn').value;$('textIn').value='';handleUser(text);
+  });
+  $('micBtn').addEventListener('click',()=>{
+    unlockSpeech();if(recMode==='ptt'&&rec){clearTimeout(listenTimer);try{rec.stop();}catch(e){}return;}startPTT();
+  });
+  setState('idle');
+  // Loading optional preferences must never prevent access to these controls.
   const setupResults=await Promise.allSettled([loadCfg(),initCompanion()]);
   for(const result of setupResults)if(result.status==='rejected')
     console.warn('RON : un réglage local est indisponible ; fonctionnement dégradé',result.reason);
@@ -2323,17 +2333,6 @@ async function boot(){
       setState('idle');
       wakePaused = false; if (cfg.wake) startWake();
     }
-  });
-  $('micBtn').addEventListener('click', () => {
-    unlockSpeech();
-    if (recMode === 'ptt' && rec){ clearTimeout(listenTimer); try { rec.stop(); } catch (e) {} return; }
-    startPTT();
-  });
-  $('textForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const v = $('textIn').value;
-    $('textIn').value = '';
-    handleUser(v);
   });
   $('providerSel').addEventListener('change', switchEngineDraft);
   $('mistralRouteSel').addEventListener('change', applyMistralRouteUI);
@@ -2361,8 +2360,6 @@ async function boot(){
   $('dotsEnabledChk').addEventListener('change', () => { cfg.dotsEnabled=$('dotsEnabledChk').checked; renderDots(); scheduleDots(350); });
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
   $('dotsIntervalSel').addEventListener('change', () => { cfg.dotsInterval=Math.max(60000,Number($('dotsIntervalSel').value)||120000); scheduleDots(); renderDots(); });
-  $('settingsBtn').addEventListener('click', openPanel);
-  $('panelClose').addEventListener('click', closePanel);
   $('saveBtn').addEventListener('click', saveSettings);
   $('clearBtn').addEventListener('click', clearKey);
   $('voiceSel').addEventListener('change', () => {
