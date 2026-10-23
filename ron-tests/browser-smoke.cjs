@@ -91,11 +91,11 @@ async function main(){
   // UI message routing and local CPU result without downloading 137 MB in CI.
   await context.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',route=>route.fulfill({
    status:200,contentType:'application/javascript',headers:{'Access-Control-Allow-Origin':'*'},
-   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q8'||model!=='onnx-community/Qwen2.5-0.5B-Instruct')throw Error('Wrong French CPU model');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(!chat[0]?.content?.includes('français correct'))throw Error('Missing French instruction');if(chat.at(-1).content.includes('malforme'))return [{generated_text:[...chat,{role:'assistant',content:'Ze chat répond comme une chaleur sans des mots de des'}]}];if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
+   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q4f16'||model!=='onnx-community/gemma-3-270m-it-ONNX')throw Error('Wrong French CPU model');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(!chat[0]?.content?.includes('français naturel'))throw Error('Missing French instruction');if(chat.at(-1).content.includes('malforme'))return [{generated_text:[...chat,{role:'assistant',content:'Ze chat répond comme une chaleur sans des mots de des'}]}];if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
   }));
   await cpuPage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
   await cpuPage.waitForFunction(()=>document.getElementById('providerSel')?.value==='browser'&&
-   document.getElementById('modelIn')?.value==='qwen2.5-0.5b-cpu',null,{timeout:11000});
+   document.getElementById('modelIn')?.value==='gemma3-270m-cpu',null,{timeout:11000});
   assert.match(await cpuPage.locator('#autoEngineStatus').innerText(),/processeur|CPU/i);
   assert(await cpuPage.locator('#noPaidChk').isChecked(),'CPU mode never enables a paid API');
   await cpuPage.locator('#textIn').fill('Bonjour RON');
