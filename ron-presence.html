@@ -882,8 +882,8 @@ function modelCandidates(userText='', role='final', domain=null){
 
 /* Budget strict: only loopback engines and explicitly free OpenRouter model IDs.
    Network/model providers can change terms: noPaid blocks anything unverified. */
-function enforceNoPaid(provider,endpoint,model){
-  const ui=$('noPaidChk'); if(!(ui ? ui.checked : cfg.noPaid))return;
+function enforceNoPaid(provider,endpoint,model,enabled=cfg.noPaid){
+  if(!enabled)return;
   let url;try{url=new URL(endpoint);}catch(e){throw Error('Adresse du moteur invalide.');}
   const isLocal=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
   if(isLocal && ['ollama','lmstudio','vllm','custom'].includes(provider))return;
@@ -2048,7 +2048,7 @@ function readEngineDraft(requireModel=true){
   if(!Object.hasOwn(PROVIDERS,provider))throw new Error('Choisis un moteur disponible.');
   const endpoint=normalizeEndpoint(provider,$('endpointIn').value),scope=engineScope(provider,endpoint);
   const key=sanitizeKey($('keyIn').value),model=$('modelIn').value.trim();
-  if(requireModel && $('noPaidChk').checked)enforceNoPaid(provider,endpoint,model);
+  if(requireModel)enforceNoPaid(provider,endpoint,model,$('noPaidChk').checked);
   if(key&&draftKeyScope!==scope)throw new Error('L’adresse a changé. Ressaisis la clé destinée à ce serveur.');
   if(requireModel&&!model)throw new Error('Choisis un modèle dans le catalogue ou saisis son identifiant.');
   if(PROVIDERS[provider].needsKey&&!key&&!(provider==='openrouter'&&!requireModel))throw new Error('Renseigne la clé API de ce moteur.');
