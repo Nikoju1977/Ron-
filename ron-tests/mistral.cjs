@@ -24,7 +24,7 @@ const msg=async text=>{await E(`handleUser(${JSON.stringify(text)})`);await unti
 
 (async()=>{
 await until(()=>d.getElementById('state').textContent!=='Initialisation…');
-E("cfg.provider='mistral';cfg.endpoint='https://api.mistral.ai/v1';cfg.key='simulation';cfg.agentMode='direct';RATE_PROFILES.eco.minGap=0;RATE_PROFILES.eco.max429Retries=1;");
+E("cfg.noPaid=false;cfg.provider='mistral';cfg.endpoint='https://api.mistral.ai/v1';cfg.key='simulation';cfg.agentMode='direct';RATE_PROFILES.eco.minGap=0;RATE_PROFILES.eco.max429Retries=1;");
 E("rateRuntime.cooldownUntil=0;absorbRateHeaders({get:()=>null})");assert.equal(E('rateRuntime.cooldownUntil'),0);
 E("absorbRateHeaders({get:()=>''})");assert.equal(E('rateRuntime.cooldownUntil'),0);
 assert.equal(E("retryAfterMs({get:()=> '120'})"),120000);
