@@ -14,7 +14,7 @@ function build(fetcher){
  const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
  const dom=new JSDOM(html,{url:'https://nikoju1977.github.io/Ron-/ron-presence.html',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){
   w.indexedDB=indexedDB;w.matchMedia=()=>({matches:false});
-  w.isSecureContext=true;w.AudioContext=undefined;w.navigator.deviceMemory=4;w.navigator.hardwareConcurrency=4;
+  w.isSecureContext=true;w.AudioContext=undefined;Object.defineProperty(w.navigator,'deviceMemory',{configurable:true,value:4});Object.defineProperty(w.navigator,'hardwareConcurrency',{configurable:true,value:4});
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
   w.HTMLDialogElement.prototype.close=function(){this.open=false;};
   w.SpeechRecognition=class{start(){}stop(){}abort(){}};
