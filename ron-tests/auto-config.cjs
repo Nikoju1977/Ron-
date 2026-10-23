@@ -66,7 +66,7 @@ async function main(){
   const blocked=new Promise(resolve=>release=resolve);
   const x=build(async url=>{await blocked;return reply([{id:'qwen3.5:4b'}]);});
   const {window:w,dom}=x,$=id=>w.document.getElementById(id);
-  await until(()=>w.document.getElementById('state').textContent!=='Initialisation…');
+  await until(()=>w.eval('bootReady===true'));
   $('providerSel').value='groq';
   await w.eval('switchEngineDraft()');
   release();
