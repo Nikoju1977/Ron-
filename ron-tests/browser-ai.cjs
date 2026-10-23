@@ -70,8 +70,9 @@ async function main(){
  const cpuChoice=await dom.window.RONBrowserAI.detect(mobileNoGPU);
  assert.equal(cpuChoice.kind,'cpu');
  assert.equal(cpuChoice.model,dom.window.RONBrowserAI.CPU);
- assert.equal(dom.window.RONBrowserAI.CPU,'qwen2.5-0.5b-cpu','French-capable model is the new no-key CPU default');
+ assert.equal(dom.window.RONBrowserAI.CPU,'gemma3-270m-cpu','Lower-memory Gemma becomes the no-key CPU default');
  assert.equal(cpuChoice.ready,false,'CPU weights are not downloaded before first question');
+ assert(dom.window.RONBrowserAI.MODEL_IDS.has('qwen2.5-0.5b-cpu'),'Previously saved heavy CPU model is migrated safely');
  const androidHasGPU={
   ...mobileNoGPU,navigator:{...mobileNoGPU.navigator,gpu:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}}
  };
