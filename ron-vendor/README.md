@@ -6,3 +6,6 @@
 Versions figées pour un déploiement reproductible. Les réponses passent par le nettoyage DOMPurify après le parsing Marked. Les images, scripts, styles, attributs événementiels et liens non HTTP(S) ne sont pas autorisés par le rendu de Ron.
 
 - `three.min.js` : Three.js 0.128.0 (version du moteur 3D existant, désormais embarquée sans CDN). Licence MIT : `three-LICENSE`. Source : https://github.com/mrdoob/three.js/tree/r128
+
+
+- fuse.basic.min.js : Fuse.js 7.5.0, build navigateur officiel dist/fuse.basic.min.cjs adapté pour exposer window.Fuse, licence Apache-2.0 dans fuse-LICENSE. Source : https://github.com/krisk/Fuse/tree/v7.5.0. Recherche floue exclusivement locale.
