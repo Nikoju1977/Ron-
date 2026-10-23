@@ -7,9 +7,10 @@ const ENDPOINT='browser://local';
 const NATIVE='chrome-native';
 const QWEN='Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 const SMOL='SmolLM2-360M-Instruct-q4f32_1-MLC';
-const CPU='qwen2.5-0.5b-cpu';
-const LEGACY_CPU='smollm2-135m-cpu'; // Migrate existing saved configurations safely.
-const MODEL_IDS=new Set([NATIVE,QWEN,SMOL,CPU,LEGACY_CPU]);
+const CPU='gemma3-270m-cpu';
+const LEGACY_CPU='qwen2.5-0.5b-cpu';
+const OLDER_CPU='smollm2-135m-cpu'; // Old saved configurations resolve to the current model.
+const MODEL_IDS=new Set([NATIVE,QWEN,SMOL,CPU,LEGACY_CPU,OLDER_CPU]);
 const LANGUAGE_OPTIONS={expectedInputs:[{type:'text',languages:['fr','en']}],expectedOutputs:[{type:'text',languages:['fr']}]};
 const MODULE_URL='https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm';
 let engine=null,loadedModel='',loading=null,failedLargeModel=false,failedGPU=false;
@@ -159,7 +160,7 @@ async function generateCPU(messages,update,loader){
 }
 async function generate(messages,model,update,testing={}){
  if(!MODEL_IDS.has(model))throw Error('Modèle de navigateur non autorisé.');
- if(model===CPU||model===LEGACY_CPU)return generateCPU(messages,update,testing.loadCPU);
+ if([CPU,LEGACY_CPU,OLDER_CPU].includes(model))return generateCPU(messages,update,testing.loadCPU);
  if(failedGPU&&model!==NATIVE)return generateCPU(messages,update,testing.loadCPU);
  if(model===NATIVE){
   if(typeof root.LanguageModel?.create!=='function')throw Error('IA intégrée au navigateur indisponible.');
@@ -198,5 +199,5 @@ async function generate(messages,model,update,testing={}){
   catch(cpuError){throw Error('GPU incompatible et secours CPU indisponible. '+String(cpuError?.message||cpuError).slice(0,170));}
  }
 }
-root.RONBrowserAI={ENDPOINT,NATIVE,QWEN,SMOL,CPU,LEGACY_CPU,MODEL_IDS,detect,generate,cancel:cancelCPU};
+root.RONBrowserAI={ENDPOINT,NATIVE,QWEN,SMOL,CPU,LEGACY_CPU,OLDER_CPU,MODEL_IDS,detect,generate,cancel:cancelCPU};
 })(window);
