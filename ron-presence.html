@@ -571,44 +571,48 @@ function applyProviderPreset(force=false){
 }
 
 async function loadCfg(){
-  const savedProvider=await safeStorage.get('provider');
-  const savedAuto=await safeStorage.get('autoEngineV1');
-  cfg.autoEngine=savedAuto===true || (savedAuto!==false && !savedProvider);
-  cfg.provider = savedProvider || cfg.provider;
-  if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='mistral';
-  cfg.endpoint = (await safeStorage.get('endpoint')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).endpoint;
-  cfg.model = (await safeStorage.get('model')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).model;
-  cfg.mistralRoute = (await safeStorage.get('mistralRoute')) || cfg.mistralRoute;
-  cfg.rateMode = (await safeStorage.get('rateMode')) || cfg.rateMode;
-  cfg.agentMode = (await safeStorage.get('agentMode')) || cfg.agentMode;
-  cfg.voiceName = (await safeStorage.get('voice')) || '';
-  cfg.wake = (await safeStorage.get('wake')) === true;
-  cfg.dotsEnabled = (await safeStorage.get('dotsEnabled')) === true;
-  cfg.dotsMode = (await safeStorage.get('dotsMode')) || cfg.dotsMode;
-  cfg.dotsInterval = Number(await safeStorage.get('dotsInterval')) || cfg.dotsInterval;
-  const rem = await safeStorage.get('remember');
-  cfg.remember = rem === true;
-  cfg.freeOnly = (await safeStorage.get('freeOnly')) !== false;
-  cfg.noPaid = (await safeStorage.get('noPaid')) !== false;
+  // Read independent preferences together rather than waiting for 16 separate
+  // IndexedDB transactions in series on slow mobile storage.
+  const keys=['provider','autoEngineV1','endpoint','model','mistralRoute','rateMode',
+    'agentMode','voice','wake','dotsEnabled','dotsMode','dotsInterval',
+    'remember','freeOnly','noPaid'];
+  const entries=await Promise.all(keys.map(async key=>[key,await safeStorage.get(key)]));
+  const saved=Object.fromEntries(entries);
+  cfg.autoEngine=saved.autoEngineV1===true || (saved.autoEngineV1!==false && !saved.provider);
+  cfg.provider=saved.provider||cfg.provider;
+  if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='ollama';
+  cfg.endpoint=saved.endpoint||(PROVIDERS[cfg.provider]||PROVIDERS.custom).endpoint;
+  cfg.model=saved.model||(PROVIDERS[cfg.provider]||PROVIDERS.custom).model;
+  cfg.mistralRoute=saved.mistralRoute||cfg.mistralRoute;
+  cfg.rateMode=saved.rateMode||cfg.rateMode;
+  cfg.agentMode=saved.agentMode||cfg.agentMode;
+  cfg.voiceName=saved.voice||'';
+  cfg.wake=saved.wake===true;
+  cfg.dotsEnabled=saved.dotsEnabled===true;
+  cfg.dotsMode=saved.dotsMode||cfg.dotsMode;
+  cfg.dotsInterval=Number(saved.dotsInterval)||cfg.dotsInterval;
+  cfg.remember=saved.remember===true;
+  cfg.freeOnly=saved.freeOnly!==false;
+  cfg.noPaid=saved.noPaid!==false;
   const scope=engineScope(cfg.provider,cfg.endpoint);
   const scopedKey=await safeStorage.get('engineKeyV1:'+scope);
   cfg.key=cfg.remember?sanitizeKey(scopedKey===undefined?await safeStorage.get('key'):scopedKey):'';
   if(cfg.key)await safeStorage.set('engineKeyV1:'+scope,cfg.key);
   await safeStorage.del('key');
-  $('providerSel').value = cfg.provider;
-  $('endpointIn').value = cfg.endpoint;
-  $('modelIn').value = cfg.model;
-  $('mistralRouteSel').value = cfg.mistralRoute;
-  $('rateModeSel').value = cfg.rateMode;
-  $('agentSel').value = cfg.agentMode;
-  $('wakeChk').checked = cfg.wake;
-  $('rememberChk').checked = cfg.remember;
-  $('noPaidChk').checked = cfg.noPaid;
+  $('providerSel').value=cfg.provider;
+  $('endpointIn').value=cfg.endpoint;
+  $('modelIn').value=cfg.model;
+  $('mistralRouteSel').value=cfg.mistralRoute;
+  $('rateModeSel').value=cfg.rateMode;
+  $('agentSel').value=cfg.agentMode;
+  $('wakeChk').checked=cfg.wake;
+  $('rememberChk').checked=cfg.remember;
+  $('noPaidChk').checked=cfg.noPaid;
   $('autoEngineChk').checked=cfg.autoEngine;
-  $('dotsEnabledChk').checked = cfg.dotsEnabled;
-  $('dotsModeSel').value = cfg.dotsMode;
-  $('dotsIntervalSel').value = String(cfg.dotsInterval);
-  $('keyIn').value = cfg.key;
+  $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  $('dotsModeSel').value=cfg.dotsMode;
+  $('dotsIntervalSel').value=String(cfg.dotsInterval);
+  $('keyIn').value=cfg.key;
   applyProviderPreset(false);
 }
 
