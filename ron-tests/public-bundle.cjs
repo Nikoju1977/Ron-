@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const {build,files,target}=require('../ron-tools/build-pages.cjs');
 const built=build();
-assert.equal(built.length,18);
+assert.equal(built.length,19);
 assert(fs.existsSync(path.join(target,'ron-presence.html')));
 assert(fs.existsSync(path.join(target,'index.html')));
 assert(fs.existsSync(path.join(target,'ron-presence-sw.js')));
