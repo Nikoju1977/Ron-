@@ -89,9 +89,9 @@ async function main(){
   });
   // Simulate the external WASM generator; integration test covers CDN import,
   // UI message routing and local CPU result without downloading 137 MB in CI.
-  await cpuPage.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',route=>route.fulfill({
+  await context.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',route=>route.fulfill({
    status:200,contentType:'application/javascript',headers:{'Access-Control-Allow-Origin':'*'},
-   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q8')throw Error('Wrong CPU mode');return async (chat)=>[{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};"
+   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q8')throw Error('Wrong CPU mode');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
   }));
   await cpuPage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
   await cpuPage.waitForFunction(()=>document.getElementById('providerSel')?.value==='browser'&&
@@ -102,6 +102,17 @@ async function main(){
   await cpuPage.locator('#sendBtn').click();
   await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Bonjour du CPU sans GPU.'),null,{timeout:10000});
   assert.deepEqual(cpuErrors,[],'Android CPU autodetection and a mocked response have no script errors');
+  // A CPU engine that never yields must not freeze the DOM or the Stop button:
+  // emulate 15s synchronous WASM work inside the dedicated worker.
+  await cpuPage.locator('#textIn').fill('bloque');
+  await cpuPage.locator('#sendBtn').click();
+  await cpuPage.waitForFunction(()=>/calcule une réponse/.test(document.getElementById('connectionHint')?.textContent||''),null,{timeout:5000});
+  const stopStarted=Date.now();
+  await cpuPage.locator('#pauseBtn').click({timeout:2500});
+  assert(Date.now()-stopStarted<2800,'Stop must stay responsive while CPU worker is busy');
+  assert.equal(await cpuPage.locator('#textIn').inputValue(),'bloque','Stop preserves user text');
+  assert.equal(await cpuPage.locator('#state').innerText(),'Touche le micro ou écris');
+  assert.deepEqual(cpuErrors,[],'Stopping a blocked CPU worker causes no browser exceptions');
   console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,noKeyNativePrompt:true,androidCpuSelected:true,exceptions}));
   await context.close();
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
