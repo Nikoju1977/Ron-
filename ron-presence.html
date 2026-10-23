@@ -10,9 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="RON">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>RON — Studio Niko Design · Présence & écoute</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- System fonts are already selected by the active RON theme; avoid blocking cloud font requests. -->
 <style>
 :root{
   --abyss:#02070D; --deep:#06182A; --ice:#9FE8FF; --frost:#D8F6FF;
@@ -400,7 +398,6 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 </dialog>
 <div id="toast" role="alert"></div>
 
-<script src="./ron-vendor/three.min.js"></script>
 <script src="./ron-vendor/fuse.basic.min.js"></script>
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
@@ -574,44 +571,48 @@ function applyProviderPreset(force=false){
 }
 
 async function loadCfg(){
-  const savedProvider=await safeStorage.get('provider');
-  const savedAuto=await safeStorage.get('autoEngineV1');
-  cfg.autoEngine=savedAuto===true || (savedAuto!==false && !savedProvider);
-  cfg.provider = savedProvider || cfg.provider;
-  if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='mistral';
-  cfg.endpoint = (await safeStorage.get('endpoint')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).endpoint;
-  cfg.model = (await safeStorage.get('model')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).model;
-  cfg.mistralRoute = (await safeStorage.get('mistralRoute')) || cfg.mistralRoute;
-  cfg.rateMode = (await safeStorage.get('rateMode')) || cfg.rateMode;
-  cfg.agentMode = (await safeStorage.get('agentMode')) || cfg.agentMode;
-  cfg.voiceName = (await safeStorage.get('voice')) || '';
-  cfg.wake = (await safeStorage.get('wake')) === true;
-  cfg.dotsEnabled = (await safeStorage.get('dotsEnabled')) === true;
-  cfg.dotsMode = (await safeStorage.get('dotsMode')) || cfg.dotsMode;
-  cfg.dotsInterval = Number(await safeStorage.get('dotsInterval')) || cfg.dotsInterval;
-  const rem = await safeStorage.get('remember');
-  cfg.remember = rem === true;
-  cfg.freeOnly = (await safeStorage.get('freeOnly')) !== false;
-  cfg.noPaid = (await safeStorage.get('noPaid')) !== false;
+  // Read independent preferences together rather than waiting for 16 separate
+  // IndexedDB transactions in series on slow mobile storage.
+  const keys=['provider','autoEngineV1','endpoint','model','mistralRoute','rateMode',
+    'agentMode','voice','wake','dotsEnabled','dotsMode','dotsInterval',
+    'remember','freeOnly','noPaid'];
+  const entries=await Promise.all(keys.map(async key=>[key,await safeStorage.get(key)]));
+  const saved=Object.fromEntries(entries);
+  cfg.autoEngine=saved.autoEngineV1===true || (saved.autoEngineV1!==false && !saved.provider);
+  cfg.provider=saved.provider||cfg.provider;
+  if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='ollama';
+  cfg.endpoint=saved.endpoint||(PROVIDERS[cfg.provider]||PROVIDERS.custom).endpoint;
+  cfg.model=saved.model||(PROVIDERS[cfg.provider]||PROVIDERS.custom).model;
+  cfg.mistralRoute=saved.mistralRoute||cfg.mistralRoute;
+  cfg.rateMode=saved.rateMode||cfg.rateMode;
+  cfg.agentMode=saved.agentMode||cfg.agentMode;
+  cfg.voiceName=saved.voice||'';
+  cfg.wake=saved.wake===true;
+  cfg.dotsEnabled=saved.dotsEnabled===true;
+  cfg.dotsMode=saved.dotsMode||cfg.dotsMode;
+  cfg.dotsInterval=Number(saved.dotsInterval)||cfg.dotsInterval;
+  cfg.remember=saved.remember===true;
+  cfg.freeOnly=saved.freeOnly!==false;
+  cfg.noPaid=saved.noPaid!==false;
   const scope=engineScope(cfg.provider,cfg.endpoint);
   const scopedKey=await safeStorage.get('engineKeyV1:'+scope);
   cfg.key=cfg.remember?sanitizeKey(scopedKey===undefined?await safeStorage.get('key'):scopedKey):'';
   if(cfg.key)await safeStorage.set('engineKeyV1:'+scope,cfg.key);
   await safeStorage.del('key');
-  $('providerSel').value = cfg.provider;
-  $('endpointIn').value = cfg.endpoint;
-  $('modelIn').value = cfg.model;
-  $('mistralRouteSel').value = cfg.mistralRoute;
-  $('rateModeSel').value = cfg.rateMode;
-  $('agentSel').value = cfg.agentMode;
-  $('wakeChk').checked = cfg.wake;
-  $('rememberChk').checked = cfg.remember;
-  $('noPaidChk').checked = cfg.noPaid;
+  $('providerSel').value=cfg.provider;
+  $('endpointIn').value=cfg.endpoint;
+  $('modelIn').value=cfg.model;
+  $('mistralRouteSel').value=cfg.mistralRoute;
+  $('rateModeSel').value=cfg.rateMode;
+  $('agentSel').value=cfg.agentMode;
+  $('wakeChk').checked=cfg.wake;
+  $('rememberChk').checked=cfg.remember;
+  $('noPaidChk').checked=cfg.noPaid;
   $('autoEngineChk').checked=cfg.autoEngine;
-  $('dotsEnabledChk').checked = cfg.dotsEnabled;
-  $('dotsModeSel').value = cfg.dotsMode;
-  $('dotsIntervalSel').value = String(cfg.dotsInterval);
-  $('keyIn').value = cfg.key;
+  $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  $('dotsModeSel').value=cfg.dotsMode;
+  $('dotsIntervalSel').value=String(cfg.dotsInterval);
+  $('keyIn').value=cfg.key;
   applyProviderPreset(false);
 }
 
@@ -2278,20 +2279,14 @@ function renderRonAnswer(text){
 async function boot(){
   console.assert(kmpIndexOf('ABABDABACDABABCABAB', 'ABABCABAB') === 10, 'KMP self-test failed');
   console.assert(extractWakeCommand('Salut Ron, explique la relativité') === 'explique la relativité', 'Wake KMP self-test failed');
-  try { if (window.THREE && initScene()){ $('fallbackPresence').hidden = true; requestAnimationFrame(frame); } } catch(e){ $('fallbackPresence').hidden = false; }
-  await loadCfg();
-  await initCompanion();
+  // The UI and event handlers must not wait for WebGL, knowledge indexing, the
+  // mission journal, microphone permissions or background engine discovery.
+  await Promise.all([loadCfg(),initCompanion()]);
   initEngines();
   initPlatform();
-  if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
-  if(window.RONKnowledge)await window.RONKnowledge.init({store:safeStorage,notify:toast});
-  await loadDotsState();
-  scheduleDots(1200);
   if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
   else $('voiceSel').innerHTML = '<option value="">Synthèse vocale indisponible</option>';
   if (!SR){ $('micBtn').hidden = true; $('wakeChk').disabled = true; }
-  await refreshMicPermission();
-  setState('idle');
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) setTimeout(openPanel, reduceMotion ? 0 : 1200);
   // A fresh page never activates the microphone without a new gesture.
 
@@ -2353,8 +2348,49 @@ async function boot(){
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });
+  setState('idle'); // RON is interactive: everything below is noncritical.
+  if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
+  if(window.RONKnowledge)void window.RONKnowledge.init({store:safeStorage,notify:toast})
+    .catch(error=>{console.warn('Bibliothèque RON non initialisée',error);});
+  void loadDotsState().then(()=>scheduleDots(1200))
+    .catch(error=>{console.warn('Missions RON non chargées',error);});
+  void refreshMicPermission().catch(()=>{});
+  schedulePresenceGraphics();
 }
-boot().then(()=>{restoreCooldown();refreshRateNotice();setInterval(refreshRateNotice,1000);});
+function schedulePresenceGraphics(){
+  // 600 KB of Three.js + WebGL shaders are decorative, not prerequisites
+  // for conversation. Keep the lightweight SVG on constrained hardware.
+  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(reduceMotion || conn?.saveData || (navigator.deviceMemory && navigator.deviceMemory<=2) ||
+     (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=2))return;
+  let loading=false,started=false;
+  const start=()=>{
+    if(started || document.hidden)return;
+    if(!window.THREE){
+      if(loading)return;
+      loading=true;
+      const script=document.createElement('script');
+      script.src='./ron-vendor/three.min.js';script.async=true;
+      script.onload=()=>{loading=false;afterQuietTime(start,120);};
+      script.onerror=()=>{loading=false;console.warn('RON : animation 3D indisponible, SVG conservé.');};
+      document.head.append(script);
+      return;
+    }
+    started=true;
+    try{if(initScene()){$('fallbackPresence').hidden=true;requestAnimationFrame(frame);}}
+    catch(error){$('fallbackPresence').hidden=false;console.warn('RON : rendu 3D indisponible',error);}
+  };
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)afterQuietTime(start,200);});
+  afterQuietTime(start,850);
+}
+function afterQuietTime(fn,delay){
+  setTimeout(()=>{
+    if(typeof requestIdleCallback==='function')requestIdleCallback(fn,{timeout:1800});
+    else setTimeout(fn,0);
+  },delay);
+}
+boot().then(()=>{restoreCooldown();refreshRateNotice();setInterval(refreshRateNotice,1000);})
+.catch(error=>{console.error('Démarrage RON',error);$('state').textContent='Démarrage partiel : recharge RON ou ouvre les réglages.';});
 </script>
 </body>
 </html>
