@@ -10,9 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="RON">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>RON — Studio Niko Design · Présence & écoute</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- System fonts are already selected by the active RON theme; avoid blocking cloud font requests. -->
 <style>
 :root{
   --abyss:#02070D; --deep:#06182A; --ice:#9FE8FF; --frost:#D8F6FF;
@@ -400,7 +398,6 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 </dialog>
 <div id="toast" role="alert"></div>
 
-<script src="./ron-vendor/three.min.js"></script>
 <script src="./ron-vendor/fuse.basic.min.js"></script>
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
@@ -2278,20 +2275,14 @@ function renderRonAnswer(text){
 async function boot(){
   console.assert(kmpIndexOf('ABABDABACDABABCABAB', 'ABABCABAB') === 10, 'KMP self-test failed');
   console.assert(extractWakeCommand('Salut Ron, explique la relativité') === 'explique la relativité', 'Wake KMP self-test failed');
-  try { if (window.THREE && initScene()){ $('fallbackPresence').hidden = true; requestAnimationFrame(frame); } } catch(e){ $('fallbackPresence').hidden = false; }
-  await loadCfg();
-  await initCompanion();
+  // The UI and event handlers must not wait for WebGL, knowledge indexing, the
+  // mission journal, microphone permissions or background engine discovery.
+  await Promise.all([loadCfg(),initCompanion()]);
   initEngines();
   initPlatform();
-  if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
-  if(window.RONKnowledge)await window.RONKnowledge.init({store:safeStorage,notify:toast});
-  await loadDotsState();
-  scheduleDots(1200);
   if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
   else $('voiceSel').innerHTML = '<option value="">Synthèse vocale indisponible</option>';
   if (!SR){ $('micBtn').hidden = true; $('wakeChk').disabled = true; }
-  await refreshMicPermission();
-  setState('idle');
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) setTimeout(openPanel, reduceMotion ? 0 : 1200);
   // A fresh page never activates the microphone without a new gesture.
 
@@ -2353,8 +2344,49 @@ async function boot(){
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });
+  setState('idle'); // RON is interactive: everything below is noncritical.
+  if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
+  if(window.RONKnowledge)void window.RONKnowledge.init({store:safeStorage,notify:toast})
+    .catch(error=>{console.warn('Bibliothèque RON non initialisée',error);});
+  void loadDotsState().then(()=>scheduleDots(1200))
+    .catch(error=>{console.warn('Missions RON non chargées',error);});
+  void refreshMicPermission().catch(()=>{});
+  schedulePresenceGraphics();
 }
-boot().then(()=>{restoreCooldown();refreshRateNotice();setInterval(refreshRateNotice,1000);});
+function schedulePresenceGraphics(){
+  // 600 KB of Three.js + WebGL shaders are decorative, not prerequisites
+  // for conversation. Keep the lightweight SVG on constrained hardware.
+  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(reduceMotion || conn?.saveData || (navigator.deviceMemory && navigator.deviceMemory<=2) ||
+     (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=2))return;
+  let loading=false,started=false;
+  const start=()=>{
+    if(started || document.hidden)return;
+    if(!window.THREE){
+      if(loading)return;
+      loading=true;
+      const script=document.createElement('script');
+      script.src='./ron-vendor/three.min.js';script.async=true;
+      script.onload=()=>{loading=false;afterQuietTime(start,120);};
+      script.onerror=()=>{loading=false;console.warn('RON : animation 3D indisponible, SVG conservé.');};
+      document.head.append(script);
+      return;
+    }
+    started=true;
+    try{if(initScene()){$('fallbackPresence').hidden=true;requestAnimationFrame(frame);}}
+    catch(error){$('fallbackPresence').hidden=false;console.warn('RON : rendu 3D indisponible',error);}
+  };
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)afterQuietTime(start,200);});
+  afterQuietTime(start,850);
+}
+function afterQuietTime(fn,delay){
+  setTimeout(()=>{
+    if(typeof requestIdleCallback==='function')requestIdleCallback(fn,{timeout:1800});
+    else setTimeout(fn,0);
+  },delay);
+}
+boot().then(()=>{restoreCooldown();refreshRateNotice();setInterval(refreshRateNotice,1000);})
+.catch(error=>{console.error('Démarrage RON',error);$('state').textContent='Démarrage partiel : recharge RON ou ouvre les réglages.';});
 </script>
 </body>
 </html>
