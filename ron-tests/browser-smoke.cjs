@@ -31,7 +31,18 @@ async function main(){
   page.route('http://localhost:*/v1/models',route=>route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'{"data":[]}'}));
   const start=Date.now();
   await page.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
-  await page.waitForFunction(()=>document.getElementById('state')?.textContent!=='Initialisation…',null,{timeout:8000});
+  try{await page.waitForFunction(()=>document.getElementById('state')?.textContent!=='Initialisation…',null,{timeout:8000});}
+  catch(error){
+   const debug=await page.evaluate(()=>({
+    state:document.getElementById('state')?.textContent,
+    readyState:document.readyState,
+    scripts:[...document.scripts].map(s=>s.src||'inline'),
+    hasBoot:typeof boot,
+    hasConfig:typeof cfg,
+    url:location.href
+   })).catch(e=>({inspectFailed:e.message}));
+   throw Error('RON timed out in real Chrome: '+JSON.stringify({debug,exceptions})+'; '+error.message);
+  }
   const startupMs=Date.now()-start;
   await page.locator('#settingsBtn').click();
   assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'Settings button opens its panel');
