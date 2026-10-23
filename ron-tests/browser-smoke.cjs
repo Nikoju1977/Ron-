@@ -87,12 +87,21 @@ async function main(){
    Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});
    Object.defineProperty(navigator,'userAgent',{configurable:true,value:'Mozilla/5.0 (Linux; Android 14; Samsung SM-S721B) AppleWebKit/537.36 Chrome/155 Mobile Safari/537.36'});
   });
+  // Simulate the external WASM generator; integration test covers CDN import,
+  // UI message routing and local CPU result without downloading 137 MB in CI.
+  await cpuPage.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',route=>route.fulfill({
+   status:200,contentType:'application/javascript',headers:{'Access-Control-Allow-Origin':'*'},
+   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q8')throw Error('Wrong CPU mode');return async (chat)=>[{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};"
+  }));
   await cpuPage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
   await cpuPage.waitForFunction(()=>document.getElementById('providerSel')?.value==='browser'&&
    document.getElementById('modelIn')?.value==='smollm2-135m-cpu',null,{timeout:11000});
   assert.match(await cpuPage.locator('#autoEngineStatus').innerText(),/processeur|CPU/i);
   assert(await cpuPage.locator('#noPaidChk').isChecked(),'CPU mode never enables a paid API');
-  assert.deepEqual(cpuErrors,[],'Android CPU autodetection has no script errors');
+  await cpuPage.locator('#textIn').fill('Bonjour RON');
+  await cpuPage.locator('#sendBtn').click();
+  await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Bonjour du CPU sans GPU.'),null,{timeout:10000});
+  assert.deepEqual(cpuErrors,[],'Android CPU autodetection and a mocked response have no script errors');
   console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,noKeyNativePrompt:true,androidCpuSelected:true,exceptions}));
   await context.close();
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
