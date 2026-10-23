@@ -39,7 +39,7 @@ jobs:
         run: npm --prefix ron-tests install --ignore-scripts --no-audit --no-fund
       - name: Test conversations, engines, limits, Mistral and knowledge
         run: npm --prefix ron-tests test
-      - name: Install Chromium for realistic mobile smoke test
-        run: npm --prefix ron-tests exec -- playwright install --with-deps chromium
+      - name: Check RON UI in a real Chrome browser (runner preinstalled)
+        run: google-chrome --version
       - name: Check RON UI in a real Chromium browser
         run: node ron-tests/browser-smoke.cjs
