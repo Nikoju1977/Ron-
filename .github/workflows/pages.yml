@@ -29,10 +29,13 @@ jobs:
         with:
           enablement: true
 
+      - name: Build minimal public site
+        run: node ron-tools/build-pages.cjs
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: ./ron-dist
 
       - name: Deploy to GitHub Pages
         id: deployment
