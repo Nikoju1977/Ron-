@@ -32,6 +32,7 @@ async function main(){
   await page.addInitScript(()=>{
    Object.defineProperty(window,'LanguageModel',{configurable:true,value:undefined});
    Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});
+   Object.defineProperty(window,'WebAssembly',{configurable:true,value:undefined}); // unsupported-platform test only
   });
   page.route('http://localhost:*/v1/models',route=>route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'{"data":[]}'}));
   const start=Date.now();
@@ -77,7 +78,22 @@ async function main(){
   await nativePage.waitForFunction(()=>document.getElementById('ronLine')?.textContent.includes('RON fonctionne sans clé API.'),null,{timeout:10000});
   assert(await nativePage.locator('#noPaidChk').isChecked(),'No-key native mode keeps the zero-spend guard');
   assert.deepEqual(nativeErrors,[],'No native browser integration script exceptions');
-  console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,noKeyNativePrompt:true,exceptions}));
+  // Real Android UA with GPU disabled must select CPU inference without fetching
+  // the large model until the first user request.
+  const cpuPage=await context.newPage(),cpuErrors=[];
+  cpuPage.on('pageerror',e=>cpuErrors.push(e.message));
+  await cpuPage.addInitScript(()=>{
+   Object.defineProperty(window,'LanguageModel',{configurable:true,value:undefined});
+   Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});
+   Object.defineProperty(navigator,'userAgent',{configurable:true,value:'Mozilla/5.0 (Linux; Android 14; Samsung SM-S721B) AppleWebKit/537.36 Chrome/155 Mobile Safari/537.36'});
+  });
+  await cpuPage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
+  await cpuPage.waitForFunction(()=>document.getElementById('providerSel')?.value==='browser'&&
+   document.getElementById('modelIn')?.value==='smollm2-135m-cpu',null,{timeout:11000});
+  assert.match(await cpuPage.locator('#autoEngineStatus').innerText(),/processeur|CPU/i);
+  assert(await cpuPage.locator('#noPaidChk').isChecked(),'CPU mode never enables a paid API');
+  assert.deepEqual(cpuErrors,[],'Android CPU autodetection has no script errors');
+  console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,noKeyNativePrompt:true,androidCpuSelected:true,exceptions}));
   await context.close();
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
