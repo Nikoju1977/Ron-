@@ -45,7 +45,7 @@ async function main(){
  };
  await E('activateFreeOllama()');
  assert.equal(d.getElementById('providerSel').value,'ollama');
- assert.equal(d.getElementById('modelIn').value,'qwen3.5:4b');
+ assert.equal(d.getElementById('modelIn').value,'qwen3.5:2b','Smart auto-selection prefers an installed lighter model on modest hardware');
  assert.equal(d.getElementById('agentSel').value,'agentic');
  assert.equal(d.getElementById('keyIn').value,'');
  assert.equal(d.getElementById('rememberChk').checked,false);
