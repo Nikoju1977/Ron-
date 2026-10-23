@@ -37,6 +37,9 @@ async function main(){
   assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'Settings button opens its panel');
   assert(await page.locator('#noPaidChk').isChecked(),'No-spend guard on in real browser');
   await page.locator('#panelClose').click();
+  // Automatic discovery is asynchronous. Submit only after RON has explicitly
+  // established that this browser has no local inference server.
+  await page.waitForFunction(()=>document.getElementById('connectionHint')?.textContent.includes('IA absente'),null,{timeout:8000});
   await page.locator('#textIn').fill('Bonjour');
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
