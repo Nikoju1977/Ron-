@@ -234,12 +234,12 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   <p class="hint">RON choisit automatiquement une IA sans clé quand ton navigateur ou ton appareil la prend en charge. Sinon, il recherche Ollama, LM Studio et vLLM. Les API à clé restent facultatives et ne sont jamais activées pour te faire payer.</p>
   <section id="freeEngines">
     <h3>IA GRATUITE · Agents spécialisés</h3>
-    <p class="hint">Sans compte ni clé : IA intégrée au navigateur si disponible, modèle libre exécuté via WebGPU sur appareil compatible, ou moteur Ollama déjà installé. Le premier chargement WebGPU nécessite Internet et peut télécharger plusieurs centaines de Mo.</p>
+    <p class="hint">Sans compte ni clé : RON privilégie l’IA native du navigateur ou, sur Android, un petit modèle sur processeur (WebAssembly, sans GPU). Un moteur local Ollama ou WebGPU peut aussi être utilisé. Le premier message peut télécharger environ 140 Mo en mode CPU ; les réponses peuvent être lentes.</p>
     <div class="row"><button id="autoDetectBtn" class="btn" type="button">Détecter et configurer automatiquement</button></div>
     <div class="row"><button id="freeOllamaBtn" class="btn ghost" type="button">Choisir Ollama</button><button id="freeOpenrouterBtn" class="btn ghost" type="button">Préparer un cloud gratuit</button></div>
     <label class="check"><input type="checkbox" id="autoEngineChk" checked> Configuration intelligente automatique : navigateur + moteurs locaux</label>
     <div id="autoEngineStatus" role="status" aria-live="polite" class="hint">Recherche des IA présentes sur l’appareil sans clé payante ni inscription. Aucun modèle lourd n’est téléchargé avant ta première question.</div>
-    <div id="freeEngineStatus" role="status" class="hint">L’IA locale ne démarre pas toute seule : installe Ollama, puis <code>ollama pull qwen3.5:4b</code> (ou <code>qwen3.5:2b</code> pour un appareil modeste). Aucune clé requise.</div>
+    <div id="freeEngineStatus" role="status" class="hint">RON choisit automatiquement entre IA du navigateur, CPU sans GPU et moteurs locaux, sans clé. Le téléchargement éventuel d’un modèle n’a lieu qu’après une question.</div>
     <label class="check"><input type="checkbox" id="noPaidChk" checked> Bloquer les appels API facturables (activé par défaut)</label>
     <p class="hint">Les IA exécutées dans le navigateur n’exigent aucune clé. Elles dépendent du matériel et peuvent nécessiter le téléchargement initial d’un modèle. OpenRouter gratuit reste une option avec clé personnelle et quotas ; le mode zéro euro bloque les API facturables.</p>
   </section>
@@ -528,7 +528,7 @@ function toast(msg){
 
 /* ═══════════ Réglages & cerveau multi-LLM ═══════════ */
 const PROVIDERS = {
-  browser: { endpoint:'browser://local', model:'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', needsKey:false },
+  browser: { endpoint:'browser://local', model:'smollm2-135m-cpu', needsKey:false },
   mistral: { endpoint: 'https://api.mistral.ai/v1', model: 'mistral-large-latest', needsKey: true },
   openrouter: { endpoint:'https://openrouter.ai/api/v1', model:'openrouter/free', needsKey:true },
   groq: { endpoint:'https://api.groq.com/openai/v1', model:'openai/gpt-oss-20b', needsKey:true },
@@ -1582,7 +1582,10 @@ async function handleUser(text, careContext = ''){
     if (err.message === 'abort') return;
     stopSpeaking();
     if(!$('textIn').value) $('textIn').value=text;
-    setState('error', err.message); toast(err.message);
+    const message=String(err?.message||'Moteur IA indisponible.').slice(0,340);
+    $('ronLine').textContent=message+' Ton message est conservé : tu peux réessayer.';
+    $('connectionHint').textContent='L’IA locale n’a pas pu répondre. Vérifie Internet, la mémoire et l’espace de stockage.';
+    setState('error','IA indisponible — lire le diagnostic'); toast(message.slice(0,145));
     setTimeout(() => { if (state === 'error'){ setState('idle'); startWake(); } }, 5000);
   }
 }
@@ -1621,7 +1624,7 @@ function setState(s, detail){
     error: detail || 'Erreur'
   };
   if (s === 'idle'){
-    el.textContent = (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm'].includes(cfg.provider)) ? 'IA locale absente · ouvre Réglages'
+    el.textContent = (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','browser'].includes(cfg.provider)) ? 'IA locale absente · ouvre Réglages'
       : (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
       : (cfg.wake && SR && !wakePaused) ? 'Dis « Ron » ou touche le micro'
       : SR ? 'Touche le micro ou écris' : 'Écris ton message';
@@ -2140,8 +2143,8 @@ async function refreshModels(){
   const rev=++catalogRevision;let draft;
   try{draft=readEngineDraft(false);}catch(error){$('catalogStatus').textContent=error.message;return;}
   if(draft.provider==='browser'){
-    modelCatalog={scope:draft.scope,models:[window.RONBrowserAI.NATIVE,window.RONBrowserAI.QWEN,window.RONBrowserAI.SMOL].map(id=>({id,name:id,free:true})),at:Date.now()};
-    renderModelCatalog();$('catalogStatus').textContent='Modèles exécutés sur cet appareil. Disponibilité selon navigateur, WebGPU et mémoire.';return;
+    modelCatalog={scope:draft.scope,models:[window.RONBrowserAI.NATIVE,window.RONBrowserAI.CPU,window.RONBrowserAI.QWEN,window.RONBrowserAI.SMOL].map(id=>({id,name:id,free:true})),at:Date.now()};
+    renderModelCatalog();$('catalogStatus').textContent='IA native Chrome, CPU WebAssembly sans GPU et WebGPU. Détection indicative ; première réponse après téléchargement du modèle.';return;
   }
   $('refreshModelsBtn').disabled=true;$('catalogStatus').textContent='Lecture du catalogue du moteur…';
   try{
@@ -2160,7 +2163,7 @@ async function refreshModels(){
 function showEngineHelp(){
   const provider=$('providerSel').value;
   const help={
-    browser:'IA native Chrome ou WebGPU/WebLLM, sans clé ni paiement. RON vérifie la compatibilité, mais un GPU détecté ne garantit pas que le modèle pourra fonctionner. Le premier message peut déclencher un téléchargement important. Les réponses sont calculées localement ; sur matériel insuffisant, RON signale clairement l’indisponibilité.',
+    browser:'Sans clé ni paiement : Chrome IA, modèle CPU WebAssembly (compatible même sans GPU) ou WebGPU/WebLLM. Android privilégie le petit modèle CPU. Le premier message peut télécharger environ 140 Mo (CPU) ; réponses plus lentes et qualité limitée. Pas de téléchargement en arrière-plan. La détection ne garantit pas le bon fonctionnement sur tous les téléphones.',
     mistral:'Mistral : clé personnelle. Les alias latest évoluent ; le catalogue permet de choisir un modèle précis. Les poids ouverts et le prix de l’API sont deux sujets distincts.',
     openrouter:'OpenRouter : une clé ouvre un catalogue de plusieurs éditeurs. Le filtre gratuit concerne le tarif des tokens annoncé, avec quotas et disponibilité variables. Ron demande des fournisseurs sans collecte de données ; certains modèles peuvent donc être indisponibles.',
     groq:'Groq : modèles hébergés, clé et limites propres à ton compte. Le catalogue permet de voir les identifiants actuellement proposés.',
@@ -2228,16 +2231,17 @@ async function autoConfigure(mode='startup'){
      for(const key of ['provider','endpoint','model','noPaid','remember','freeOnly','agentMode','rateMode'])await safeStorage.set(key,cfg[key]);
      await safeStorage.set('autoEngineV1',true);
      const message=fallback.kind==='native'
-       ? (fallback.ready ? 'IA Chrome prête : RON peut répondre sans clé et sans serveur.' : 'IA Chrome compatible : un modèle devra être téléchargé après ton premier message. Aucun compte ou clé requis.')
-       : 'GPU compatible détecté (modèle estimé : '+cfg.model+'). RON téléchargera un modèle libre à ta première question (plusieurs centaines de Mo, selon les ressources). Aucune clé requise.';
-     autoStatus(message,true);$('freeEngineStatus').textContent=message;
+       ? (fallback.ready ? 'IA Chrome prête : RON peut répondre sans clé et sans serveur.' : 'IA Chrome compatible : modèle à télécharger à la première question, aucune clé requise.')
+       : fallback.kind==='cpu' ? 'Mode Android sans GPU sélectionné : IA CPU légère WebAssembly. Premier message : téléchargement d’environ 140 Mo, réponse potentiellement lente. Aucun compte ni clé.'
+       : 'GPU détecté, non encore testé : RON tente un modèle WebGPU puis se replie sur le CPU si le GPU refuse de démarrer. Aucune clé requise.';
+     autoStatus(message,fallback.ready===true);$('freeEngineStatus').textContent=message;
      $('connectionHint').textContent=message;setState('idle');return {selected:{provider:'browser',model:cfg.model}};
    }
    localEngineReady=false;
    const suffix=report.status==='no-model'?'Un moteur local répond, mais aucun modèle conversationnel n’est téléchargé.':
     'Aucun moteur local joignable dans ce navigateur (serveur absent, CORS ou autorisation réseau).';
    autoStatus(suffix+' Installe Ollama sur un ordinateur et télécharge qwen3.5:4b, puis relance la détection. Aucun cloud payant activé.');
-   if(mode==='startup')$('connectionHint').textContent='Aucune IA sans clé compatible détectée sur ce navigateur. Chrome IA native nécessite du matériel compatible ; WebGPU ou un moteur local peuvent être nécessaires. Consulte Réglages.';
+   if(mode==='startup')$('connectionHint').textContent='Aucune IA sans clé compatible détectée sur ce navigateur. Le navigateur doit prendre en charge WebAssembly pour le mode CPU, ou disposer d’une IA native, WebGPU ou d’un serveur local. Consulte Réglages.';
    setState('idle');
    return report;
   }
