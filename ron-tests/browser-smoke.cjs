@@ -91,11 +91,11 @@ async function main(){
   // UI message routing and local CPU result without downloading 137 MB in CI.
   await context.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',route=>route.fulfill({
    status:200,contentType:'application/javascript',headers:{'Access-Control-Allow-Origin':'*'},
-   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q8')throw Error('Wrong CPU mode');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
+   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q8'||model!=='onnx-community/Qwen2.5-0.5B-Instruct')throw Error('Wrong French CPU model');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(!chat[0]?.content?.includes('français correct'))throw Error('Missing French instruction');if(chat.at(-1).content.includes('malforme'))return [{generated_text:[...chat,{role:'assistant',content:'Ze chat répond comme une chaleur sans des mots de des'}]}];if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
   }));
   await cpuPage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
   await cpuPage.waitForFunction(()=>document.getElementById('providerSel')?.value==='browser'&&
-   document.getElementById('modelIn')?.value==='smollm2-135m-cpu',null,{timeout:11000});
+   document.getElementById('modelIn')?.value==='qwen2.5-0.5b-cpu',null,{timeout:11000});
   assert.match(await cpuPage.locator('#autoEngineStatus').innerText(),/processeur|CPU/i);
   assert(await cpuPage.locator('#noPaidChk').isChecked(),'CPU mode never enables a paid API');
   await cpuPage.locator('#textIn').fill('Bonjour RON');
@@ -113,6 +113,16 @@ async function main(){
   assert.equal(await cpuPage.locator('#textIn').inputValue(),'bloque','Stop preserves user text');
   assert.equal(await cpuPage.locator('#state').innerText(),'Touche le micro ou écris');
   assert.deepEqual(cpuErrors,[],'Stopping a blocked CPU worker causes no browser exceptions');
+  // Real browser CPU path: a nonsensical, unfinished answer is an error,
+  // not a successful RON reply saved to the conversation.
+  await cpuPage.locator('#textIn').fill('malforme');
+  await cpuPage.locator('#sendBtn').click();
+  await cpuPage.waitForFunction(()=>/incomplète/i.test(document.getElementById('ronLine')?.textContent||''),null,{timeout:10000});
+  assert.equal(await cpuPage.locator('#textIn').inputValue(),'malforme','Rejected nonsense preserves original question');
+  await cpuPage.locator('#textIn').fill('tu peux parler français ?');
+  await cpuPage.locator('#sendBtn').click();
+  await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Oui, je peux te répondre en français.'),null,{timeout:10000});
+  assert.deepEqual(cpuErrors,[],'French response and quality rejection are browser-safe');
   console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,noKeyNativePrompt:true,androidCpuSelected:true,exceptions}));
   await context.close();
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
