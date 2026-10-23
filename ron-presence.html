@@ -1531,9 +1531,9 @@ async function handleUser(text, careContext = ''){
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
-  if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm'].includes(cfg.provider)){
+  if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','browser'].includes(cfg.provider)){
     $('textIn').value=text;
-    $('ronLine').textContent='RON fonctionne, mais aucun moteur IA local ne répond sur cet appareil. Sur téléphone, localhost ne désigne pas ton ordinateur. Dans Réglages, tu peux préparer le cloud gratuit OpenRouter (clé personnelle nécessaire, quotas possibles) ou relancer la détection locale.';
+    $('ronLine').textContent=cfg.provider==='browser' ? 'Aucun modèle IA compatible avec ce navigateur n’a été trouvé. RON ne peut pas générer de réponse sans moteur. Essaie Chrome avec IA intégrée, un navigateur WebGPU compatible, ou un serveur local accessible. Aucune clé ni dépense exigée pour la détection.' : 'RON fonctionne, mais aucun moteur IA local ne répond sur cet appareil. Sur téléphone, localhost ne désigne pas ton ordinateur. RON peut aussi utiliser une IA native Chrome, WebGPU ou une IA locale compatible.';
     $('connectionHint').textContent='Interface disponible · IA non connectée. Ouvre Réglages pour choisir un moteur gratuit.';
     setState('error','IA locale non connectée');openPanel();return;
   }
@@ -2160,7 +2160,7 @@ async function refreshModels(){
 function showEngineHelp(){
   const provider=$('providerSel').value;
   const help={
-    browser:'IA native dans Chrome compatible ou WebGPU/WebLLM. Aucun compte, aucune clé et aucun appel API payant. Sur WebGPU le premier message télécharge un modèle libre (plusieurs centaines de Mo) et le calcul dépend de la mémoire graphique. Le navigateur peut refuser cette option.',
+    browser:'IA native Chrome ou WebGPU/WebLLM, sans clé ni paiement. RON vérifie la compatibilité, mais un GPU détecté ne garantit pas que le modèle pourra fonctionner. Le premier message peut déclencher un téléchargement important. Les réponses sont calculées localement ; sur matériel insuffisant, RON signale clairement l’indisponibilité.',
     mistral:'Mistral : clé personnelle. Les alias latest évoluent ; le catalogue permet de choisir un modèle précis. Les poids ouverts et le prix de l’API sont deux sujets distincts.',
     openrouter:'OpenRouter : une clé ouvre un catalogue de plusieurs éditeurs. Le filtre gratuit concerne le tarif des tokens annoncé, avec quotas et disponibilité variables. Ron demande des fournisseurs sans collecte de données ; certains modèles peuvent donc être indisponibles.',
     groq:'Groq : modèles hébergés, clé et limites propres à ton compte. Le catalogue permet de voir les identifiants actuellement proposés.',
@@ -2216,7 +2216,7 @@ async function autoConfigure(mode='startup'){
    const fallback=browserAI?await browserAI.detect().catch(()=>null):null;
    if(token!==autoProbeToken||revision!==draftRevision||savingEngine||(mode==='startup'&&(state==='thinking'||state==='speaking'||history.length)))return;
    if(fallback){
-     localEngineReady=true;
+     localEngineReady=fallback.ready===true ? true : null;
      if(mode!=='startup'){stopAll();history.length=0;$('youLine').textContent='';$('ronLine').textContent='';}
      Object.assign(cfg,{provider:'browser',endpoint:browserAI.ENDPOINT,model:fallback.model,key:'',noPaid:true,freeOnly:true,remember:false,autoEngine:true,agentMode:'direct',rateMode:'eco'});
      $('providerSel').value='browser';$('endpointIn').value=cfg.endpoint;$('modelIn').value=cfg.model;
@@ -2228,8 +2228,8 @@ async function autoConfigure(mode='startup'){
      for(const key of ['provider','endpoint','model','noPaid','remember','freeOnly','agentMode','rateMode'])await safeStorage.set(key,cfg[key]);
      await safeStorage.set('autoEngineV1',true);
      const message=fallback.kind==='native'
-       ? 'IA intégrée au navigateur détectée. RON peut répondre sans clé et sans serveur.'
-       : 'WebGPU compatible. RON téléchargera le modèle libre sur cet appareil à ta première question (plusieurs centaines de Mo). Aucune clé requise.';
+       ? (fallback.ready ? 'IA Chrome prête : RON peut répondre sans clé et sans serveur.' : 'IA Chrome compatible : un modèle devra être téléchargé après ton premier message. Aucun compte ou clé requis.')
+       : 'GPU compatible détecté (modèle estimé : '+cfg.model+'). RON téléchargera un modèle libre à ta première question (plusieurs centaines de Mo, selon les ressources). Aucune clé requise.';
      autoStatus(message,true);$('freeEngineStatus').textContent=message;
      $('connectionHint').textContent=message;setState('idle');return {selected:{provider:'browser',model:cfg.model}};
    }
