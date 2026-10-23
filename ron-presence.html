@@ -231,17 +231,17 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <div class="panel-title">Réglages</div>
     <button class="icon-btn" id="panelClose" aria-label="Fermer les réglages">✕</button>
   </div>
-  <p class="hint">RON peut utiliser Mistral ou un serveur LLM compatible OpenAI : Ollama, LM Studio, vLLM ou ton propre endpoint. Les modèles locaux peuvent rester entièrement sur ta machine.</p>
+  <p class="hint">RON choisit automatiquement une IA sans clé quand ton navigateur ou ton appareil la prend en charge. Sinon, il recherche Ollama, LM Studio et vLLM. Les API à clé restent facultatives et ne sont jamais activées pour te faire payer.</p>
   <section id="freeEngines">
     <h3>IA GRATUITE · Agents spécialisés</h3>
-    <p class="hint">Sans abonnement ni facturation API : modèle Qwen local sur Ollama. Un ordinateur compatible et l’installation du modèle sont nécessaires. Sur téléphone, « localhost » ne désigne pas l’ordinateur.</p>
+    <p class="hint">Sans compte ni clé : IA intégrée au navigateur si disponible, modèle libre exécuté via WebGPU sur appareil compatible, ou moteur Ollama déjà installé. Le premier chargement WebGPU nécessite Internet et peut télécharger plusieurs centaines de Mo.</p>
     <div class="row"><button id="autoDetectBtn" class="btn" type="button">Détecter et configurer automatiquement</button></div>
     <div class="row"><button id="freeOllamaBtn" class="btn ghost" type="button">Choisir Ollama</button><button id="freeOpenrouterBtn" class="btn ghost" type="button">Préparer un cloud gratuit</button></div>
-    <label class="check"><input type="checkbox" id="autoEngineChk" checked> Configuration automatique des IA locales au prochain démarrage</label>
-    <div id="autoEngineStatus" role="status" aria-live="polite" class="hint">Recherche uniquement sur localhost ; aucune connexion cloud ni dépense déclenchée.</div>
+    <label class="check"><input type="checkbox" id="autoEngineChk" checked> Configuration intelligente automatique : navigateur + moteurs locaux</label>
+    <div id="autoEngineStatus" role="status" aria-live="polite" class="hint">Recherche des IA présentes sur l’appareil sans clé payante ni inscription. Aucun modèle lourd n’est téléchargé avant ta première question.</div>
     <div id="freeEngineStatus" role="status" class="hint">L’IA locale ne démarre pas toute seule : installe Ollama, puis <code>ollama pull qwen3.5:4b</code> (ou <code>qwen3.5:2b</code> pour un appareil modeste). Aucune clé requise.</div>
     <label class="check"><input type="checkbox" id="noPaidChk" checked> Bloquer les appels API facturables (activé par défaut)</label>
-    <p class="hint">Le cloud gratuit via OpenRouter requiert une clé de compte et impose des quotas. Le mode zéro euro interdit les modèles tarifés, Mistral et Groq payants. Une validation humaine reste requise pour toute action externe.</p>
+    <p class="hint">Les IA exécutées dans le navigateur n’exigent aucune clé. Elles dépendent du matériel et peuvent nécessiter le téléchargement initial d’un modèle. OpenRouter gratuit reste une option avec clé personnelle et quotas ; le mode zéro euro bloque les API facturables.</p>
   </section>
   <div class="field">
     <label for="providerSel">Moteur LLM</label>
@@ -257,7 +257,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     </select>
   </div>
   <div class="field">
-    <label for="endpointIn">Endpoint API</label>
+    <label for="endpointIn">Moteur interne ou adresse serveur</label>
     <input id="endpointIn" type="text" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434/v1">
   </div>
   <div class="field">
