@@ -29,6 +29,16 @@ Sources techniques :
 - https://developer.android.com/guide/components/intents-common
 - https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable
 
+## IA automatique sans clé — version navigateur
+
+RON Présence essaie de trouver, sans inscription ni paiement, un moteur conversationnel local déjà lancé (Ollama, LM Studio, vLLM). S'il n'en trouve pas et que la configuration automatique est active, il vérifie l'IA intégrée au navigateur (Chrome Prompt API, modèle déjà disponible) ou la possibilité de faire tourner un modèle WebGPU directement sur l'appareil via WebLLM. Les modèles légers choisis sont Qwen2.5-0.5B-Instruct et SmolLM2-360M-Instruct. La sélection est une **estimation de compatibilité**, pas une preuve que le modèle démarrera.
+
+Les modèles WebGPU ne sont **pas téléchargés au démarrage de la PWA**. À la première question, WebLLM peut télécharger **plusieurs centaines de Mo** de fichiers libres vers le cache local. L'utilisateur voit un état de chargement ; l'installation du modèle peut échouer si le GPU, le navigateur, l'espace disque ou Internet ne sont pas suffisants. Le premier téléchargement utilise des fournisseurs publics de fichiers (jsDelivr pour WebLLM et Hugging Face/MLC pour les modèles) : il n'y a pas de clé API de génération, mais la consultation de ces serveurs reste soumise à leurs politiques de réseau. Ensuite, la génération est locale et peut fonctionner sans transmission des questions à une API distante. Le calcul sur un petit modèle peut être lent et moins précis ; le mode conversation directe est privilégié pour éviter les enchaînements d'agents gourmands.
+
+Chrome Prompt API n'est pas disponible sur tous les appareils et pas sur Chrome mobile à ce jour ; elle dépend des limites de matériel, de modèle et de langue. WebGPU n'est pas universel. **Aucune solution purement statique ne garantit une IA sans clé sur tous les téléphones**, et RON doit afficher un diagnostic quand aucune option n'est possible. En cas de réglage manuel déjà enregistré, RON le respecte tant que la recherche automatique n'a pas été activée.
+
+Sources d'implémentation : [Chrome Prompt API](https://developer.chrome.com/docs/ai/prompt-api) et [WebLLM](https://webllm.mlc.ai/docs/user/get_started.html).
+
 ## Moteurs et modèles
 
 Il n'existe pas de meilleur modèle pour tous les appareils et tous les usages. Les réglages proposent ces points de départ, modifiables :
