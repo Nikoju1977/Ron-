@@ -70,6 +70,7 @@ async function main(){
  const cpuChoice=await dom.window.RONBrowserAI.detect(mobileNoGPU);
  assert.equal(cpuChoice.kind,'cpu');
  assert.equal(cpuChoice.model,dom.window.RONBrowserAI.CPU);
+ assert.equal(dom.window.RONBrowserAI.CPU,'qwen2.5-0.5b-cpu','French-capable model is the new no-key CPU default');
  assert.equal(cpuChoice.ready,false,'CPU weights are not downloaded before first question');
  const androidHasGPU={
   ...mobileNoGPU,navigator:{...mobileNoGPU.navigator,gpu:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}}
@@ -82,6 +83,11 @@ async function main(){
   return [{generated_text:[...messages,{role:'assistant',content:'Bonjour ! Réponse sur processeur.'}]}];
  };
  const prompt=[{role:'system',content:'Réponds en français.'},{role:'user',content:'Bonjour'}];
+ const languageReply=await dom.window.RONBrowserAI.generate(
+  [{role:'user',content:'tu peux parler français ?'}],dom.window.RONBrowserAI.CPU,()=>{}, {
+   loadCPU:async()=>{throw Error('Should not load a model for a known ability question');}
+  });
+ assert.match(languageReply,/Oui, je peux te répondre en français/);
  const cpuAnswer=await dom.window.RONBrowserAI.generate(prompt,dom.window.RONBrowserAI.CPU,()=>{}, {loadCPU:fakeCPU});
  assert.equal(cpuAnswer,'Bonjour ! Réponse sur processeur.');
  const log=[];
