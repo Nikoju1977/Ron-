@@ -96,7 +96,7 @@ function parseRepo(raw){
  const input=String(raw||'').trim();let text=input;
  if(/^https:\/\/github\.com\//i.test(input)){const u=new URL(input);if(u.hostname!=='github.com')throw Error('Adresse GitHub non reconnue.');text=u.pathname.replace(/^\/+|\/+$/g,'');}
  const match=text.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/);
- if(!match || match[1]==='.' || match[2]==='.')throw Error('Utilise owner/repo ou https://github.com/owner/repo.');
+ if(!match || ['.','..'].includes(match[1]) || ['.','..'].includes(match[2]) || match[1].includes('..') || match[2].includes('..'))throw Error('Utilise owner/repo ou https://github.com/owner/repo.');
  return {owner:match[1],repo:match[2]};
 }
 function decodeBase64(value){
