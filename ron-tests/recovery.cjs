@@ -2,7 +2,7 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const {JSDOM,VirtualConsole}=require('jsdom');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-const html=fs.readFileSync('ron-presence.html','utf8');
+const html=fs.readFileSync('ron-presence.html','utf8').replace('<script src="./ron-auto-config.js"></script>','<script>'+fs.readFileSync('ron-auto-config.js','utf8')+'</script>');
 async function until(fn,limit=3200){
  const start=Date.now();while(Date.now()-start<limit){if(fn())return;await wait(40);}
  throw Error('RON remains stuck on Initialisation…');
@@ -28,6 +28,7 @@ async function main(){
  });
  const d=dom.window.document,E=code=>dom.window.eval(code);
  await until(()=>d.getElementById('state').textContent!=='Initialisation…');
+ assert(!d.getElementById('state').textContent.includes('Initialisation'),'Immediate recovery controls must appear');
  assert.equal(E('cfg.noPaid'),true,'No-spend mode must stay enabled after storage failure');
  d.getElementById('settingsBtn').click();
  assert(d.getElementById('panel').classList.contains('open'),
