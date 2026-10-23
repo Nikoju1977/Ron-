@@ -1597,6 +1597,7 @@ async function saveSettings(){
   if(savingEngine)return;
   const st=$('keyStatus');let draft;
   try{draft=readEngineDraft(true);}catch(error){st.className='bad';st.textContent=error.message;return;}
+  ++autoProbeToken;
   savingEngine=true;$('saveBtn').disabled=true;
   stopAll();clearTimeout(dotsRuntime.timer);
   const changed=engineScope(cfg.provider,apiBase())!==draft.scope;
@@ -2124,7 +2125,7 @@ function showEngineHelp(){
   $('localGuide').hidden=!['ollama','lmstudio','vllm','custom'].includes(provider);
 }
 async function switchEngineDraft(){
-  const rev=++draftRevision;++catalogRevision;
+  const rev=++draftRevision;++autoProbeToken;++catalogRevision;
   $('keyIn').value='';$('rememberChk').checked=false;
   modelCatalog={scope:'',models:[],at:null};$('catalogStatus').textContent='Actualise pour lire le catalogue de ce moteur.';$('refreshModelsBtn').disabled=false;
   applyProviderPreset(true);showEngineHelp();renderModelCatalog();
@@ -2156,7 +2157,7 @@ async function autoConfigure(mode='startup'){
   // No paid remote endpoint, signup, installation, microphone or model generation.
   if(typeof window.fetch!=='function')report={status:'unavailable',checked:[],selected:null};
   else report=await auto.discover({fetcher:window.fetch.bind(window),hints:deviceHints(),timeoutMs:1900});
-  if(token!==autoProbeToken||revision!==draftRevision||(mode==='startup'&&!cfg.autoEngine))return;
+  if(token!==autoProbeToken||revision!==draftRevision||savingEngine||(mode==='startup'&&(!cfg.autoEngine||state==='thinking'||state==='speaking'||history.length)))return;
   if(!report.selected){
    const suffix=report.status==='no-model'?'Un moteur local répond, mais aucun modèle conversationnel n’est téléchargé.':
     'Aucun moteur local joignable dans ce navigateur (serveur absent, CORS ou autorisation réseau).';
@@ -2183,6 +2184,7 @@ async function autoConfigure(mode='startup'){
   $('freeOnlyChk').checked=true;$('agentSel').value='agentic';$('rateModeSel').value='eco';
   draftKeyScope=engineScope(cfg.provider,cfg.endpoint);
   engineKeys.set(draftKeyScope,'');
+  modelCatalog={scope:'',models:[],at:null};
   ++draftRevision;++catalogRevision;
   applyProviderPreset(false);showEngineHelp();renderModelCatalog();
   restoreCooldown();refreshRateNotice();
