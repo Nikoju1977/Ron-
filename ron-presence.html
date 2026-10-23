@@ -237,7 +237,10 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   <section id="freeEngines">
     <h3>IA GRATUITE · Agents spécialisés</h3>
     <p class="hint">Sans abonnement ni facturation API : modèle Qwen local sur Ollama. Un ordinateur compatible et l’installation du modèle sont nécessaires. Sur téléphone, « localhost » ne désigne pas l’ordinateur.</p>
-    <div class="row"><button id="freeOllamaBtn" class="btn" type="button">Activer l’IA locale gratuite</button><button id="freeOpenrouterBtn" class="btn ghost" type="button">Préparer un cloud gratuit</button></div>
+    <div class="row"><button id="autoDetectBtn" class="btn" type="button">Détecter et configurer automatiquement</button></div>
+    <div class="row"><button id="freeOllamaBtn" class="btn ghost" type="button">Choisir Ollama</button><button id="freeOpenrouterBtn" class="btn ghost" type="button">Préparer un cloud gratuit</button></div>
+    <label class="check"><input type="checkbox" id="autoEngineChk" checked> Configuration automatique des IA locales au prochain démarrage</label>
+    <div id="autoEngineStatus" role="status" aria-live="polite" class="hint">Recherche uniquement sur localhost ; aucune connexion cloud ni dépense déclenchée.</div>
     <div id="freeEngineStatus" role="status" class="hint">L’IA locale ne démarre pas toute seule : installe Ollama, puis <code>ollama pull qwen3.5:4b</code> (ou <code>qwen3.5:2b</code> pour un appareil modeste). Aucune clé requise.</div>
     <label class="check"><input type="checkbox" id="noPaidChk" checked> Bloquer les appels API facturables (activé par défaut)</label>
     <p class="hint">Le cloud gratuit via OpenRouter requiert une clé de compte et impose des quotas. Le mode zéro euro interdit les modèles tarifés, Mistral et Groq payants. Une validation humaine reste requise pour toute action externe.</p>
@@ -400,6 +403,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 <script src="./ron-vendor/three.min.js"></script>
 <script src="./ron-vendor/fuse.basic.min.js"></script>
 <script src="./ron-knowledge.js"></script>
+<script src="./ron-auto-config.js"></script>
 <script>
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
@@ -535,7 +539,7 @@ const MISTRAL_MODELS = {
 const cfg = {
   key: '', provider: 'ollama', endpoint: PROVIDERS.ollama.endpoint,
   model: PROVIDERS.ollama.model, mistralRoute: 'auto', rateMode: 'eco', agentMode: 'agentic',
-  voiceName: '', wake: false, remember: false, freeOnly:true, noPaid:true,
+  voiceName: '', wake: false, remember: false, freeOnly:true, noPaid:true, autoEngine:true,
   dotsEnabled: false, dotsMode: 'review', dotsInterval: 120000
 };
 
@@ -570,7 +574,10 @@ function applyProviderPreset(force=false){
 }
 
 async function loadCfg(){
-  cfg.provider = (await safeStorage.get('provider')) || cfg.provider;
+  const savedProvider=await safeStorage.get('provider');
+  const savedAuto=await safeStorage.get('autoEngineV1');
+  cfg.autoEngine=savedAuto===true || (savedAuto!==false && !savedProvider);
+  cfg.provider = savedProvider || cfg.provider;
   if(!Object.hasOwn(PROVIDERS,cfg.provider))cfg.provider='mistral';
   cfg.endpoint = (await safeStorage.get('endpoint')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).endpoint;
   cfg.model = (await safeStorage.get('model')) || (PROVIDERS[cfg.provider] || PROVIDERS.custom).model;
@@ -600,6 +607,7 @@ async function loadCfg(){
   $('wakeChk').checked = cfg.wake;
   $('rememberChk').checked = cfg.remember;
   $('noPaidChk').checked = cfg.noPaid;
+  $('autoEngineChk').checked=cfg.autoEngine;
   $('dotsEnabledChk').checked = cfg.dotsEnabled;
   $('dotsModeSel').value = cfg.dotsMode;
   $('dotsIntervalSel').value = String(cfg.dotsInterval);
@@ -1597,7 +1605,7 @@ async function saveSettings(){
   rememberCooldown();
   Object.assign(cfg,{provider:draft.provider,endpoint:draft.endpoint,model:draft.model,key:draft.key,
     mistralRoute:$('mistralRouteSel').value||'auto',rateMode:$('rateModeSel').value||'eco',agentMode:$('agentSel').value,
-    wake:$('wakeChk').checked,remember:$('rememberChk').checked,freeOnly:$('freeOnlyChk').checked,noPaid:$('noPaidChk').checked,
+    wake:$('wakeChk').checked,remember:$('rememberChk').checked,freeOnly:$('freeOnlyChk').checked,noPaid:$('noPaidChk').checked,autoEngine:$('autoEngineChk').checked,
     dotsEnabled:$('dotsEnabledChk').checked,dotsMode:$('dotsModeSel').value||'review',dotsInterval:Math.max(60000,Number($('dotsIntervalSel').value)||120000)
   });
   restoreCooldown();refreshRateNotice();
@@ -1606,6 +1614,7 @@ async function saveSettings(){
   try{
     for(const key of ['provider','endpoint','model','mistralRoute','rateMode','agentMode','wake','remember','freeOnly','noPaid','dotsEnabled','dotsMode','dotsInterval'])await safeStorage.set(key,cfg[key]);
     await safeStorage.set('voice',cfg.voiceName);
+    await safeStorage.set('autoEngineV1',cfg.autoEngine);
     if(cfg.remember&&draft.key)await safeStorage.set('engineKeyV1:'+draft.scope,draft.key);else await safeStorage.del('engineKeyV1:'+draft.scope);
     await safeStorage.del('key');renderDots();
     st.className='';st.textContent='Test réel de '+cfg.provider+' · '+cfg.model+'…';
@@ -2125,6 +2134,74 @@ async function switchEngineDraft(){
   $('keyIn').value=engineKeys.get(scope)||sanitizeKey(saved);
   $('rememberChk').checked=typeof saved==='string'&&saved.length>0;
 }
+/* Local-first assistant: automatic detection never contacts a billable endpoint. */
+let autoProbeToken=0;
+function deviceHints(){
+ const nav=window.navigator||{};
+ return {memory:Number(nav.deviceMemory)||0,cores:Number(nav.hardwareConcurrency)||0};
+}
+function autoStatus(message,ok=false){
+ const el=$('autoEngineStatus'); if(el){el.textContent=message;el.dataset.ready=ok?'true':'false';}
+}
+async function autoConfigure(mode='startup'){
+ const auto=window.RONAutoEngine;
+ if(!auto)return;
+ const btn=$('autoDetectBtn'),token=++autoProbeToken,revision=draftRevision;
+ if(mode==='startup'&&!cfg.autoEngine)return;
+ if(btn)btn.disabled=true;
+ autoStatus('RON recherche un moteur IA déjà installé sur cet appareil (Ollama, LM Studio, vLLM)…');
+ let report;
+ try{
+  // Browsers enforce CORS, mixed-content, private-network and permissions.
+  // No paid remote endpoint, signup, installation, microphone or model generation.
+  if(typeof window.fetch!=='function')report={status:'unavailable',checked:[],selected:null};
+  else report=await auto.discover({fetcher:window.fetch.bind(window),hints:deviceHints(),timeoutMs:1900});
+  if(token!==autoProbeToken||revision!==draftRevision||(mode==='startup'&&!cfg.autoEngine))return;
+  if(!report.selected){
+   const suffix=report.status==='no-model'?'Un moteur local répond, mais aucun modèle conversationnel n’est téléchargé.':
+    'Aucun moteur local joignable dans ce navigateur (serveur absent, CORS ou autorisation réseau).';
+   autoStatus(suffix+' Installe Ollama sur un ordinateur et télécharge qwen3.5:4b, puis relance la détection. Aucun cloud payant activé.');
+   if(mode==='startup')$('connectionHint').textContent='IA locale non détectée. Ouvre Réglages → Détecter et configurer automatiquement.';
+   return report;
+  }
+  const selected=report.selected;
+  if(!auto.loopback(selected.endpoint))throw Error('Un serveur distant a été refusé.');
+  const changed=cfg.provider!==selected.provider || apiBase()!==selected.endpoint || cfg.model!==selected.model;
+  if(mode!=='startup' && changed){
+    stopAll();history.length=0;$('youLine').textContent='';$('ronLine').textContent='Nouvelle session avec IA locale.';
+  }
+  if(changed){rememberCooldown();agentCache.clear();inflightAgents.clear();}
+  Object.assign(cfg,{
+    provider:selected.provider,endpoint:selected.endpoint,model:selected.model,key:'',
+    noPaid:true,remember:false,freeOnly:true,autoEngine:true,agentMode:'agentic',rateMode:'eco'
+  });
+  $('providerSel').value=selected.provider;
+  $('endpointIn').value=selected.endpoint;
+  $('modelIn').value=selected.model;
+  $('keyIn').value='';$('rememberChk').checked=false;
+  $('noPaidChk').checked=true;$('autoEngineChk').checked=true;
+  $('freeOnlyChk').checked=true;$('agentSel').value='agentic';$('rateModeSel').value='eco';
+  draftKeyScope=engineScope(cfg.provider,cfg.endpoint);
+  engineKeys.set(draftKeyScope,'');
+  ++draftRevision;++catalogRevision;
+  applyProviderPreset(false);showEngineHelp();renderModelCatalog();
+  restoreCooldown();refreshRateNotice();
+  // Store nonsecret local preferences so the next visit keeps the choice.
+  for(const key of ['provider','endpoint','model','noPaid','remember','freeOnly','agentMode','rateMode']){
+    await safeStorage.set(key,cfg[key]);
+  }
+  await safeStorage.set('autoEngineV1',true);
+  autoStatus('IA locale prête à configurer : '+selected.provider+' · '+selected.model+'. Modèle détecté, aucune dépense API. Une réponse réelle est vérifiable avec « Enregistrer et tester ».',true);
+  $('freeEngineStatus').textContent='Configuration intelligente : '+selected.model+' sur '+selected.provider+'. Agents Planificateur → Expert → Synthèse, vérification des tâches complexes, protection zéro euro.';
+  $('connectionHint').textContent='';
+  setState('idle');
+  return report;
+ }catch(error){
+  if(token===autoProbeToken)autoStatus('Détection impossible : '+error.message);
+  return null;
+ }finally{if(token===autoProbeToken && btn)btn.disabled=false;}
+}
+
 /* One-click zero-euro engine setup. Never installs software or spends credits. */
 async function activateFreeOllama(){
   const out=$('freeEngineStatus'),button=$('freeOllamaBtn');
@@ -2143,8 +2220,8 @@ async function activateFreeOllama(){
       const {response,payload}=await fetchLLMJson(PROVIDERS.ollama.endpoint+'/models',{});
       if(response.ok && Array.isArray(payload?.data))models=payload.data.map(m=>m.id).filter(x=>typeof x==='string');
     }catch(error){}
-    const favorites=['qwen3.5:4b','qwen3.5:2b','qwen3.5:0.8b'];
-    const chosen=favorites.find(id=>models.includes(id))||models[0]||PROVIDERS.ollama.model;
+      const ranked=window.RONAutoEngine?.rankModels(models,deviceHints())||models;
+    const chosen=ranked[0]||PROVIDERS.ollama.model;
     $('modelIn').value=chosen;
     if(models.length){
       out.textContent='Ollama détecté · modèle '+chosen+'. Les agents Planificateur → Expert → Synthèse peuvent fonctionner sans facturation API. Clique « Enregistrer et tester ».';
@@ -2167,9 +2244,12 @@ function initEngines(){
   draftKeyScope=engineScope(cfg.provider,cfg.endpoint);engineKeys.set(draftKeyScope,cfg.key);
   $('freeOnlyChk').checked=cfg.freeOnly;
   $('noPaidChk').checked=cfg.noPaid;
+  $('autoEngineChk').checked=cfg.autoEngine;
   showEngineHelp();
   $('refreshModelsBtn').onclick=refreshModels;
   $('freeOllamaBtn').addEventListener('click',activateFreeOllama);
+  $('autoDetectBtn').addEventListener('click',()=>autoConfigure('manual'));
+  $('autoEngineChk').addEventListener('change',async()=>{ autoProbeToken++;cfg.autoEngine=$('autoEngineChk').checked;await safeStorage.set('autoEngineV1',cfg.autoEngine);$('autoEngineStatus').textContent=cfg.autoEngine?'Détection automatique locale activée au prochain démarrage.':'Détection au démarrage désactivée ; réglages actuels conservés.'; });
   $('freeOpenrouterBtn').addEventListener('click',prepareFreeOpenrouter);
   $('modelSearch').oninput=renderModelCatalog;
   $('freeOnlyChk').onchange=renderModelCatalog;
@@ -2179,7 +2259,7 @@ function initEngines(){
     $('modelIn').value=$('modelCatalogSel').value;
   };
   $('endpointIn').addEventListener('input',()=>{
-    ++draftRevision;++catalogRevision;$('keyIn').value='';$('rememberChk').checked=false;draftKeyScope='';
+    ++draftRevision;++autoProbeToken;++catalogRevision;$('keyIn').value='';$('rememberChk').checked=false;draftKeyScope='';
     modelCatalog={scope:'',models:[],at:null};renderModelCatalog();$('refreshModelsBtn').disabled=false;$('catalogStatus').textContent='Adresse modifiée : actualise le catalogue.';
   });
   $('keyIn').addEventListener('input',()=>{++draftRevision;++catalogRevision;$('refreshModelsBtn').disabled=false;try{draftKeyScope=engineScope($('providerSel').value,normalizeEndpoint($('providerSel').value,$('endpointIn').value));}catch(e){draftKeyScope='';}});
@@ -2201,6 +2281,7 @@ async function boot(){
   await initCompanion();
   initEngines();
   initPlatform();
+  if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
   if(window.RONKnowledge)await window.RONKnowledge.init({store:safeStorage,notify:toast});
   await loadDotsState();
   scheduleDots(1200);
