@@ -1,8 +1,8 @@
 'use strict';
-const CACHE='ron-presence-shell-v5';
+const CACHE='ron-presence-shell-v6';
 const shell=['ron-presence.html','ron-angel.svg','ron-presence.webmanifest','ron-icon-192.png','ron-icon-512.png','ron-vendor/three.min.js','ron-vendor/marked.js','ron-vendor/purify.min.js','ron-vendor/fuse.basic.min.js','ron-knowledge.js','ron-auto-config.js','ron-knowledge.css'].map(p=>new URL(p,self.location.href).href);
-self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(shell))));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('ron-presence-shell-')&&k!==CACHE).map(k=>caches.delete(k))))));
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(shell)).then(()=>self.skipWaiting())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('ron-presence-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 // Exact public shell allowlist only: no API, conversation, audio or health-data caching.
 self.addEventListener('fetch',event=>{
  const url=new URL(event.request.url);url.search='';url.hash='';
