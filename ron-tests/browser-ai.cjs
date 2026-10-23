@@ -46,12 +46,23 @@ async function main(){
  // The detector must reject unsupported browsers without GPU or native API.
  const mock={navigator:{},isSecureContext:true};
  assert.equal(await dom.window.RONBrowserAI.detect(mock),null);
- const gpuMock={navigator:{gpu:{requestAdapter:async()=>({})},deviceMemory:4},isSecureContext:true};
+ const gpuMock={navigator:{gpu:{requestAdapter:async()=>({features:new Set(['shader-f16'])})},deviceMemory:4},isSecureContext:true};
  const detected=await dom.window.RONBrowserAI.detect(gpuMock);
  assert.equal(detected.kind,'webgpu');
  assert.equal(detected.model,dom.window.RONBrowserAI.QWEN);
  assert.equal(detected.ready,false,'Model download is not falsely advertised as ready');
+ const missingF16={navigator:{gpu:{requestAdapter:async()=>({features:new Set()})},deviceMemory:8},isSecureContext:true};
+ assert.equal((await dom.window.RONBrowserAI.detect(missingF16)).model,dom.window.RONBrowserAI.SMOL,
+  'Do not choose f16 WebGPU model without shader-f16 support');
+ const unknownMemory={navigator:{gpu:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}},isSecureContext:true};
+ assert.equal((await dom.window.RONBrowserAI.detect(unknownMemory)).model,dom.window.RONBrowserAI.SMOL,
+  'Conservative model for browsers that do not report memory');
+ const downloadableNative={LanguageModel:{availability:async()=> 'downloadable'},navigator:{},isSecureContext:true};
+ const nativeCandidate=await dom.window.RONBrowserAI.detect(downloadableNative);
+ assert.equal(nativeCandidate.kind,'native');
+ assert.equal(nativeCandidate.ready,false);
+ assert.equal(nativeCandidate.download,true);
  dom.window.close();
- console.log(JSON.stringify({passed:true,suite:'browser-ai',nativePrompts:prompts,paidRequests:0,checks:13}));
+ console.log(JSON.stringify({passed:true,suite:'browser-ai',nativePrompts:prompts,paidRequests:0,checks:20}));
 }
 main().catch(e=>{console.error(e);process.exit(1)});
