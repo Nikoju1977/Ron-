@@ -549,6 +549,8 @@ const cfg = {
   voiceName: '', wake: false, remember: false, freeOnly:true, noPaid:true, autoEngine:true,
   dotsEnabled: false, dotsMode: 'review', dotsInterval: 120000
 };
+// null = not checked; false = browser cannot reach an installed local model.
+let localEngineReady=null;
 
 function applyMistralRouteUI(){
   const isMistral = $('providerSel').value === 'mistral';
@@ -1510,6 +1512,12 @@ async function handleUser(text, careContext = ''){
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
+  if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm'].includes(cfg.provider)){
+    $('textIn').value=text;
+    $('ronLine').textContent='RON fonctionne, mais aucun moteur IA local ne répond sur cet appareil. Sur téléphone, localhost ne désigne pas ton ordinateur. Dans Réglages, tu peux préparer le cloud gratuit OpenRouter (clé personnelle nécessaire, quotas possibles) ou relancer la détection locale.';
+    $('connectionHint').textContent='Interface disponible · IA non connectée. Ouvre Réglages pour choisir un moteur gratuit.';
+    setState('error','IA locale non connectée');openPanel();return;
+  }
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)){ $('textIn').value = text; openPanel(); toast('Ton message est conservé. Configure le moteur pour recevoir une réponse.'); return; }
   unlockSpeech(); stopRec(); stopSpeaking();
   if (currentXhr) currentXhr.abort();
@@ -1594,7 +1602,8 @@ function setState(s, detail){
     error: detail || 'Erreur'
   };
   if (s === 'idle'){
-    el.textContent = (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
+    el.textContent = (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm'].includes(cfg.provider)) ? 'IA locale absente · ouvre Réglages'
+      : (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
       : (cfg.wake && SR && !wakePaused) ? 'Dis « Ron » ou touche le micro'
       : SR ? 'Touche le micro ou écris' : 'Écris ton message';
   } else el.textContent = labels[s];
@@ -1609,6 +1618,7 @@ async function saveSettings(){
   const st=$('keyStatus');let draft;
   try{draft=readEngineDraft(true);}catch(error){st.className='bad';st.textContent=error.message;return;}
   ++autoProbeToken;
+  localEngineReady=null;
   savingEngine=true;$('saveBtn').disabled=true;
   stopAll();clearTimeout(dotsRuntime.timer);
   const changed=engineScope(cfg.provider,apiBase())!==draft.scope;
@@ -1632,7 +1642,7 @@ async function saveSettings(){
     st.className='';st.textContent='Test réel de '+cfg.provider+' · '+cfg.model+'…';
     const started=performance.now(),test=await testConnection();
     if(test.code===200){st.className='ok';st.textContent='Réponse reçue en '+((performance.now()-started)/1000).toFixed(1)+' s. Moteur prêt.';setState('idle');scheduleDots();}
-    else{st.className='bad';st.textContent=test.message||llmError(test.code).message;}
+    else{st.className='bad';st.textContent=test.message||llmError(test.code).message; $('connectionHint').textContent='Le moteur IA ne répond pas : vérifie son installation, le réseau et la configuration.';}
   }catch(error){st.className='bad';st.textContent=error.message;}
   finally{savingEngine=false;$('saveBtn').disabled=false;}
 }
@@ -2137,6 +2147,7 @@ function showEngineHelp(){
 }
 async function switchEngineDraft(){
   const rev=++draftRevision;++autoProbeToken;++catalogRevision;
+  localEngineReady=null;
   $('keyIn').value='';$('rememberChk').checked=false;
   modelCatalog={scope:'',models:[],at:null};$('catalogStatus').textContent='Actualise pour lire le catalogue de ce moteur.';$('refreshModelsBtn').disabled=false;
   applyProviderPreset(true);showEngineHelp();renderModelCatalog();
@@ -2170,13 +2181,16 @@ async function autoConfigure(mode='startup'){
   else report=await auto.discover({fetcher:window.fetch.bind(window),hints:deviceHints(),timeoutMs:1900});
   if(token!==autoProbeToken||revision!==draftRevision||savingEngine||(mode==='startup'&&(!cfg.autoEngine||state==='thinking'||state==='speaking'||history.length)))return;
   if(!report.selected){
+   localEngineReady=false;
    const suffix=report.status==='no-model'?'Un moteur local répond, mais aucun modèle conversationnel n’est téléchargé.':
     'Aucun moteur local joignable dans ce navigateur (serveur absent, CORS ou autorisation réseau).';
    autoStatus(suffix+' Installe Ollama sur un ordinateur et télécharge qwen3.5:4b, puis relance la détection. Aucun cloud payant activé.');
-   if(mode==='startup')$('connectionHint').textContent='IA locale non détectée. Ouvre Réglages → Détecter et configurer automatiquement.';
+   if(mode==='startup')$('connectionHint').textContent='Interface disponible, IA absente : sur téléphone, Ollama sur un PC n’est pas joignable par localhost. Dans Réglages, utilise « Préparer un cloud gratuit » ou relance la détection locale.';
+   setState('idle');
    return report;
   }
   const selected=report.selected;
+  localEngineReady=true;
   if(!auto.loopback(selected.endpoint))throw Error('Un serveur distant a été refusé.');
   const changed=cfg.provider!==selected.provider || apiBase()!==selected.endpoint || cfg.model!==selected.model;
   if(mode!=='startup' && changed){
