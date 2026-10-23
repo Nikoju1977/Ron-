@@ -28,6 +28,11 @@ async function main(){
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   const page=await context.newPage(),exceptions=[];
   page.on('pageerror',error=>exceptions.push(error.message));
+  // This first scenario intentionally has no native, WebGPU or localhost AI.
+  await page.addInitScript(()=>{
+   Object.defineProperty(window,'LanguageModel',{configurable:true,value:undefined});
+   Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});
+  });
   page.route('http://localhost:*/v1/models',route=>route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'{"data":[]}'}));
   const start=Date.now();
   await page.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
@@ -50,13 +55,29 @@ async function main(){
   await page.locator('#panelClose').click();
   // Automatic discovery is asynchronous. Submit only after RON has explicitly
   // established that this browser has no local inference server.
-  await page.waitForFunction(()=>document.getElementById('connectionHint')?.textContent.includes('IA absente'),null,{timeout:8000});
+  await page.waitForFunction(()=>/aucun modèle conversationnel|aucun moteur local joignable/i.test(document.getElementById('autoEngineStatus')?.textContent||''),null,{timeout:10000});
   await page.locator('#textIn').fill('Bonjour');
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
   assert.equal(await page.locator('#textIn').inputValue(),'Bonjour','Prompt remains available when there is no AI engine');
   assert.deepEqual(exceptions,[],'No uncaught browser script exceptions');
-  console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,exceptions}));
+  // Also prove the no-key Chrome Prompt API path works in a real browser.
+  const nativePage=await context.newPage(),nativeErrors=[];
+  nativePage.on('pageerror',e=>nativeErrors.push(e.message));
+  await nativePage.addInitScript(()=>{
+   Object.defineProperty(window,'LanguageModel',{configurable:true,value:{
+    availability:async()=> 'available',
+    create:async()=>({prompt:async()=> 'RON fonctionne sans clé API.',destroy(){}})
+   }});
+  });
+  await nativePage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
+  await nativePage.waitForFunction(()=>document.getElementById('autoEngineStatus')?.dataset.ready==='true'&&document.getElementById('providerSel')?.value==='browser',null,{timeout:10000});
+  await nativePage.locator('#textIn').fill('Bonjour RON');
+  await nativePage.locator('#sendBtn').click();
+  await nativePage.waitForFunction(()=>document.getElementById('ronLine')?.textContent.includes('RON fonctionne sans clé API.'),null,{timeout:10000});
+  assert(await nativePage.locator('#noPaidChk').isChecked(),'No-key native mode keeps the zero-spend guard');
+  assert.deepEqual(nativeErrors,[],'No native browser integration script exceptions');
+  console.log(JSON.stringify({passed:true,suite:'browser-smoke',mobileViewport:true,firstInteractiveMs:startupMs,noKeyNativePrompt:true,exceptions}));
   await context.close();
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
