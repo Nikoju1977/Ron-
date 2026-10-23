@@ -14,6 +14,7 @@ async function main(){
   runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,
   beforeParse(w){
    w.indexedDB={open(){return {};}}; // browser storage open never succeeds, fails, nor unblocks
+   w.fetch=async()=>({ok:true,status:200,json:async()=>({data:[]})}); // ready local server without conversation models
    w.matchMedia=()=>({matches:false});w.isSecureContext=true;
    Object.defineProperty(w.navigator,'deviceMemory',{configurable:true,value:2});
    w.AudioContext=undefined;
