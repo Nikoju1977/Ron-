@@ -95,3 +95,34 @@ Le compteur reste visible et les délais sont conservés par fournisseur/endpoin
 Documentation : https://docs.mistral.ai/admin/billing-usage/usage-limits
 
 Vérification supplémentaire : rendu WebGL réel dans Chromium, formats ordinateur et téléphone, redimensionnement sans erreur JavaScript. Ces essais ne remplacent pas un test physique du microphone ou de la montre Samsung.
+
+
+## IA gratuite et agents spécialisés
+
+Sur une nouvelle installation, RON propose Ollama et Qwen 3.5 4B en premier. Pour fonctionner sur ordinateur :
+
+1. Installer [Ollama](https://ollama.com/download) (logiciel tiers gratuit).
+2. Dans un terminal : ollama pull qwen3.5:4b (téléchargement de plusieurs Go), ou ollama pull qwen3.5:2b pour un appareil plus modeste.
+3. Pour utiliser le serveur sur le même ordinateur depuis GitHub Pages, autoriser uniquement l'origine https://nikoju1977.github.io via OLLAMA_ORIGINS avant de démarrer Ollama. Redémarrer le serveur après modification. Les règles CORS et l'accès au réseau local varient selon le navigateur.
+4. Dans RON : Réglages → Activer l’IA locale gratuite → Enregistrer et tester.
+
+Cette option n'utilise ni API cloud facturable ni clé, mais le matériel, l'électricité et le réseau nécessaire au téléchargement restent à la charge de l'utilisateur. Le modèle n'est pas embarqué dans les fichiers du site. Sur téléphone, localhost désigne le téléphone, pas l'ordinateur où tourne Ollama.
+
+Cloud gratuit : le bouton « Préparer un cloud gratuit » choisit openrouter/free et le filtre de modèles gratuits. Il faut un compte et une clé OpenRouter créés par l'utilisateur. Les quotas, modèles et conditions peuvent changer. Le contrôle « Bloquer les appels API facturables » est activé par défaut et refuse les modèles sans indication de gratuité et les endpoints cloud facturables. Vérifier les conditions tarifaires du fournisseur. Désactiver volontairement cette protection réautorise les moteurs historiques potentiellement payants.
+
+Orchestration agentique : le mode Agentique lance un planificateur, un spécialiste puis une synthèse ; les demandes complexes peuvent ajouter un vérificateur contradicteur. Le mode Conseil peut entraîner davantage d'appels. Aucun agent ne contrôle les appareils, ne lance des programmes externes ni ne fait de recherche web autonome. La qualité et les performances dépendent du modèle choisi. Pas de décision médicale autonome.
+
+Bibliothèque : RON Savoirs utilise [Fuse.js 7.5.0](https://github.com/krisk/Fuse) (licence Apache-2.0) pour la recherche de notes et fichiers texte dans le navigateur. Les connecteurs GitHub (README de dépôts publics uniquement, sans jeton) et Wikipédia sont déclenchés uniquement par un clic. Le contenu externe peut être inexact ou inclure des instructions malveillantes ; il est traité comme référence, jamais comme commande. Le partage d'extraits avec le LLM est désactivé par défaut à chaque session. La conservation des documents dans IndexedDB est facultative et non chiffrée. L'effacement local ne retire pas les données déjà transmises à un fournisseur cloud.
+
+Tests : suites automatisées de conversation, moteurs, limites, Mistral simulé, bibliothèque locale, sécurité et orchestration du modèle libre. Les tests simulés ne prouvent pas les performances d'un modèle Ollama réel ou les permissions d'un téléphone physique.
+
+
+## Configuration automatique locale
+
+RON propose désormais une **auto-configuration sans abonnement** : sur les nouveaux profils, à l'ouverture de RON Présence, un diagnostic court interroge **uniquement localhost** sur les ports 11434 (Ollama), 1234 (LM Studio) et 8000 (vLLM), sans clé et sans appel aux API cloud. Les serveurs doivent être déjà lancés sur l'appareil utilisé. Les modèles de génération disponibles sont lus depuis leurs catalogues compatibles OpenAI. Les modèles réservés à l'embedding, à la transcription ou à la synthèse vocale sont écartés ; RON choisit un modèle conversationnel en privilégiant les familles récentes et une taille raisonnable selon les informations approximatives fournies par le navigateur (mémoire, nombre de cœurs). L'auto-détection ne mesure pas la RAM/GPU réellement disponible et ne garantit pas que le modèle pourra générer une réponse.
+
+Si la détection réussit, RON règle automatiquement le modèle, le mode Agentique, le budget Éco et le verrouillage zéro euro, puis enregistre les paramètres non secrets. Le démarrage ne demande **aucune génération au modèle** ; utiliser « Enregistrer et tester » dans les réglages pour vérifier l'inférence réelle. Si aucun moteur n'est joignable, une aide d'installation apparaît ; aucun serveur payant n'est choisi en secours. La configuration automatique ne transmet aucun document, conversation, son, fichier ou donnée de santé aux moteurs détectés.
+
+Pour éviter les changements surprises, les anciens profils ayant configuré leur moteur conservent leurs préférences et leur auto-détection reste désactivée tant qu'ils ne l'activent pas. L'interrupteur « Configuration automatique » contrôle les démarrages ultérieurs. Le bouton « Détecter et configurer automatiquement » lance le diagnostic à la demande. Une modification manuelle pendant le diagnostic prime toujours sur le résultat automatique.
+
+**Limites** : les navigateurs peuvent bloquer les requêtes HTTP vers localhost depuis un site HTTPS, ou exiger des permissions de réseau privé. Un téléphone ne peut pas découvrir automatiquement un Ollama installé sur l'ordinateur via localhost. RON ne peut pas installer Ollama, télécharger un modèle volumineux ou consentir à une connexion avec une application tierce à la place de l'utilisateur. Rien de payant n'est lancé automatiquement.

@@ -33,7 +33,7 @@ assert.equal(E("normalizeEndpoint('ollama','http://localhost:11434/v1/')"),'http
 assert.equal(E("isFreePrice({prompt:null,completion:'0'})"),false);
 assert.equal(E("isFreePrice({prompt:'0',completion:'0',request:'1'})"),false);
 assert.equal(E("isFreePrice({prompt:'0',completion:'0'})"),true);
-E("cfg.key='MISTRAL-TEST-KEY';$('keyIn').value=cfg.key;engineKeys.set(engineScope(cfg.provider,cfg.endpoint),cfg.key)");
+E("cfg.noPaid=false;$('noPaidChk').checked=false;cfg.provider='mistral';cfg.endpoint=PROVIDERS.mistral.endpoint;cfg.model=PROVIDERS.mistral.model;cfg.key='MISTRAL-TEST-KEY';$('keyIn').value=cfg.key;engineKeys.set(engineScope(cfg.provider,cfg.endpoint),cfg.key)");
 d.getElementById('providerSel').value='openrouter';await E('switchEngineDraft()');
 assert.equal(d.getElementById('keyIn').value,'');assert.equal(E('cfg.provider'),'mistral');
 let reads=0;w.fetch=async(url,opts)=>{reads++;assert(!opts.headers.Authorization);return {ok:true,status:200,headers:{get:()=>null},json:async()=>({data:[

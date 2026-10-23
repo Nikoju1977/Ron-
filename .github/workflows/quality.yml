@@ -1,0 +1,36 @@
+name: RON — quality checks
+
+on:
+  push:
+    branches: ["feature/**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ron-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check ron-knowledge.js
+          node --check ron-tests/knowledge.cjs
+          node -e "const fs=require('fs'),vm=require('vm');for(const f of ['ron-presence.html','index.html']){const s=fs.readFileSync(f,'utf8');const scripts=[...s.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];for(const [i,m] of scripts.entries())new vm.Script(m[1],{filename:f+'#inline-'+i});console.log(f+': '+scripts.length+' inline script(s) valid');}"
+      - name: Install test dependencies
+        run: npm --prefix ron-tests install --ignore-scripts --no-audit --no-fund
+      - name: Test conversations, engines, limits, Mistral and knowledge
+        run: npm --prefix ron-tests test

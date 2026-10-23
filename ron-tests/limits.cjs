@@ -24,7 +24,7 @@ const msg=async text=>{await E(`handleUser(${JSON.stringify(text)})`);await unti
 
 (async()=>{
 await until(()=>d.getElementById('state').textContent!=='Initialisation…');
-E("cfg.provider='mistral';cfg.endpoint='https://api.mistral.ai/v1';cfg.key='simulation';cfg.agentMode='direct';RATE_PROFILES.eco.minGap=0;");
+E("cfg.noPaid=false;cfg.provider='mistral';cfg.endpoint='https://api.mistral.ai/v1';cfg.key='simulation';cfg.agentMode='direct';RATE_PROFILES.eco.minGap=0;");
 assert(E('retryAfterMs({get:()=>null})')>=65000);
 assert.equal(E("accountLimit({error:{code:'insufficient_quota'}})"),true);
 let count=0;const response=(status,payload,after)=>({status,ok:status===200,headers:{get:n=>n==='retry-after'?after:null},json:async()=>payload});
