@@ -62,7 +62,37 @@ async function main(){
  assert.equal(nativeCandidate.kind,'native');
  assert.equal(nativeCandidate.ready,false);
  assert.equal(nativeCandidate.download,true);
+ // Android exposes WASM even if it lacks any usable GPU. Prefer the CPU model.
+ const mobileNoGPU={
+  navigator:{userAgent:'Mozilla/5.0 (Linux; Android 14; Samsung)',deviceMemory:8},
+  WebAssembly:{instantiate(){}},isSecureContext:true
+ };
+ const cpuChoice=await dom.window.RONBrowserAI.detect(mobileNoGPU);
+ assert.equal(cpuChoice.kind,'cpu');
+ assert.equal(cpuChoice.model,dom.window.RONBrowserAI.CPU);
+ assert.equal(cpuChoice.ready,false,'CPU weights are not downloaded before first question');
+ const androidHasGPU={
+  ...mobileNoGPU,navigator:{...mobileNoGPU.navigator,gpu:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}}
+ };
+ assert.equal((await dom.window.RONBrowserAI.detect(androidHasGPU)).model,dom.window.RONBrowserAI.CPU,
+  'Do not use misleading Android GPU adapter presence to choose heavy WebLLM model');
+ const fakeCPU=async()=>async (messages,options)=>{
+  assert.equal(options.do_sample,false);
+  assert.equal(messages.at(-1).content,'Bonjour');
+  return [{generated_text:[...messages,{role:'assistant',content:'Bonjour ! Réponse sur processeur.'}]}];
+ };
+ const prompt=[{role:'system',content:'Réponds en français.'},{role:'user',content:'Bonjour'}];
+ const cpuAnswer=await dom.window.RONBrowserAI.generate(prompt,dom.window.RONBrowserAI.CPU,()=>{}, {loadCPU:fakeCPU});
+ assert.equal(cpuAnswer,'Bonjour ! Réponse sur processeur.');
+ const log=[];
+ const afterGPU=await dom.window.RONBrowserAI.generate(prompt,dom.window.RONBrowserAI.SMOL,msg=>log.push(msg),{
+  loadGPU:async()=>{throw Error('Unable to find a compatible GPU.');},
+  loadCPU:fakeCPU
+ });
+ assert.equal(afterGPU,'Bonjour ! Réponse sur processeur.');
+ assert(log.some(x=>/GPU incompatible/i.test(x)),'Show a human-friendly CPU fallback progress');
+ assert.deepEqual(exceptions,[]);
  dom.window.close();
- console.log(JSON.stringify({passed:true,suite:'browser-ai',nativePrompts:prompts,paidRequests:0,checks:20}));
+ console.log(JSON.stringify({passed:true,suite:'browser-ai',nativePrompts:prompts,paidRequests:0,checks:29}));
 }
 main().catch(e=>{console.error(e);process.exit(1)});
