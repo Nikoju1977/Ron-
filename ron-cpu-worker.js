@@ -62,7 +62,7 @@ self.addEventListener('message',async e=>{
   if(!response)throw Error('Le modèle CPU n’a pas généré de réponse. Essaie une question courte.');
   // Refuse obviously incomplete / looping outputs rather than presenting
   // gibberish as a confident, successful answer.
-  const words=response.toLocaleLowerCase('fr').match(/[\\p{L}]+/gu)||[];
+  const words=response.toLocaleLowerCase('fr').match(/[\p{L}]+/gu)||[];
   const grams=words.slice(0,-2).map((_,i)=>words.slice(i,i+3).join(' '));
   if(grams.length>=9 && new Set(grams).size<grams.length*0.65)
    throw Error('Le modèle a répété du texte incohérent. Reformule plus brièvement.');
