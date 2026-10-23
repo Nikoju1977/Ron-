@@ -246,6 +246,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   <div class="field">
     <label for="providerSel">Moteur LLM</label>
     <select id="providerSel">
+      <option value="browser">IA sur cet appareil · sans clé (automatique)</option>
       <option value="mistral">Mistral API</option>
       <option value="openrouter">OpenRouter · catalogue et modèles gratuits</option>
       <option value="groq">Groq · modèles hébergés</option>
@@ -401,6 +402,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 <script src="./ron-vendor/fuse.basic.min.js"></script>
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
+<script src="./ron-browser-ai.js"></script>
 <script>
 'use strict';
 /* ═══════════ Utilitaires Studio Niko ═══════════ */
@@ -526,6 +528,7 @@ function toast(msg){
 
 /* ═══════════ Réglages & cerveau multi-LLM ═══════════ */
 const PROVIDERS = {
+  browser: { endpoint:'browser://local', model:'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', needsKey:false },
   mistral: { endpoint: 'https://api.mistral.ai/v1', model: 'mistral-large-latest', needsKey: true },
   openrouter: { endpoint:'https://openrouter.ai/api/v1', model:'openrouter/free', needsKey:true },
   groq: { endpoint:'https://api.groq.com/openai/v1', model:'openai/gpt-oss-20b', needsKey:true },
@@ -906,6 +909,7 @@ function modelCandidates(userText='', role='final', domain=null){
 function enforceNoPaid(provider,endpoint,model,enabled=cfg.noPaid){
   if(!enabled)return;
   let url;try{url=new URL(endpoint);}catch(e){throw Error('Adresse du moteur invalide.');}
+  if(provider==='browser' && endpoint==='browser://local' && window.RONBrowserAI?.MODEL_IDS.has(model))return;
   const isLocal=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
   if(isLocal && ['ollama','lmstudio','vllm','custom'].includes(provider))return;
   if(provider==='openrouter' && url.origin==='https://openrouter.ai' && (model==='openrouter/free'||String(model).endsWith(':free')||isFreeModelId(model,engineScope(provider,endpoint))))return;
@@ -924,6 +928,13 @@ function requestBody(messages, stream, temperature=0.35, maxTokens=1100, model=c
 }
 
 async function chatOnce(messages, temperature=0.2, maxTokens=900, routing={}){
+  if(cfg.provider==='browser'){
+    checkTurn(routing);
+    enforceNoPaid(cfg.provider,apiBase(),cfg.model);
+    const result=await window.RONBrowserAI.generate(messages,cfg.model,message=>{$('connectionHint').textContent=message;});
+    checkTurn(routing);
+    return result;
+  }
   const candidates=modelCandidates(routing.userText,routing.role,routing.domain);
   let lastError;
   for(let i=0;i<candidates.length;i++){
@@ -961,6 +972,14 @@ async function chatOnce(messages, temperature=0.2, maxTokens=900, routing={}){
 }
 
 function chatStream(messages,onDelta,routing={}){
+  if(cfg.provider==='browser')return (async()=>{
+    checkTurn(routing);
+    enforceNoPaid(cfg.provider,apiBase(),cfg.model);
+    const result=await window.RONBrowserAI.generate(messages,cfg.model,message=>{$('connectionHint').textContent=message;});
+    checkTurn(routing);
+    $('connectionHint').textContent='IA sur cet appareil, sans clé API et sans abonnement.';
+    onDelta(result);return result;
+  })();
   const candidates=modelCandidates(routing.userText,routing.role,routing.domain);
   return new Promise((resolve,reject)=>{
     let attemptIndex=0,retry429=0;
@@ -2062,6 +2081,10 @@ let modelCatalog={scope:'',models:[],at:null};
 const CLOUD_ENDPOINTS={mistral:'https://api.mistral.ai/v1',openrouter:'https://openrouter.ai/api/v1',groq:'https://api.groq.com/openai/v1'};
 function normalizeEndpoint(provider,raw){
   const value=String(raw||'').trim().replace(/\/+$/,'');
+  if(provider==='browser'){
+    if(value!=='browser://local')throw Error('Le moteur navigateur n’utilise aucune adresse de serveur.');
+    return value;
+  }
   let url;try{url=new URL(value);}catch(e){throw new Error('Renseigne une adresse API complète.');}
   if(url.username||url.password||url.search||url.hash)throw new Error('L’adresse API ne doit contenir ni identifiant, ni paramètre, ni fragment.');
   if(CLOUD_ENDPOINTS[provider]){
@@ -2116,6 +2139,10 @@ function renderModelCatalog(){
 async function refreshModels(){
   const rev=++catalogRevision;let draft;
   try{draft=readEngineDraft(false);}catch(error){$('catalogStatus').textContent=error.message;return;}
+  if(draft.provider==='browser'){
+    modelCatalog={scope:draft.scope,models:[window.RONBrowserAI.NATIVE,window.RONBrowserAI.QWEN,window.RONBrowserAI.SMOL].map(id=>({id,name:id,free:true})),at:Date.now()};
+    renderModelCatalog();$('catalogStatus').textContent='Modèles exécutés sur cet appareil. Disponibilité selon navigateur, WebGPU et mémoire.';return;
+  }
   $('refreshModelsBtn').disabled=true;$('catalogStatus').textContent='Lecture du catalogue du moteur…';
   try{
     const headers=draft.key?{Authorization:'Bearer '+draft.key}:{};
@@ -2133,6 +2160,7 @@ async function refreshModels(){
 function showEngineHelp(){
   const provider=$('providerSel').value;
   const help={
+    browser:'IA native dans Chrome compatible ou WebGPU/WebLLM. Aucun compte, aucune clé et aucun appel API payant. Sur WebGPU le premier message télécharge un modèle libre (plusieurs centaines de Mo) et le calcul dépend de la mémoire graphique. Le navigateur peut refuser cette option.',
     mistral:'Mistral : clé personnelle. Les alias latest évoluent ; le catalogue permet de choisir un modèle précis. Les poids ouverts et le prix de l’API sont deux sujets distincts.',
     openrouter:'OpenRouter : une clé ouvre un catalogue de plusieurs éditeurs. Le filtre gratuit concerne le tarif des tokens annoncé, avec quotas et disponibilité variables. Ron demande des fournisseurs sans collecte de données ; certains modèles peuvent donc être indisponibles.',
     groq:'Groq : modèles hébergés, clé et limites propres à ton compte. Le catalogue permet de voir les identifiants actuellement proposés.',
@@ -2144,6 +2172,9 @@ function showEngineHelp(){
   $('engineHelp').textContent=help[provider]||'';
   $('freeOnlyRow').hidden=provider!=='openrouter';
   $('localGuide').hidden=!['ollama','lmstudio','vllm','custom'].includes(provider);
+  $('endpointIn').readOnly=provider==='browser';
+  $('keyIn').disabled=provider==='browser';
+  $('refreshModelsBtn').disabled=provider==='browser';
 }
 async function switchEngineDraft(){
   const rev=++draftRevision;++autoProbeToken;++catalogRevision;
@@ -2181,11 +2212,32 @@ async function autoConfigure(mode='startup'){
   else report=await auto.discover({fetcher:window.fetch.bind(window),hints:deviceHints(),timeoutMs:1900});
   if(token!==autoProbeToken||revision!==draftRevision||savingEngine||(mode==='startup'&&(!cfg.autoEngine||state==='thinking'||state==='speaking'||history.length)))return;
   if(!report.selected){
+   const browserAI=window.RONBrowserAI;
+   const fallback=browserAI?await browserAI.detect().catch(()=>null):null;
+   if(token!==autoProbeToken||revision!==draftRevision||savingEngine||(mode==='startup'&&(state==='thinking'||state==='speaking'||history.length)))return;
+   if(fallback){
+     localEngineReady=true;
+     if(mode!=='startup'){stopAll();history.length=0;$('youLine').textContent='';$('ronLine').textContent='';}
+     Object.assign(cfg,{provider:'browser',endpoint:browserAI.ENDPOINT,model:fallback.model,key:'',noPaid:true,freeOnly:true,remember:false,autoEngine:true,agentMode:'direct',rateMode:'eco'});
+     $('providerSel').value='browser';$('endpointIn').value=cfg.endpoint;$('modelIn').value=cfg.model;
+     $('keyIn').value='';$('rememberChk').checked=false;$('noPaidChk').checked=true;
+     $('agentSel').value='direct';$('rateModeSel').value='eco';
+     draftKeyScope=engineScope(cfg.provider,cfg.endpoint);engineKeys.set(draftKeyScope,'');
+     ++draftRevision;++catalogRevision;modelCatalog={scope:'',models:[],at:null};
+     applyProviderPreset(false);showEngineHelp();renderModelCatalog();
+     for(const key of ['provider','endpoint','model','noPaid','remember','freeOnly','agentMode','rateMode'])await safeStorage.set(key,cfg[key]);
+     await safeStorage.set('autoEngineV1',true);
+     const message=fallback.kind==='native'
+       ? 'IA intégrée au navigateur détectée. RON peut répondre sans clé et sans serveur.'
+       : 'WebGPU compatible. RON téléchargera le modèle libre sur cet appareil à ta première question (plusieurs centaines de Mo). Aucune clé requise.';
+     autoStatus(message,true);$('freeEngineStatus').textContent=message;
+     $('connectionHint').textContent=message;setState('idle');return {selected:{provider:'browser',model:cfg.model}};
+   }
    localEngineReady=false;
    const suffix=report.status==='no-model'?'Un moteur local répond, mais aucun modèle conversationnel n’est téléchargé.':
     'Aucun moteur local joignable dans ce navigateur (serveur absent, CORS ou autorisation réseau).';
    autoStatus(suffix+' Installe Ollama sur un ordinateur et télécharge qwen3.5:4b, puis relance la détection. Aucun cloud payant activé.');
-   if(mode==='startup')$('connectionHint').textContent='Interface disponible, IA absente : sur téléphone, Ollama sur un PC n’est pas joignable par localhost. Dans Réglages, utilise « Préparer un cloud gratuit » ou relance la détection locale.';
+   if(mode==='startup')$('connectionHint').textContent='Aucune IA sans clé compatible détectée sur ce navigateur. Chrome IA native nécessite du matériel compatible ; WebGPU ou un moteur local peuvent être nécessaires. Consulte Réglages.';
    setState('idle');
    return report;
   }
