@@ -1596,6 +1596,8 @@ function cancelPendingTurn(){
 async function handleUser(text, careContext = ''){
   text = String(text || '').trim();
   if (!text) return;
+  // Wake Android text-to-speech while the tap/microphone gesture is still active.
+  unlockSpeech();
   const thisTurn = ++turnId;
   cancelPendingTurn();cancelNetSearch();
   if (companionCommand(text)) return;
