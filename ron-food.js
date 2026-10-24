@@ -64,9 +64,10 @@ function parse(text){
  // another food portion, nor included in the name of the food.
  if(explicitLabel){
   const labelPos=withoutQuestion.indexOf(explicitLabel[0]);
-  if(labelPos>=0)withoutQuestion=withoutQuestion.slice(0,labelPos).replace(/(?:[,;]?\s*(?:l[’']?étiquette\s*(?:dit|indique)?|avec|et)\s*)$/iu,'').trim();
+  if(labelPos>=0)withoutQuestion=withoutQuestion.slice(0,labelPos).replace(/[,;]?\s*(?:l[’']?étiquette|étiquette)\s*(?:dit|indique)?\s*$/iu,'').trim();
  }
- const portionRe=/(\d{1,4}(?:[.,]\d{1,2})?)\s*(kg|g|grammes?)\s*(?:de\s+|d['’]\s*|du\s+|des\s+)?([^,;?!]+?)(?=\s*(?:,|;|\bet\b|\bavec\b|\bplus\b)\s*\d{1,4}(?:[.,]\d{1,2})?\s*(?:kg|g|grammes?)\b|$)/giu;
+ withoutQuestion=withoutQuestion.replace(/[?!.,;:]+$/,'').trim();
+ const portionRe=/(\d{1,4}(?:[.,]\d{1,2})?)\s*(kg|grammes?|g)\s*(?:de\s+|d['’]\s*|du\s+|des\s+)?([^,;?!]+?)(?=\s*(?:,|;|\bet\b|\bavec\b|\bplus\b)\s*\d{1,4}(?:[.,]\d{1,2})?\s*(?:kg|grammes?|g)\b|$)/giu;
  const portions=[];
  for(const m of withoutQuestion.matchAll(portionRe)){
   let name=clean(m[3].replace(/\s*(?:[,;]|et)\s*$/, '').replace(/\b(glucides?|carbs?)\b.*$/iu,'').trim(),90);
