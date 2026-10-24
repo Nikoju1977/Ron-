@@ -54,6 +54,16 @@ async function main(){
   assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'Settings button opens its panel');
   assert(await page.locator('#noPaidChk').isChecked(),'No-spend guard on in real browser');
   await page.locator('#panelClose').click();
+  // Automatic discovery is asynchronous. Submit only after RON has explicitly
+  // established that this browser has no local inference server.
+  await page.waitForFunction(()=>/aucun modèle conversationnel|aucun moteur local joignable/i.test(document.getElementById('autoEngineStatus')?.textContent||''),null,{timeout:10000});
+  await page.locator('#textIn').fill('Bonjour');
+  await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
+  assert.equal(await page.locator('#textIn').inputValue(),'Bonjour','Prompt remains available when there is no AI engine');
+  // The no-engine warning intentionally opens Settings. Dismiss it to type a
+  // later live Internet question like a real user would.
+  if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
   // DOTS must be a usable, accessible mobile panel, connected to the existing
   // settings and mission storage rather than a disconnected decorative drawer.
   await page.locator('#dotsBtn').click();
@@ -79,16 +89,6 @@ async function main(){
   assert.equal(await page.locator('#dotsQuickEnable').isChecked(),false,'Settings toggle synchronizes back to DOTS');
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','Escape closes DOTS');
-  // Automatic discovery is asynchronous. Submit only after RON has explicitly
-  // established that this browser has no local inference server.
-  await page.waitForFunction(()=>/aucun modèle conversationnel|aucun moteur local joignable/i.test(document.getElementById('autoEngineStatus')?.textContent||''),null,{timeout:10000});
-  await page.locator('#textIn').fill('Bonjour');
-  await page.locator('#sendBtn').click();
-  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
-  assert.equal(await page.locator('#textIn').inputValue(),'Bonjour','Prompt remains available when there is no AI engine');
-  // The no-engine warning intentionally opens Settings. Dismiss it to type a
-  // later live Internet question like a real user would.
-  if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
   assert.deepEqual(exceptions,[],'No uncaught browser script exceptions');
   // A live weather question must bypass unavailable local LLM and call only
   // Open-Meteo public APIs. Use deterministic fixtures, not live network in CI.
