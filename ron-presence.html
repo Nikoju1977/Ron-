@@ -397,7 +397,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   <div class="knowledge-form"><label for="knowledgeGithub">Connecteur GitHub · dépôt public (owner/repo)</label><input id="knowledgeGithub" type="text" placeholder="Nikoju1977/Ron-" autocomplete="off"><button class="btn ghost" id="knowledgeGithubBtn" type="button">Importer README</button></div>
   <div class="knowledge-form"><label for="knowledgeWiki">Connecteur Wikipédia · encyclopédie française</label><input id="knowledgeWiki" type="search" placeholder="Recherche encyclopédique"><button class="btn ghost" id="knowledgeWikiBtn" type="button">Importer un résumé</button></div>
   <div class="knowledge-form">
-    <label for="knowledgeNetSearch">Rechercher sur Internet · météo, encyclopédie, études scientifiques, GitHub</label>
+    <label for="knowledgeNetSearch">Questions et sources gratuites · météo, connaissances, livres, science, GitHub</label>
     <input id="knowledgeNetSearch" type="search" autocomplete="off" maxlength="220" placeholder="Ex. météo demain à Nantes · recherches scientifiques sur les mitochondries">
     <button class="btn" type="button" id="knowledgeNetBtn">Rechercher en ligne (sans clé)</button>
     <p class="hint">Les résultats sont consultés en direct et ne sont pas enregistrés dans ton carnet. Les mots de la recherche sont transmis uniquement au service choisi ; ta position météo exige l’autorisation du navigateur.</p>
@@ -1586,23 +1586,23 @@ async function handleUser(text, careContext = ''){
     unlockSpeech();stopRec();stopSpeaking();
     $('youLine').textContent=text;$('ronLine').textContent='';
     setState('thinking');setThinkingDetail('RON consulte une source Internet vérifiable…');
-    $('connectionHint').textContent='Connexion au service public : '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[netRequest.kind]||'Internet')+'…';
+    $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'le calcul local',clock:'l’horloge de ton appareil'}[netRequest.kind]||'une source publique')+'…';
     try{
       const result=await window.RONNet.answer(netRequest,{signal:ctrl.signal});
       if(thisTurn!==turnId||ctrl.signal.aborted)return;
       renderRonAnswer(result.text);
       history.push({role:'user',content:text},{role:'assistant',content:result.text});
       if(history.length>40)history.splice(0,history.length-40);
-      $('connectionHint').textContent='Résultat Internet consulté · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[result.kind]||'source publique')+' · sans clé API.';
+      $('connectionHint').textContent='Réponse '+(['math','clock'].includes(result.kind)?'calculée sur ton appareil':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'Calcul',clock:'Horloge'}[result.kind]||'RON')+'.';
       streamDone=true;
       const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
       enqueueSpeech(String(spoken).slice(0,480));
       if(!speakingNow)onSpeechDrained();
     }catch(error){
       if(thisTurn!==turnId||ctrl.signal.aborted)return;
-      const message='Recherche Internet indisponible : '+String(error?.message||error).slice(0,230);
+      const message='Réponse vérifiable indisponible : '+String(error?.message||error).slice(0,230);
       $('ronLine').textContent=message;
-      $('connectionHint').textContent='Les données météo et Web ne sont pas inventées si la connexion échoue.';
+      $('connectionHint').textContent='RON n’invente pas de réponse lorsqu’une source manque ou qu’un calcul échoue.';
       $('textIn').value=text;setState('idle');
     }finally{if(netController===ctrl)netController=null;}
     return;
@@ -2516,7 +2516,7 @@ async function boot(){
     const query=field.value.trim();
     if(!query){status.textContent='Écris un sujet ou une question à rechercher.';return;}
     const task=window.RONNet?.parse(query)||{kind:'wiki',query};
-    button.disabled=true;status.textContent='RON interroge '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[task.kind]||'la source publique')+'…';
+    button.disabled=true;status.textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'la calculatrice locale',clock:'l’horloge locale'}[task.kind]||'la source publique')+'…';
     out.replaceChildren();
     try{
       const result=await window.RONNet.answer(task);
