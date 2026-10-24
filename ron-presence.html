@@ -1539,6 +1539,8 @@ let sentenceBuf = '';
 let pendingUserMessage = null;
 // A stopped or replaced inference must not leave an orphan user turn in history.
 function cancelPendingTurn(){
+  // Preserve the warmed CPU worker when no generation is running.
+  if (!pendingUserMessage) return;
   window.RONBrowserAI?.cancel?.();
   if (pendingUserMessage){
     const index = history.indexOf(pendingUserMessage);
