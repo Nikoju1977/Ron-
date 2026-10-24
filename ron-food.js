@@ -162,7 +162,11 @@ async function answer(request,opts={}){
  if(!matches.length)throw Error('Aucun produit avec données glucidiques disponibles. Essaie le code-barres ou saisis les glucides pour 100 g indiqués sur l’étiquette.');
  const opposite=state==='cuit'?/\b(cru|secs?|s[èe]ches?|non cuit)\b/i
    :state==='cru'?/\b(cuit|cuite|cuits|cuites|prêt à manger)\b/i:null;
- const compatible=opposite?matches.filter(p=>!opposite.test(p.name)):matches;
+ // A cooked dish must NOT inherit the carbohydrate density of dried pasta
+ // merely because a product title lacks the word "raw".
+ const required=state==='cuit'?/\b(cuit|cuite|cuits|cuites|préparé|préparée|cuits? en conserve)\b/i
+  :state==='cru'?/\b(cru|crue|crus|crues|sec|sèche|secs|sèches|non cuit)\b/i:null;
+ const compatible=opposite?matches.filter(p=>!opposite.test(p.name)&&(!required||required.test(p.name))):matches;
  if(!compatible.length){
   return {kind:'food',needsClarification:true,sources:[],spoken:'Aucun produit compatible avec la préparation demandée. Donne-moi la marque, le code-barres ou les glucides pour 100 grammes sur l’étiquette.',
    text:'**Produit non identifié de manière fiable.** Les fiches trouvées ne correspondent pas à « '+clean(request.query,90)+' ». Précise le code-barres ou les glucides pour 100 g.'};
