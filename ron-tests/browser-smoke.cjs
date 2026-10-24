@@ -69,6 +69,7 @@ async function main(){
   await page.locator('#dotsBtn').click();
   assert(await page.locator('#dotsPanel').evaluate(e=>e.classList.contains('open')),'DOTS drawer opens');
   assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'false','DOTS dialog is announced when open');
+  await page.waitForFunction(()=>getComputedStyle(document.getElementById('dotsBackdrop')).visibility==='visible',null,{timeout:3000});
   assert(await page.locator('#dotsBackdrop').isVisible(),'Opaque DOTS backdrop hides the rest of the interface');
   assert.equal(await page.locator('#dotsPanel').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(6, 21, 34)','DOTS surface is fully opaque');
   await page.locator('#dotsMissionIn').fill('Suivre les étapes du projet RON');
