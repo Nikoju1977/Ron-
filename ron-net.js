@@ -16,7 +16,7 @@ function parse(text){
  const raw=clean(text,280);
  const n=norm(raw);
  // Recognize polite formulations without mistaking "peux-tu me dire" for a private request.
- const topicRaw=raw.replace(/^(?:ron[, ]*)?(?:(?:(?:peux|pourrais)[ -]tu|tu peux|est[- ]ce que tu peux|vous pouvez|pourriez[ -]vous)\s+(?:me\s+)?(?:dire|expliquer|raconter|présenter)\s+|(?:dis|explique|raconte|présente)[- ]moi\s+)/iu,'');
+ const topicRaw=raw.replace(/^(?:ron[, ]*)?(?:(?:(?:peux|pourrais)[ -]tu|tu peux|est[- ]ce que tu peux|vous pouvez|pourriez[ -]vous)\s+(?:me\s+|m['’])?(?:dire|expliquer|raconter|présenter)\s+|(?:dis|explique|raconte|présente)[- ]moi\s+)/iu,'');
  const topic=norm(topicRaw);
  const explainIntent=/^(?:ron[, ]*)?(?:(?:explique|définis|décris)[- ]moi|(?:peux|pourrais)[- ]tu (?:me |m['’])?(?:expliquer|définir|décrire))\s+/iu.test(raw);
  const subjectRaw=topicRaw.replace(/^(?:que sais[- ]tu (?:de|sur)|que peux[- ]tu (?:me )?dire (?:de|sur)|parle[- ]moi de|raconte[- ]moi l'histoire de)\s+/iu,'');
