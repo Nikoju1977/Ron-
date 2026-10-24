@@ -4,7 +4,7 @@
    External retrieval is read-only, allowlisted by RONNet, and opt-in by topic. */
 (function(root){
 'use strict';
-const MAX_STEPS=3;
+const MAX_STEPS=4;
 const SPECIALISTS=Object.freeze({
  weather:{name:'Agent météo',source:'Open-Meteo',verify:'Date, lieu, unités et prévisions observables'},
  wiki:{name:'Agent encyclopédie',source:'Wikipédia',verify:'Article attribué et contexte encyclopédique'},
