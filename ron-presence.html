@@ -1619,6 +1619,7 @@ async function handleUser(text, careContext = ''){
     $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Open Food Facts ou l’étiquette',type1:'l’agent éducatif diabète de type 1',math:'le calcul local',clock:'l’horloge de ton appareil',live:'une source en temps réel indisponible'}[netRequest.kind]||'une source publique')+'…';
     try{
       const result=await window.RONAgentHub.run(text,{
+        job:netJob,
         signal:ctrl.signal,
         allowSynthesis:cfg.provider!=='browser'
          && cfg.model && cfg.endpoint
