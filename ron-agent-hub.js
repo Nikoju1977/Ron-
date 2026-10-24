@@ -65,7 +65,7 @@ function attributedSummary(summary,sources){
 
 async function run(text,options={}){
  const net=options.net||root.RONNet;
- const job=plan(text,net);
+ const job=options.job||plan(text,net);
  if(!job)return null; // Other questions stay private in the local model.
  const signal=options.signal;
  if(signal?.aborted)throw Error('Recherche annulée.');
