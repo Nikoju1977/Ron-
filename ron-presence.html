@@ -694,9 +694,9 @@ const SYSTEM = () => [
   "Pour un échange personnel, commence par 2 à 5 phrases parlées, sans listes ni jargon. Pour une demande technique, adapte la profondeur à la demande. Pas de compliments automatiques, de culpabilisation, ni de promesse de présence permanente.",
   "Tu ne reçois pas l'audio : seulement du texte. N'affirme jamais entendre fatigue, douleur, émotion ou identité dans sa voix. Appuie-toi sur ses déclarations et invite-le à te corriger.",
   "Santé : accueille le ressenti sans minimiser ni dramatiser. Si utile demande depuis quand ou ce qui a changé, une question à la fois. N'établis aucun diagnostic et ne propose pas de modifier un traitement ou sa dose. Oriente vers un professionnel pour les symptômes persistants ou préoccupants. Si un danger immédiat est décrit, priorise les secours locaux sans attendre le carnet ou un interrogatoire ; en France 15, dans l'UE 112. N'invente pas sa localisation.",
-  "Tu n'as pas de recherche web ni de dispositif médical connecté. N'invente jamais une vérification externe, des constantes vitales, une alerte automatique, une surveillance hors page ou un souvenir absent du contexte.",
+  "Tu n'as ni navigateur web universel ni dispositif médical connecté. Des agents séparés peuvent consulter seulement quelques API publiques (météo, encyclopédie, publications, livres, GitHub). N'invente jamais une vérification externe, des constantes vitales, une alerte automatique, une surveillance hors page ou un souvenir absent du contexte.",
   gentleVoice ? "Niko a choisi une voix douce : reste posé, simple et peu bavard." : "Respecte son rythme.",
-  "Tu es RON, l'assistant personnel scientifique et créatif de l'utilisateur. Tu parles français.",
+  "Tu es RON, l'assistant personnel scientifique et créatif de l'utilisateur. Réponds exclusivement en français naturel, même si le moteur possède un entraînement multilingue. Conserve les noms propres et les extraits cités dans leur langue d'origine quand nécessaire.",
   "Tu réponds avec précision, clarté et esprit critique. Tu distingues faits établis, consensus, résultats préliminaires, hypothèses et opinions.",
   "Tu n'inventes jamais une étude, une citation, un chiffre ou une capacité que tu n'as pas.",
   "Tes réponses sont lues à voix haute : privilégie des phrases naturelles. Tu peux être détaillé si la question l'exige.",
@@ -940,7 +940,13 @@ function enforceNoPaid(provider,endpoint,model,enabled=cfg.noPaid){
 
 function requestBody(messages, stream, temperature=0.35, maxTokens=1100, model=cfg.model){
   enforceNoPaid(cfg.provider,apiBase(),model);
-  const body={ model, stream, temperature, max_tokens:maxTokens, messages };
+  // Apply French-output policy consistently for every selected provider.
+  const frenchRule='Langue de réponse obligatoire : français (fr-FR). Ne réponds pas en anglais sauf pour un texte explicitement demandé en anglais. Signale les incertitudes et ne fabrique aucune source.';
+  const first=messages[0];
+  const localized=first?.role==='system'
+    ?[{...first,content:frenchRule+'\n'+String(first.content||'')},...messages.slice(1)]
+    :[{role:'system',content:frenchRule},...messages];
+  const body={ model, stream, temperature, max_tokens:maxTokens, messages:localized };
   if(cfg.provider==='groq' && /^openai\/gpt-oss-(20b|120b)$/.test(model)){body.reasoning_effort='low';body.include_reasoning=false;}
   if(cfg.provider==='openrouter'){
     if(cfg.freeOnly&&!isFreeModelId(model,engineScope(cfg.provider,apiBase())))throw new Error('Le filtre gratuit bloque ce modèle. Vérifie les réglages.');
@@ -1589,12 +1595,14 @@ async function handleUser(text, careContext = ''){
     unlockSpeech();stopRec();stopSpeaking();
     $('youLine').textContent=text;$('ronLine').textContent='';
     setState('thinking');setThinkingDetail('RON consulte une source Internet vérifiable…');
-    $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'le calcul local',clock:'l’horloge de ton appareil'}[netRequest.kind]||'une source publique')+'…';
+    $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'le calcul local',clock:'l’horloge de ton appareil',live:'une source en temps réel indisponible'}[netRequest.kind]||'une source publique')+'…';
     try{
       const result=await window.RONAgentHub.run(text,{
         signal:ctrl.signal,
-        allowSynthesis:cfg.agentMode!=='direct' && ['ollama','llamacpp','vllm'].includes(cfg.provider)
-         && cfg.noPaid===true && cfg.model && cfg.endpoint && localEngineReady!==false,
+        allowSynthesis:cfg.provider!=='browser'
+         && cfg.model && cfg.endpoint
+         && (!(PROVIDERS[cfg.provider]||{}).needsKey || !!cfg.key)
+         && (!['ollama','lmstudio','llamacpp','vllm'].includes(cfg.provider)||localEngineReady!==false),
         summarize:async messages=>chatOnce(messages,0.1,450,{turn:thisTurn,userText:text,role:'final'}),
         onStep:(phase,message)=>{if(thisTurn===turnId){setThinkingDetail('RON · '+message);}}
       });
@@ -1602,7 +1610,7 @@ async function handleUser(text, careContext = ''){
       renderRonAnswer(result.text);
       history.push({role:'user',content:text},{role:'assistant',content:result.text});
       if(history.length>40)history.splice(0,history.length-40);
-      $('connectionHint').textContent='Réponse '+(['math','clock'].includes(result.kind)?'calculée sur ton appareil':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'Calcul',clock:'Horloge'}[result.kind]||'RON')+'.';
+      $('connectionHint').textContent='Réponse '+(['math','clock','live'].includes(result.kind)?'déterminée sans modèle et sans invention':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'Calcul',clock:'Horloge',live:'Prudence'}[result.kind]||'RON')+'.';
       streamDone=true;
       const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
       enqueueSpeech(String(spoken).slice(0,480));
