@@ -1571,6 +1571,9 @@ async function handleUser(text, careContext = ''){
   // cannot invent tomorrow's weather, scientific records or current GitHub data.
   const netRequest=window.RONNet?.parse(text);
   if(netRequest){
+    // The missing-model diagnostic may leave Settings open over the chat.
+    // Close it for an explicit live lookup: Internet connectors do not need an LLM.
+    if($('panel').classList.contains('open'))closePanel();
     const ctrl=new AbortController();netController=ctrl;
     unlockSpeech();stopRec();stopSpeaking();
     $('youLine').textContent=text;$('ronLine').textContent='';
