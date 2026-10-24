@@ -109,8 +109,15 @@ async function main(){
    });
   assert.match(fast,/Oui, je peux te répondre en français/,phrase);
  }
+ // Finished generations keep their warmed CPU model for faster follow-up turns.
+ let cancellations=0;
+ const originalCancel=dom.window.RONBrowserAI.cancel;
+ dom.window.RONBrowserAI.cancel=()=>{cancellations++;originalCancel();};
+ dom.window.eval('cancelPendingTurn()');
+ assert.equal(cancellations,0,'Idle warmed worker must not be discarded');
  // Cancelled generations must not pollute the next question's context.
  dom.window.eval("history.push({role:'user',content:'message interrompu'}); pendingUserMessage=history[history.length-1]; setState('thinking'); $('youLine').textContent='message interrompu'; stopAll();");
+ assert.equal(cancellations,1,'An active generation is cancelled on Stop');
  assert.equal(dom.window.eval("history.some(m=>m.content==='message interrompu')"),false);
  assert.equal(d.getElementById('textIn').value,'message interrompu');
  const cpuAnswer=await dom.window.RONBrowserAI.generate(prompt,dom.window.RONBrowserAI.CPU,()=>{}, {loadCPU:fakeCPU});
