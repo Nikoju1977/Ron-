@@ -3,12 +3,16 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const {build,files,target}=require('../ron-tools/build-pages.cjs');
 const built=build();
-assert.equal(built.length,21);
+assert.equal(built.length,23);
 assert(fs.existsSync(path.join(target,'ron-presence.html')));
 assert(fs.existsSync(path.join(target,'index.html')));
 assert(fs.existsSync(path.join(target,'ron-presence-sw.js')));
 assert(fs.existsSync(path.join(target,'ron-cpu-worker.js')),'CPU worker must ship in public site');
 assert(fs.existsSync(path.join(target,'ron-net.js')),'Public Internet connectors must ship in site');
+assert(fs.existsSync(path.join(target,'ron-updater.js')),'PWA safe updater must ship');
+const release=JSON.parse(fs.readFileSync(path.join(target,'ron-version.json'),'utf8'));
+const expected=/^[0-9a-f]{40}$/i.test(process.env.GITHUB_SHA||'')?process.env.GITHUB_SHA.toLowerCase():'development';
+assert.equal(release.version,expected,'Release version is generated from the approved deployed commit SHA');
 assert(!fs.existsSync(path.join(target,'ron-tests')),'Do not ship test fixtures');
 assert(!fs.existsSync(path.join(target,'.github')),'Do not ship CI workflows');
 assert(!fs.existsSync(path.join(target,'RON_DOTS_Mistral_RateGuard_Agentique.html')),'Exclude old standalone prototype');
@@ -16,6 +20,10 @@ assert(!fs.existsSync(path.join(target,'index_original_jarvis.html')),'Exclude o
 const html=fs.readFileSync(path.join(target,'ron-presence.html'),'utf8');
 const worker=fs.readFileSync(path.join(target,'ron-presence-sw.js'),'utf8');
 const manifest=JSON.parse(fs.readFileSync(path.join(target,'ron-presence.webmanifest'),'utf8'));
+assert(html.includes('meta name="ron-release" content="'+expected+'" id="ronRelease"'),'Published HTML carries current release marker');
+assert(worker.includes("const RELEASE='"+expected+"';"),'Every deployment changes service worker bytes to activate updates');
+assert(worker.includes("const CACHE='ron-presence-shell-'+RELEASE;"),'Each release uses an isolated PWA cache');
+assert(!html.includes('content="development" id="ronRelease"')||expected==='development');
 for(const src of [...html.matchAll(/<(?:script|link|img)\b[^>]*?\b(?:src|href)=["'](\.[^"'#?]+)["']/g)].map(x=>x[1])){
  assert(fs.existsSync(path.resolve(target,src)),'Published HTML references missing asset: '+src);
 }
