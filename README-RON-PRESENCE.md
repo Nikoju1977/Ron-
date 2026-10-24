@@ -20,6 +20,14 @@ RON vérifie sa version au démarrage (puis périodiquement pendant l'utilisatio
 
 **Limite de sécurité :** la PWA ne modifie pas directement le code de GitHub et n'exécute jamais des « patchs » arbitraires venant d'un dépôt externe. Les changements de code doivent d'abord être publiés et testés dans `main` ; RON les reçoit ensuite automatiquement. Sans Internet, la dernière version déjà installée reste disponible dans le cache. Une session ou un brouillon actif n'est pas effacé automatiquement.
 
+## Dialogue oral Food Maps — glucides et DT1
+
+RON répond directement en **français à voix haute** à une demande telle que « Ron, 150 grammes de pâtes cuites, ça fait combien de glucides ? ». Le spécialiste Food Maps reçoit la portion, cherche les valeurs publiées dans Open Food Facts, affiche les différentes fiches identifiées (produit et marque) et prononce une **phrase courte avec le calcul et sa provenance**, sans lire tous les résultats. La reconnaissance de la question peut utiliser le microphone Chrome, si autorisé ; la restitution utilise les voix de synthèse vocale disponibles sur l’appareil. La disponibilité d'une voix française reste soumise au téléphone.
+
+Pour les féculents concernés, si la personne dit simplement « 150 grammes de riz », RON demande « **cru ou cuit ?** », garde cette précision temporairement en mémoire locale (2 minutes) et accepte « cru », « cuit », « crus », « cuites » au tour suivant. Le poids **avant cuisson ne doit pas être mélangé avec une valeur nutritionnelle pour un aliment cuit** : RON écarte les fiches incompatibles et demande une étiquette si le produit n'est pas clairement identifiable. Pour un repas avec plusieurs ingrédients, il repère les quantités mais ne fabrique pas de total glucidique si les données individuelles sont incertaines.
+
+Pour un calcul exact sur les données fournies par la personne, énonce ou saisis les glucides de l’étiquette pour 100 g : RON calcule **poids de la portion × glucides pour 100 g ÷ 100**, arrondi au dixième. Ce mode ne contacte aucun service externe. Les valeurs venant d'Open Food Facts sont **participatives et ne sont pas garanties** : vérifie le bon produit, sa marque, le code-barres et les valeurs de ton emballage avant toute décision de traitement. RON ne calcule ni ne prescrit une dose d’insuline ; les situations de risque sont orientées vers le protocole médical personnalisé et, en cas de gravité, les secours.
+
 ## Confidentialité et portée
 
 Le carnet est en mémoire de session par défaut. Sa conservation locale est volontaire et n'est pas chiffrée par Ron. Partager avec Ron transmet les 7 dernières entrées au fournisseur configuré. L'historique local peut conserver la réponse générée à partir de ces données. Effacer le carnet efface aussi cet historique, sans supprimer les données déjà transmises au fournisseur.
