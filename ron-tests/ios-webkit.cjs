@@ -40,6 +40,9 @@ async function main(){
   const meta=await page.locator('meta[name="apple-mobile-web-app-capable"]').getAttribute('content');
   assert.equal(meta,'yes','RON is installable from iOS Safari home screen');
   assert(await page.locator('#foodMapsBtn').isVisible(),'Food Maps is visible on narrow iPhone screens');
+  // The missing-model alert can open Settings on iOS, but Food Maps works
+  // without a model: dismiss the unrelated panel before tapping its button.
+  if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
   await page.locator('#foodMapsBtn').click();
   assert(await page.locator('#knowledgeDialog').evaluate(x=>x.open),'Touch opens Food Maps dialog');
   const fsSize=await page.locator('#foodGrams').evaluate(x=>parseFloat(getComputedStyle(x).fontSize));
