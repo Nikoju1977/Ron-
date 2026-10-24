@@ -59,7 +59,13 @@ function parse(text){
  const explicitLabel=raw.match(/(\d{1,3}(?:[.,]\d{1,2})?)\s*g(?:rammes?)?\s+de\s+glucides\s*(?:pour|\/|par)\s*100\s*g\b/i)
   ||raw.match(/glucides\s*(?:pour|par|\/)\s*100\s*g\s*(?::|=|de|a|à)?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*g?\b/i);
  // Strip the trailing conversational question; preserve the food's name.
- const withoutQuestion=raw.replace(/\s*(?:,|;|\?)?\s*(?:ça fait|ca fait|combien (?:ça|ca|de|des|en)|quel(?:le)? (?:est |sont )?(?:le |la )?(?:taux|quantite|nombre)|tu (?:peux|sais) (?:me )?dire).{0,100}$/iu,'').trim();
+ let withoutQuestion=raw.replace(/\s*(?:,|;|\?)?\s*(?:ça fait|ca fait|combien (?:ça|ca|de|des|en)|quel(?:le)? (?:est |sont )?(?:le |la )?(?:taux|quantite|nombre)|tu (?:peux|sais) (?:me )?dire).{0,100}$/iu,'').trim();
+ // A second numeric quantity describing the *label* must never be parsed as
+ // another food portion, nor included in the name of the food.
+ if(explicitLabel){
+  const labelPos=withoutQuestion.indexOf(explicitLabel[0]);
+  if(labelPos>=0)withoutQuestion=withoutQuestion.slice(0,labelPos).replace(/(?:[,;]?\s*(?:l[’']?étiquette\s*(?:dit|indique)?|avec|et)\s*)$/iu,'').trim();
+ }
  const portionRe=/(\d{1,4}(?:[.,]\d{1,2})?)\s*(kg|g|grammes?)\s*(?:de\s+|d['’]\s*|du\s+|des\s+)?([^,;?!]+?)(?=\s*(?:,|;|\bet\b|\bavec\b|\bplus\b)\s*\d{1,4}(?:[.,]\d{1,2})?\s*(?:kg|g|grammes?)\b|$)/giu;
  const portions=[];
  for(const m of withoutQuestion.matchAll(portionRe)){
@@ -142,7 +148,7 @@ async function answer(request,opts={}){
  if(!(grams>0&&grams<=5000))throw Error('Poids : indique une portion en grammes de 1 à 5 000.');
  if(request.manualCarb100!==undefined&&String(request.manualCarb100).trim()!==''){
   const c=num(request.manualCarb100),total=carbs(grams,c);
-  const spoken='Pour '+spokenNumber(grams)+' grammes de cet aliment, avec '+spokenNumber(c)+' grammes de glucides pour 100 grammes sur l’étiquette, cela fait '+spokenNumber(total)+' grammes de glucides. Vérifie que l’étiquette correspond bien à la préparation pesée.';
+  const spoken='Pour '+spokenNumber(grams)+' grammes de '+clean(request.query||'cet aliment',60)+', avec '+spokenNumber(c)+' grammes de glucides pour 100 grammes sur l’étiquette, cela fait '+spokenNumber(total)+' grammes de glucides. Vérifie que l’étiquette correspond bien à la préparation pesée.';
   return {kind:'food',manual:true,sources:[],spoken,text:'**Food Maps — étiquette saisie par toi (non vérifiée)**\n\n'+fmt(grams)+' g × '+fmt(c)+' g de glucides pour 100 g ÷ 100 = **'+fmt(total)+' g de glucides**.\n\nVérifie l’étiquette et le poids cru/cuit. Ce chiffre ne détermine pas une dose d’insuline.'};
  }
  const state=preparation(request.query||'');
@@ -154,8 +160,8 @@ async function answer(request,opts={}){
  }
  const matches=await lookup(request,opts);
  if(!matches.length)throw Error('Aucun produit avec données glucidiques disponibles. Essaie le code-barres ou saisis les glucides pour 100 g indiqués sur l’étiquette.');
- const opposite=state==='cuit'?/(cru|secs?|s[èe]ches?|non cuit)/i
-   :state==='cru'?/(cuit|cuite|cuits|cuites|prêt à manger)/i:null;
+ const opposite=state==='cuit'?/\b(cru|secs?|s[èe]ches?|non cuit)\b/i
+   :state==='cru'?/\b(cuit|cuite|cuits|cuites|prêt à manger)\b/i:null;
  const compatible=opposite?matches.filter(p=>!opposite.test(p.name)):matches;
  if(!compatible.length){
   return {kind:'food',needsClarification:true,sources:[],spoken:'Aucun produit compatible avec la préparation demandée. Donne-moi la marque, le code-barres ou les glucides pour 100 grammes sur l’étiquette.',
