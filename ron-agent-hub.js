@@ -45,7 +45,7 @@ function verify(request,result){
   ||typeof result.text!=='string'||!result.text.trim()||result.text.length>12000)
   throw Error('Une source a renvoyé un résultat incomplet.');
  const sources=[...new Set(Array.isArray(result.sources)?result.sources:[])].filter(u=>validUrl(u,result.kind)).slice(0,5);
- if(!['math','clock','live'].includes(result.kind)&&!(result.kind==='food'&&result.manual===true)&&!sources.length)
+ if(!['math','clock','live'].includes(result.kind)&&!(result.kind==='food'&&(result.manual===true||result.needsClarification===true))&&!sources.length)
   throw Error('Aucune source publique vérifiable n’a été trouvée pour cet agent.');
  // Keep evidence and origin separate. The URL proves where metadata came from,
  // not that an article's assertions or an LLM summary have been fact checked.
