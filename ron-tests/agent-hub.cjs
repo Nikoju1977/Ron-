@@ -47,8 +47,16 @@ async function main(){
  assert.deepEqual(calls,['science','science','science','weather']);
  assert.throws(()=>hub.verify({kind:'wiki'},{kind:'wiki',text:'hi',sources:['https://evil.example/prompt']}),/source publique/);
  assert.throws(()=>hub.verify({kind:'math'},{kind:'wiki',text:'incorrect',sources:[]}),/incomplet/);
+ assert.throws(()=>hub.verify({kind:'science'},{kind:'science',text:'Title only',sources:['https://github.com/some/repo']}),/source publique/,'A scientific answer cannot use a GitHub URL as supporting provenance');
+ assert.throws(()=>hub.verify({kind:'weather'},{kind:'weather',text:'Weather',sources:['https://doi.org/10.1000/test']}),/source publique/,'Weather must use the weather origin');
+ const live=hub.verify({kind:'live'},{kind:'live',text:'Données en direct indisponibles.',sources:[]});
+ assert.equal(live.sources.length,0);
+ const invented=await hub.run('Synthétise les études sur le cerveau',{net:source,allowSynthesis:true,summarize:async()=> 'A scientific paper proves a result. https://evil.example/fake and that is final.'});
+ assert.equal(invented.text,'Étude scientifique indexée avec DOI.','Invented links must discard the LLM summary');
+ const english=await hub.run('Synthétise les études sur le cerveau',{net:source,allowSynthesis:true,summarize:async()=> 'This is the scientific answer and these sources are all proven facts according to the article.'});
+ assert.equal(english.text,'Étude scientifique indexée avec DOI.','English-only summaries fall back to French sources');
  const abort=new AbortController();abort.abort();
  await assert.rejects(()=>hub.run('météo demain',{net:source,signal:abort.signal}),/annulée/);
- console.log(JSON.stringify({passed:true,suite:'agent-hub',checks:19,unauthorizedExternalCalls:0,cloudLLMCalls:0}));
+ console.log(JSON.stringify({passed:true,suite:'agent-hub',checks:25,unauthorizedExternalCalls:0,cloudLLMCalls:0}));
 }
 main().catch(e=>{console.error(e);process.exit(1)});
