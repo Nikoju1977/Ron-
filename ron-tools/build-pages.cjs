@@ -8,7 +8,7 @@ const target=path.join(root,'ron-dist');
 const files=[
  'index.html','ron-presence.html','ron-presence.webmanifest',
  'ron-presence-sw.js','ron-angel.svg','ron-icon-192.png','ron-icon-512.png',
- 'ron-auto-config.js','ron-browser-ai.js','ron-cpu-worker.js','ron-net.js','ron-agent-hub.js','ron-updater.js','ron-version.json','ron-knowledge.js','ron-knowledge.css',
+ 'ron-auto-config.js','ron-browser-ai.js','ron-cpu-worker.js','ron-net.js','ron-food.js','ron-agent-hub.js','ron-updater.js','ron-version.json','ron-knowledge.js','ron-knowledge.css',
  'ron-vendor/three.min.js','ron-vendor/three-LICENSE',
  'ron-vendor/marked.js','ron-vendor/marked-LICENSE',
  'ron-vendor/purify.min.js','ron-vendor/dompurify-LICENSE',
