@@ -17,7 +17,7 @@ function parse(text){
  const n=norm(raw);
  if(/\b(meteo|temps (?:fera|fait|va faire)|temperature|pleuvra|pluie demain|previsions? meteo|quel temps)\b/.test(n)){
   const day=/\b(demain|demain matin|tomorrow)\b/.test(n)?1:0;
-  const m=raw.match(/\b(?:à|a|sur|pour|dans)\s+([\p{L}][\p{L}\p{M}' -]{1,68})(?:\s*[?!.,;:]|$)/iu);
+  const m=raw.match(/(?:^|\s)(?:à|a|sur|pour|dans)\s+([\p{L}][\p{L}\p{M}' -]{0,68}?)(?:\s*[?!.,;:]|$)/iu);
   let city=m?clean(m[1],70):'';
   if(/^(?:demain|aujourd.hui|l.exterieur|la maison|la meteo|mon avis)$/i.test(norm(city)))city='';
   return {kind:'weather',day,city};
