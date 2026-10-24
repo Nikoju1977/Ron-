@@ -74,6 +74,20 @@ async function main(){
   assert.equal($('providerSel').value,'groq','User manual choice must win over outdated scan');
   dom.window.close();
  }
- console.log(JSON.stringify({passed:true,suite:'auto-config',scenarios:3,checks:22,noPaidCloudCalls:true}));
+ {
+  const x=build(async url=>{
+   if(url==='http://localhost:8080/v1/models')return reply([{id:'gemma-3-4b-gguf'}]);
+   throw Error('unavailable');
+  });
+  const {window:w,dom,urls,errors}=x,E=s=>w.eval(s);
+  await until(()=>E("cfg.provider==='llamacpp' && cfg.model==='gemma-3-4b-gguf'"));
+  assert.equal(E("cfg.endpoint"),'http://localhost:8080/v1');
+  assert.equal(E("cfg.noPaid"),true);
+  assert.equal(E("cfg.agentMode"),'agentic');
+  assert(urls.every(x=>x.url.startsWith('http://localhost:')&&x.options.credentials==='omit'));
+  assert.deepEqual(errors,[]);
+  dom.window.close();
+ }
+ console.log(JSON.stringify({passed:true,suite:'auto-config',scenarios:4,checks:27,noPaidCloudCalls:true}));
 }
 main().catch(error=>{console.error(error);process.exit(1)});
