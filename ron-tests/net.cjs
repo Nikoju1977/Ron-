@@ -31,8 +31,8 @@ async function main(){
  assert.equal(p.kind,'weather');assert.equal(p.day,1);assert.equal(p.city,'');
  assert.equal(net.parse('Quel temps demain à Nantes ?').city,'Nantes');
  assert.equal(net.parse('Météo demain à Nantes').kind,'weather');
- assert.equal(net.parse('je ne me sens pas bien').kind,null,'Private chats must not be transmitted');
- assert.equal(net.parse('mes fichiers personnels').kind,null);
+ assert.equal(net.parse('je ne me sens pas bien'),null,'Private chats must not be transmitted');
+ assert.equal(net.parse('mes fichiers personnels'),null);
  assert.equal(net.parse('cherche des études scientifiques sur les mitochondries').kind,'science');
  assert.equal(net.parse('Cherche sur Wikipédia la physique quantique').kind,'wiki');
  assert.equal(net.parse('regarde GitHub Nikoju1977/Ron-').kind,'github');
