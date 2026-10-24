@@ -134,7 +134,15 @@ async function wiki(request,opts){
  const params=new URLSearchParams({action:'query',generator:'search',gsrsearch:term,gsrlimit:'4',prop:'extracts',exintro:'1',explaintext:'1',exlimit:'4',format:'json',origin:'*'});
  const data=await json('https://fr.wikipedia.org/w/api.php?'+params,opts);
  const pages=Object.values(data?.query?.pages||{}).filter(p=>p?.extract&&p?.title).slice(0,3);
- if(!pages.length)throw Error('Aucun résultat encyclopédique fiable trouvé pour cette recherche.');
+ if(!pages.length)throw Error('Aucun résultat encyclopédique trouvé. Reformule avec le nom précis du sujet.');
+ if(request.automatic){
+  const first=pages[0],href='https://fr.wikipedia.org/wiki/'+encodeURIComponent(first.title.replace(/ /g,'_'));
+  const text=clean(first.extract,900);
+  if(!text)throw Error('La source ne contient pas de réponse exploitable.');
+  return {kind:'wiki',text:'**'+md(first.title)+'** — '+md(text)+
+   '\n\n**Source :** [Wikipédia en français]('+href+'). Résumé encyclopédique à vérifier ; ne garantit pas une information en temps réel.',
+   spoken:text.slice(0,550),sources:[href]};
+ }
  const lines=pages.map(p=>{
   const href='https://fr.wikipedia.org/wiki/'+encodeURIComponent(p.title.replace(/ /g,'_'));
   return '**['+md(p.title)+']('+href+')** — '+md(clean(p.extract,430));
