@@ -19,6 +19,7 @@
   --display:'Orbitron',system-ui,sans-serif; --mono:'Share Tech Mono',ui-monospace,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+#updateBanner[hidden]{display:none!important}
 html,body{height:100%;background:var(--abyss);color:var(--frost);font-family:var(--mono);overflow:hidden;-webkit-tap-highlight-color:transparent}
 body{height:100dvh;background:radial-gradient(ellipse 70% 60% at 50% 42%,var(--deep) 0%,var(--abyss) 70%)}
 #stage{position:fixed;inset:0;display:block;width:100%;height:100%}
@@ -2128,6 +2129,12 @@ async function initCompanion(){
 }
 function companionCommand(text){
   const command = text.toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[.!?,;:]/g,'').replace(/^ron\s+/,'').trim();
+  if (/^(mets toi a jour|met toi a jour|verifie (les )?mises a jour|mise a jour|actualise ron)$/.test(command)){
+    void window.RONUpdater?.check?.().then(found=>{
+      $('ronLine').textContent=found?'Une mise à jour vérifiée est disponible. Utilise « Installer la mise à jour ».':'RON a vérifié les versions publiées. Aucune nouvelle mise à jour trouvée.';
+    });
+    return true;
+  }
   if (/^(stop|arrete|silence|tais-toi|coupe le micro)$/.test(command)){ stopAll(); return true; }
   if (/^(ouvre (mon |le )?carnet|mon bien-etre|ouvre le carnet de sante)$/.test(command)){ openCare(); return true; }
   if (/^(ouvre (les |mes )?commandes|centre de commande)$/.test(command)){ openCommands(); return true; }
