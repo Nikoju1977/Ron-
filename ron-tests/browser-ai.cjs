@@ -9,7 +9,7 @@ const html=fs.readFileSync('ron-presence.html','utf8')
 const wait=ms=>new Promise(done=>setTimeout(done,ms));
 async function until(check,limit=4500){const since=Date.now();while(Date.now()-since<limit){if(check())return;await wait(25);}throw Error('No-key browser startup did not complete.');}
 async function main(){
- const exceptions=[],calls=[];let prompts=0,destroyed=0;
+ const exceptions=[],calls=[],utterances=[];let prompts=0,destroyed=0;
  const vc=new VirtualConsole();vc.on('jsdomError',error=>exceptions.push(error.message));
  const dom=new JSDOM(html,{url:'https://nikoju1977.github.io/Ron-/ron-presence.html',
  runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){
@@ -21,7 +21,9 @@ async function main(){
   w.navigator.mediaDevices={getUserMedia:async()=>({getTracks:()=>[{stop(){}}]})};
   w.navigator.permissions={query:async()=>({state:'prompt'})};
   w.SpeechSynthesisUtterance=class{constructor(s){this.text=s;}};
-  w.speechSynthesis={getVoices:()=>[],speak:s=>setTimeout(()=>s.onend?.(),1),cancel(){}};
+  // Simulate a phone that only advertises an English voice: do not select it.
+  w.speechSynthesis={getVoices:()=>[{name:'English only',lang:'en-US'}],
+   speak:s=>{utterances.push(s);setTimeout(()=>s.onend?.(),1);},cancel(){}};
   w.LanguageModel={availability:async opts=>{
    assert(opts.expectedOutputs[0].languages.includes('fr'));return 'available';},
    create:async()=>({prompt:async text=>{prompts++;assert(text.includes('Bonjour RON'));return 'Bonjour, bienvenue !';},destroy(){destroyed++;}})
@@ -42,6 +44,11 @@ async function main(){
  await until(()=>d.getElementById('ronLine').textContent.includes('Bonjour, bienvenue !'));
  assert.equal(prompts,1);
  assert.equal(destroyed,1);
+ await until(()=>utterances.some(u=>u.text.includes('Bonjour, bienvenue !')));
+ const spokenFrench=utterances.find(u=>u.text.includes('Bonjour, bienvenue !'));
+ assert.equal(spokenFrench.lang,'fr-FR','French speech must be requested from the OS');
+ assert(!spokenFrench.voice,'Do not force an English voice for French speech');
+ assert.equal(dom.window.eval('voice'),null,'No French installed voice: leave OS language fallback');
  assert.deepEqual(exceptions,[]);
  // The detector must reject unsupported browsers without GPU or native API.
  const mock={navigator:{},isSecureContext:true};
@@ -89,6 +96,23 @@ async function main(){
    loadCPU:async()=>{throw Error('Should not load a model for a known ability question');}
   });
  assert.match(languageReply,/Oui, je peux te répondre en français/);
+ for(const phrase of [
+  'ron peux tu parler français?', // Speech-to-text on Android may remove hyphens.
+  'RON, peux-tu parler français ?',
+  'Tu peux me répondre en français ?',
+  'Est-ce que tu sais parler français ?',
+  'Peux-tu parler français ?'
+ ]){
+  const fast=await dom.window.RONBrowserAI.generate([{role:'user',content:phrase}],
+   dom.window.RONBrowserAI.CPU,()=>{},{
+    loadCPU:async()=>{throw Error('Common French capability question must bypass slow CPU');}
+   });
+  assert.match(fast,/Oui, je peux te répondre en français/,phrase);
+ }
+ // Cancelled generations must not pollute the next question's context.
+ dom.window.eval("history.push({role:'user',content:'message interrompu'}); pendingUserMessage=history[history.length-1]; setState('thinking'); $('youLine').textContent='message interrompu'; stopAll();");
+ assert.equal(dom.window.eval("history.some(m=>m.content==='message interrompu')"),false);
+ assert.equal(d.getElementById('textIn').value,'message interrompu');
  const cpuAnswer=await dom.window.RONBrowserAI.generate(prompt,dom.window.RONBrowserAI.CPU,()=>{}, {loadCPU:fakeCPU});
  assert.equal(cpuAnswer,'Bonjour ! Réponse sur processeur.');
  const log=[];
