@@ -18,6 +18,12 @@ function parse(text){
  // Only deliberate requests for a sourced synthesis may send public extracts
  // into an LLM. A normal personal conversation never triggers external search.
  const synthesize=/\b(synthetise|synthese|analyse|analyser|compare|comparaison|expertise|rapport)\b/.test(n);
+ // Arithmetic is local and deterministic; no model, network or eval.
+ const expression=raw.match(/^(?:ron[, ]*)?(?:(?:combien (?:font|fait)|calcule|calculer|effectue|résous|resous)\s*:?\s*)([0-9.,+\-*/^×÷()%\s]{3,100})\s*\??$/iu);
+ if(expression)return {kind:'math',expression:expression[1].trim().replace(/\?$/,'').trim()};
+ if(/^(?:(?:quelle|quel) (?:est )?(?:la )?(?:date|heure) (?:actuelle|d.aujourd.hui)?|(?:on est quel jour|il est quelle heure|quelle heure est.il|quelle date sommes-nous))\s*[?!.,]*$/i.test(n))
+  return {kind:'clock'};
+
  if(/\b(meteo|temps (?:fera|fait|va faire)|temperature|pleuvra|pluie demain|previsions? meteo|quel temps)\b/.test(n)){
   const day=/\b(demain|demain matin|tomorrow)\b/.test(n)?1:0;
   const m=raw.match(/(?:^|\s)(?:à|a|sur|pour|dans)\s+([\p{L}][\p{L}\p{M}' -]{0,68}?)(?:\s*[?!.,;:]|$)/iu);
@@ -171,6 +177,54 @@ async function github(request,opts){
  if(!lines.length)throw Error('Aucun résultat GitHub public valide.');
  return {kind:'github',text:'**GitHub public :**\n\n'+lines.join('\n\n')+'\n\nDonnées : API publique GitHub, sans authentification.',sources:results.map(x=>urlOf(x.html_url,['github.com'])).filter(Boolean)};
 }
+function mathAnswer(request){
+ const src=String(request.expression||'').replace(/×/g,'*').replace(/÷/g,'/').replace(/,/g,'.').replace(/\s+/g,'');
+ if(src.length>110||!/^[\d.+\-*/^()%]+$/.test(src))throw Error('Expression mathématique non reconnue.');
+ let i=0,level=0;
+ const peek=()=>src[i];
+ const read=()=>{
+  const start=i;
+  while(i<src.length&&/[\d.]/.test(src[i]))i++;
+  const value=Number(src.slice(start,i));
+  if(i===start||!Number.isFinite(value)||src.slice(start,i).split('.').length>2)throw Error('Nombre invalide.');
+  return value;
+ };
+ const primary=()=>{
+  if(++level>20)throw Error('Expression trop complexe.');
+  let sign=1;
+  while(peek()==='-'||peek()==='+'){if(src[i++]==='-')sign=-sign;}
+  let v;
+  if(peek()==='('){i++;v=sum();if(peek()!==')')throw Error('Parenthèses déséquilibrées.');i++;}
+  else v=read();
+  while(peek()==='%'){i++;v/=100;}
+  if(peek()==='^'){i++;const exponent=primary();if(Math.abs(exponent)>20)throw Error('Puissance trop élevée.');v=Math.pow(v,exponent);}
+  level--;return sign*v;
+ };
+ const product=()=>{
+  let v=primary();
+  while(peek()==='*'||peek()==='/'){
+   const op=src[i++],w=primary();
+   if(op==='/'&&w===0)throw Error('Division par zéro.');
+   v=op==='*'?v*w:v/w;
+  }
+  return v;
+ };
+ const sum=()=>{
+  let v=product();
+  while(peek()==='+'||peek()==='-'){
+   const op=src[i++],w=product();v=op==='+'?v+w:v-w;
+  }
+  return v;
+ };
+ const result=sum();
+ if(i!==src.length||!Number.isFinite(result)||Math.abs(result)>1e15)throw Error('Expression invalide ou résultat hors limites.');
+ const value=Number(result.toPrecision(12)).toLocaleString('fr-FR',{maximumFractionDigits:10});
+ return {kind:'math',text:'**Calcul vérifié :** '+md(request.expression)+' = **'+value+'**.',spoken:request.expression+' égale '+value,sources:[]};
+}
+function clockAnswer(){
+ const d=new Date();
+ return {kind:'clock',text:'Selon l’horloge de ton appareil : **'+d.toLocaleString('fr-FR',{dateStyle:'full',timeStyle:'short'})+'**. La précision dépend du réglage de date et de fuseau du téléphone.',sources:[]};
+}
 async function books(request,opts){
  const term=clean(request.query,140);
  if(term.length<3)throw Error('Précise un livre, un auteur ou un sujet de lecture.');
@@ -216,7 +270,9 @@ function evidence(request,result){
 async function answer(request,opts={}){
  if(!request)return null;
  if(opts.signal?.aborted)throw Error('Recherche annulée.');
- if(!root.navigator?.onLine&&opts.fetcher===undefined)throw Error('Tu es hors connexion. RON ne peut pas consulter les sources Internet.');
+ if(!root.navigator?.onLine&&opts.fetcher===undefined&&!['math','clock'].includes(request.kind))throw Error('Tu es hors connexion. RON ne peut pas consulter les sources Internet.');
+ if(request.kind==='math')return mathAnswer(request);
+ if(request.kind==='clock')return clockAnswer();
  if(request.kind==='weather')return weather(request,opts);
  if(request.kind==='wiki')return wiki(request,opts);
  if(request.kind==='science')return science(request,opts);
@@ -224,5 +280,5 @@ async function answer(request,opts={}){
  if(request.kind==='books')return books(request,opts);
  return null;
 }
-root.RONNet={parse,answer,weather,wiki,science,github,books,evidence,specialist};
+root.RONNet={parse,answer,weather,wiki,science,github,books,mathAnswer,clockAnswer,evidence,specialist};
 })(window);
