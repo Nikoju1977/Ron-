@@ -43,6 +43,11 @@ async function main(){
  assert.equal(net.parse('Peux-tu me dire qui est Marie Curie ?').query,'Marie Curie');
  assert.equal(net.parse('Que sais-tu de Marie Curie ?').kind,'wiki');
  assert.equal(net.parse('Parle-moi de Marie Curie').kind,'wiki');
+ assert.equal(net.parse('Explique-moi la photosynthèse').kind,'wiki');
+ assert.equal(net.parse('Explique-moi la photosynthèse').query,'photosynthèse');
+ assert.equal(net.parse('Peux-tu m’expliquer la photosynthèse ?').kind,'wiki');
+ assert.equal(net.parse('Explique-moi mes résultats médicaux'),null,'Explanation about private medical data stays local');
+ assert.equal(net.parse('Qui est le président actuel de la France ?').kind,'live','Current public office requires live corroboration');
  assert.equal(net.parse('Qui a découvert la pénicilline ?').kind,'wiki');
  assert.equal(net.parse('Qui a découvert la pénicilline ?').query,'pénicilline');
  assert.equal(net.parse('Comment fonctionne ma pompe ?'),null,'Personal context must not be auto-retrieved');
