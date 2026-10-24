@@ -148,6 +148,45 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 @media(max-height:520px){html,body{overflow:auto;min-height:100%}#top{position:relative}#modeNav{position:relative;top:auto;left:auto;transform:none;margin:18px auto;width:max-content}#bottom{position:relative;margin-top:30px;min-height:200px}#fallbackPresence,#stage{opacity:.3}#panel,#dotsPanel{height:100dvh}}
 
 #ronLine p{margin:.5em 0}#ronLine pre{padding:12px;white-space:pre;overflow:auto;background:#061421;border:1px solid var(--line);border-radius:10px;text-align:left}#ronLine code{font:13px ui-monospace,monospace}#ronLine ul,#ronLine ol{padding-left:24px;text-align:left}#ronLine table{border-collapse:collapse;text-align:left;display:block;overflow:auto}#ronLine td,#ronLine th{border:1px solid var(--line);padding:7px}#ronLine a,#localGuide a{color:var(--ice)}#localGuide{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:18px}#localGuide code{overflow-wrap:anywhere}#localGuide summary{cursor:pointer;margin-bottom:10px}#engineHelp{border-left:2px solid var(--ice);padding-left:12px}#freeOnlyRow[hidden],#localGuide[hidden]{display:none}
+
+/* DOTS : panneau mobile opaque, accessible et intégré aux réglages */
+#dotsBackdrop{position:fixed;inset:0;z-index:9;background:rgba(0,5,12,.82);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s}
+#dotsBackdrop.open{opacity:1;visibility:visible;pointer-events:auto}
+#dotsPanel{z-index:10;width:min(460px,100%);background:#061522;color:var(--frost);--mist:#b0c1ca;--line:rgba(159,232,220,.29);box-shadow:20px 0 70px rgba(0,0,0,.55);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#dotsPanel .panel-head{gap:14px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}
+#dotsPanel .panel-title{font-size:clamp(18px,4vw,22px);letter-spacing:.12em}
+#dotsPanel .dot-mini{font-size:12px;letter-spacing:.08em}
+#dotsPanel #dotsClose{flex:0 0 48px;width:48px;height:48px;background:#112b39}
+#dotsPanel .hint{font-size:14px;line-height:1.55;color:#b0c1ca}
+#dotsPanel .field label{font-size:14px;color:#d9eeed}
+#dotsPanel .field textarea{min-height:108px;max-height:32dvh;background:#0c2534;color:#eff9fa;border-color:var(--line);font:16px/1.45 var(--mono)}
+#dotsPanel .field textarea::placeholder{color:#a8b9c4;opacity:1}
+#dotsPanel .dots-quick-settings{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 18px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#0b2430}
+#dotsPanel .dots-quick-settings .check{flex:1 1 175px;margin:0;min-height:44px;color:#eff9fa;line-height:1.4}
+#dotsPanel .dots-quick-settings .check input{flex:0 0 20px;width:20px;height:20px}
+#dotsPanel #dotsConfigureBtn{flex:0 0 auto;min-height:44px;padding:8px 14px}
+#dotsPanel .dots-status-card{margin:16px 0;padding:14px;border:1px solid var(--line);background:#0b2532;border-radius:12px}
+#dotsPanel #dotsStatus{font-size:14px;line-height:1.5;margin:0;color:#c5d5dc}
+#dotsPanel #dotsStatus.active{color:var(--ice)}
+#dotsPanel #dotsStatus.waiting{color:var(--amber)}
+#dotsPanel .dots-controls,#dotsPanel .dots-secondary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 0}
+#dotsPanel .btn{min-width:0;min-height:48px;padding:11px 10px;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+#dotsPanel .btn:disabled{opacity:.45;cursor:not-allowed}
+#dotsPanel #dotsActivity{margin:14px 0}
+#dotsPanel #dotsActivity .hint{margin-bottom:0}
+#dotsPanel .dot-card{background:#0d2633;border-color:var(--line)}
+#dotsPanel .dot-card .dot-title{font-size:15px}
+#dotsPanel .dot-card .dot-meta{color:#b4c8cf;font-size:13px}
+#dotsPanel .dots-log-field{margin:20px 0 16px}
+#dotsPanel .dot-log{max-height:min(24dvh,210px);font-size:13px;color:#b0c1ca}
+#toast{z-index:12}
+@media(max-width:520px){
+  #dotsPanel{width:100%;border-right:0;padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(26px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  #dotsPanel .panel-head{margin-bottom:14px}
+}
+@media(max-width:340px){#dotsPanel .dots-controls,#dotsPanel .dots-secondary{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#dotsBackdrop,#dotsPanel{transition:none}}
+
 </style>
 <link rel="stylesheet" href="./ron-knowledge.css">
 <script src="./ron-vendor/marked.js" defer></script>
@@ -162,7 +201,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <div id="state" role="status" aria-live="polite">Initialisation…</div>
   </div>
   <div style="display:flex;gap:10px"><button class="icon-btn" id="commandBtn" aria-label="Centre de commande" title="Commandes · Ctrl ou ⌘ K">⌘</button>
-  <button class="icon-btn" id="dotsBtn" aria-label="RON DOTS" title="RON DOTS">
+  <button class="icon-btn" id="dotsBtn" aria-label="RON DOTS" aria-controls="dotsPanel" aria-expanded="false" title="RON DOTS">
     <span class="dot-core" aria-hidden="true"></span>
   </button>
   <button class="icon-btn" id="settingsBtn" aria-label="Réglages" title="Réglages">
@@ -205,31 +244,36 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   </div>
 </footer>
 
-<aside id="dotsPanel" aria-label="RON DOTS">
+<div id="dotsBackdrop" aria-hidden="true"></div>
+<aside id="dotsPanel" aria-label="RON DOTS" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" inert>
   <div class="panel-head">
     <div>
       <div class="panel-title">RON · DOTS</div>
-      <div class="dot-mini">agent persistant local</div>
+      <div class="dot-mini">Agent persistant local</div>
     </div>
-    <button class="icon-btn" id="dotsClose" aria-label="Fermer DOTS">✕</button>
+    <button class="icon-btn" id="dotsClose" type="button" aria-label="Fermer DOTS">✕</button>
   </div>
-  <p class="hint">Donne à RON une responsabilité à suivre dans le temps. Les missions et notes sont conservées localement sur cet appareil.</p>
+  <p class="hint">Confie à RON une responsabilité à suivre. Missions et journal restent sur cet appareil ; les cycles nécessitent un moteur IA disponible et cette page ouverte.</p>
+  <div class="dots-quick-settings">
+    <label class="check" for="dotsQuickEnable"><input id="dotsQuickEnable" type="checkbox"> Activer DOTS</label>
+    <button class="btn ghost" id="dotsConfigureBtn" type="button">Réglages IA</button>
+  </div>
   <div class="field">
     <label for="dotsMissionIn">Nouvelle responsabilité</label>
-    <textarea id="dotsMissionIn" placeholder="Ex. Garde le développement de RON cohérent, repère les points bloquants et demande-moi une décision quand nécessaire."></textarea>
+    <textarea id="dotsMissionIn" placeholder="Ex. Suis le développement de RON, repère les blocages et demande-moi de trancher quand nécessaire."></textarea>
   </div>
-  <div class="row">
-    <button class="btn" id="dotsAddBtn" type="button">Ajouter</button>
-    <button class="btn ghost" id="dotsRunBtn" type="button">Exécuter un cycle</button>
+  <div class="dots-controls">
+    <button class="btn" id="dotsAddBtn" type="button">Ajouter la mission</button>
+    <button class="btn ghost" id="dotsRunBtn" type="button">Lancer un cycle</button>
   </div>
-  <div id="dotsStatus">DOTS est désactivé.</div>
-  <div id="dotsActivity"></div>
-  <div class="row">
-    <button class="btn ghost" id="dotsPauseBtn" type="button">Pause / reprise</button>
+  <div class="dots-status-card"><div id="dotsStatus" role="status" aria-live="polite">DOTS est désactivé.</div></div>
+  <div id="dotsActivity" aria-label="Missions DOTS"></div>
+  <div class="dots-secondary">
+    <button class="btn ghost" id="dotsPauseBtn" type="button">Mettre en pause</button>
     <button class="btn ghost" id="dotsClearBtn" type="button">Effacer terminées</button>
   </div>
-  <div class="field" style="margin-top:18px">
-    <label>Journal</label>
+  <div class="field dots-log-field">
+    <label for="dotsLog">Journal d’activité</label>
     <div class="dot-log" id="dotsLog"></div>
   </div>
 </aside>
@@ -1184,16 +1228,61 @@ function dotsActiveMission(){
   return dotsRuntime.missions.find(m => m.status === 'active') || null;
 }
 
+
+let dotsPreviousFocus = null;
+function openDotsPanel(){
+  closePanel();
+  dotsPreviousFocus = document.activeElement;
+  const panel = $('dotsPanel');
+  panel.classList.add('open');
+  panel.removeAttribute('inert');
+  panel.setAttribute('aria-hidden','false');
+  $('dotsBackdrop').classList.add('open');
+  $('dotsBackdrop').setAttribute('aria-hidden','false');
+  $('dotsBtn').setAttribute('aria-expanded','true');
+  renderDots();
+  $('dotsClose').focus({preventScroll:true});
+}
+function closeDotsPanel(restoreFocus=true){
+  const panel=$('dotsPanel');
+  panel.classList.remove('open');
+  panel.setAttribute('inert','');
+  panel.setAttribute('aria-hidden','true');
+  $('dotsBackdrop').classList.remove('open');
+  $('dotsBackdrop').setAttribute('aria-hidden','true');
+  $('dotsBtn').setAttribute('aria-expanded','false');
+  if(restoreFocus && dotsPreviousFocus && dotsPreviousFocus.isConnected) dotsPreviousFocus.focus({preventScroll:true});
+}
+function setDotsEnabled(enabled){
+  cfg.dotsEnabled=!!enabled;
+  $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  $('dotsQuickEnable').checked=cfg.dotsEnabled;
+  renderDots();
+  scheduleDots(350);
+  Promise.resolve(safeStorage.set('dotsEnabled',cfg.dotsEnabled)).catch(()=>toast('Impossible de conserver le réglage DOTS sur cet appareil.'));
+}
+
 function renderDots(){
   const status = $('dotsStatus'), cards = $('dotsActivity'), log = $('dotsLog'), btn = $('dotsBtn');
   if (!status || !cards || !log || !btn) return;
   btn.classList.toggle('active', cfg.dotsEnabled && !dotsRuntime.paused);
+  $('dotsQuickEnable').checked=cfg.dotsEnabled;
+  $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  const engineConfigured=!!(cfg.endpoint && cfg.model && (!(PROVIDERS[cfg.provider]||{}).needsKey || cfg.key));
+  $('dotsRunBtn').disabled=!cfg.dotsEnabled || dotsRuntime.paused || dotsRuntime.running || !engineConfigured || !dotsActiveMission();
+  $('dotsPauseBtn').disabled=!cfg.dotsEnabled;
+  $('dotsPauseBtn').textContent=dotsRuntime.paused?'Reprendre':'Mettre en pause';
+  $('dotsClearBtn').disabled=!dotsRuntime.missions.some(m=>m.status==='done');
   const active = dotsRuntime.missions.filter(m => m.status === 'active').length;
   const waiting = dotsRuntime.missions.filter(m => m.status === 'waiting').length;
   if (!cfg.dotsEnabled){ status.className=''; status.textContent='DOTS est désactivé dans les réglages.'; }
   else if (dotsRuntime.paused){ status.className='waiting'; status.textContent='DOTS en pause · ' + active + ' active · ' + waiting + ' en attente.'; }
   else if (dotsRuntime.running){ status.className='active'; status.textContent='DOTS travaille sur une responsabilité…'; }
   else { status.className=waiting ? 'waiting' : 'active'; status.textContent=active + ' active · ' + waiting + ' en attente · cycle ' + Math.round(cfg.dotsInterval/60000) + ' min.'; }
+  if (cfg.dotsEnabled && !engineConfigured) {
+    status.className='waiting';
+    status.textContent='DOTS est activé, mais aucun moteur IA utilisable n’est configuré. Ouvre « Réglages IA ».';
+  }
   const visible = dotsRuntime.missions.slice().reverse().slice(0, 10);
   cards.innerHTML = visible.length ? visible.map(m => {
     const meta = (m.status === 'active' ? 'active' : m.status === 'waiting' ? 'en attente' : m.status === 'done' ? 'terminée' : 'pause') +
@@ -1755,7 +1844,7 @@ function setState(s, detail){
 }
 
 /* ═══════════ Panneau ═══════════ */
-function openPanel(){ $('panel').classList.add('open'); setTimeout(() => $('keyIn').focus(), 200); }
+function openPanel(){ if ($('dotsPanel').classList.contains('open')) closeDotsPanel(false); $('panel').classList.add('open'); setTimeout(() => $('keyIn').focus(), 200); }
 function closePanel(){ $('panel').classList.remove('open'); }
 
 async function saveSettings(){
@@ -2538,17 +2627,20 @@ async function boot(){
     }
     await safeStorage.set('wake', cfg.wake);
   });
-  $('dotsBtn').addEventListener('click', () => { $('dotsPanel').classList.add('open'); renderDots(); });
-  $('dotsClose').addEventListener('click', () => $('dotsPanel').classList.remove('open'));
+  $('dotsBtn').addEventListener('click',openDotsPanel);
+  $('dotsClose').addEventListener('click',()=>closeDotsPanel());
+  $('dotsBackdrop').addEventListener('click',()=>closeDotsPanel());
+  $('dotsConfigureBtn').addEventListener('click',openPanel);
+  $('dotsQuickEnable').addEventListener('change',()=>setDotsEnabled($('dotsQuickEnable').checked));
   $('dotsAddBtn').addEventListener('click', async () => {
     const v = $('dotsMissionIn').value.trim();
     if (!v) return;
     await addDotsMission(v); $('dotsMissionIn').value=''; renderDots();
   });
   $('dotsRunBtn').addEventListener('click', () => runDotsCycle(true));
-  $('dotsPauseBtn').addEventListener('click', async () => { dotsRuntime.paused=!dotsRuntime.paused; await saveDotsState(); renderDots(); scheduleDots(350); });
-  $('dotsClearBtn').addEventListener('click', async () => { dotsRuntime.missions=dotsRuntime.missions.filter(m=>m.status!=='done'); await saveDotsState(); renderDots(); });
-  $('dotsEnabledChk').addEventListener('change', () => { cfg.dotsEnabled=$('dotsEnabledChk').checked; renderDots(); scheduleDots(350); });
+  $('dotsPauseBtn').addEventListener('click', async () => { dotsRuntime.paused=!dotsRuntime.paused; renderDots(); scheduleDots(350); await saveDotsState(); });
+  $('dotsClearBtn').addEventListener('click', async () => { dotsRuntime.missions=dotsRuntime.missions.filter(m=>m.status!=='done'); renderDots(); await saveDotsState(); });
+  $('dotsEnabledChk').addEventListener('change', () => setDotsEnabled($('dotsEnabledChk').checked));
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
   $('dotsIntervalSel').addEventListener('change', () => { cfg.dotsInterval=Math.max(60000,Number($('dotsIntervalSel').value)||120000); scheduleDots(); renderDots(); });
   $('foodMapsBtn').addEventListener('click',()=>{
@@ -2598,8 +2690,17 @@ async function boot(){
     if (v){ voice = v; cfg.voiceName = v.name; safeStorage.set('voice', v.name); }
   });
   addEventListener('keydown', e => {
+    if(e.key==='Tab' && $('dotsPanel').classList.contains('open')){
+      const focusable=[...$('dotsPanel').querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled])')];
+      if(focusable.length){
+        const first=focusable[0],last=focusable[focusable.length-1],current=document.activeElement;
+        if(e.shiftKey && (current===first || !$('dotsPanel').contains(current))){e.preventDefault();last.focus();}
+        else if(!e.shiftKey && (current===last || !$('dotsPanel').contains(current))){e.preventDefault();first.focus();}
+      }
+      return;
+    }
     const typing = /INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement && document.activeElement.tagName) || $('careDialog').open || $('commandDialog').open;
-    if (e.key === 'Escape'){ if ($('panel').classList.contains('open')) closePanel(); else if ($('dotsPanel').classList.contains('open')) $('dotsPanel').classList.remove('open'); else stopAll(); }
+    if (e.key === 'Escape'){ if ($('panel').classList.contains('open')) closePanel(); else if ($('dotsPanel').classList.contains('open')) closeDotsPanel(); else stopAll(); }
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });

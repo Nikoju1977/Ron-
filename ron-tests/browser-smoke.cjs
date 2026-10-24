@@ -64,6 +64,32 @@ async function main(){
   // The no-engine warning intentionally opens Settings. Dismiss it to type a
   // later live Internet question like a real user would.
   if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
+  // DOTS must be a usable, accessible mobile panel, connected to the existing
+  // settings and mission storage rather than a disconnected decorative drawer.
+  await page.locator('#dotsBtn').click();
+  assert(await page.locator('#dotsPanel').evaluate(e=>e.classList.contains('open')),'DOTS drawer opens');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'false','DOTS dialog is announced when open');
+  await page.waitForFunction(()=>getComputedStyle(document.getElementById('dotsBackdrop')).visibility==='visible',null,{timeout:3000});
+  assert(await page.locator('#dotsBackdrop').isVisible(),'Opaque DOTS backdrop hides the rest of the interface');
+  assert.equal(await page.locator('#dotsPanel').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(6, 21, 34)','DOTS surface is fully opaque');
+  await page.locator('#dotsMissionIn').fill('Suivre les étapes du projet RON');
+  await page.locator('#dotsAddBtn').click();
+  assert((await page.locator('#dotsActivity').innerText()).includes('Suivre les étapes du projet RON'),'Mission appears in DOTS activity');
+  await page.locator('#dotsQuickEnable').check();
+  assert(await page.locator('#dotsEnabledChk').isChecked(),'DOTS toggle synchronizes with settings');
+  await page.locator('#dotsPauseBtn').click();
+  assert.equal((await page.locator('#dotsPauseBtn').innerText()).trim(),'Reprendre','Pause button shows the current action');
+  await page.locator('#dotsPauseBtn').click();
+  assert.equal((await page.locator('#dotsPauseBtn').innerText()).trim(),'Mettre en pause','Resume returns pause action');
+  await page.locator('#dotsConfigureBtn').click();
+  assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'DOTS connects to engine settings');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','DOTS drawer closes on settings transition');
+  await page.locator('#dotsEnabledChk').uncheck();
+  await page.locator('#panelClose').click();
+  await page.locator('#dotsBtn').click();
+  assert.equal(await page.locator('#dotsQuickEnable').isChecked(),false,'Settings toggle synchronizes back to DOTS');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','Escape closes DOTS');
   assert.deepEqual(exceptions,[],'No uncaught browser script exceptions');
   // A live weather question must bypass unavailable local LLM and call only
   // Open-Meteo public APIs. Use deterministic fixtures, not live network in CI.
