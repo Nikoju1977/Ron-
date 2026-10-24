@@ -25,7 +25,10 @@ async function main(){
  let browser;
  try{
   browser=await webkit.launch({headless:true});
-  const context=await browser.newContext({...devices['iPhone 13'],locale:'fr-FR',timezoneId:'Europe/Paris'});
+  // Playwright cannot intercept cross-origin requests that pass through a
+  // service worker in WebKit. Disable SW only in this connector-fixture test;
+  // the production PWA still registers and uses its offline service worker.
+  const context=await browser.newContext({...devices['iPhone 13'],locale:'fr-FR',timezoneId:'Europe/Paris',serviceWorkers:'block'});
   const page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   // iOS does not expose Chrome Prompt API or necessarily working WebGPU.
