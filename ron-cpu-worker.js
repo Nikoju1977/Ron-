@@ -2,8 +2,8 @@
    and model weights are downloaded. Blocking ONNX work never runs on the UI thread. */
 'use strict';
 const MODULE='https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm';
-// Gemma 3 270M uses a smaller ONNX 4-bit-weights + FP16 format (~273 MB)
-// confirmed to support WASM CPU, unlike the 512 MB Qwen q8 that failed on Android.
+// Gemma q4f16 has a ~426 MB ONNX data file (plus the runtime/tokenizer).
+// WebAssembly requires the plain ONNX Runtime build for its quantized embedding op.
 const MODEL='onnx-community/gemma-3-270m-it-ONNX';
 let pipelineInstance=null, loading=null;
 function progress(id,text,phase='loading'){
@@ -16,8 +16,20 @@ async function getPipeline(id){
   progress(id,'Chargement du moteur CPU (WebAssembly), sans GPU…');
   const lib=await import(MODULE);
   if(typeof lib.pipeline!=='function')throw Error('Le moteur CPU téléchargé est incomplet.');
-  if(lib.env?.backends?.onnx?.wasm)lib.env.backends.onnx.wasm.numThreads=1;
-  progress(id,'Préparation de Gemma 3 270M sur CPU (modèle ~273 Mo, sans GPU)…');
+  const ort=lib.env?.backends?.onnx;
+  if(!ort?.wasm || !/^\\d+[\\w.+-]*\\.\\d+[\\w.+-]*$/.test(String(ort.versions?.web||'')))
+   throw Error('Version du moteur ONNX Runtime non reconnue : aucun modèle téléchargé.');
+  // IMPORTANT: The asyncify ONNX WASM build may miss the CPU
+  // GatherBlockQuantized kernel used in the Gemma embedding table.
+  // Select the plain CPU SIMD build BEFORE creating the first session.
+  // The runtime version must match Transformers.js' bundled JS glue.
+  const dist='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ort.versions.web+'/dist/';
+  ort.wasm.numThreads=1;
+  ort.wasm.wasmPaths={
+   mjs:dist+'ort-wasm-simd-threaded.mjs',
+   wasm:dist+'ort-wasm-simd-threaded.wasm'
+  };
+  progress(id,'Moteur ONNX CPU compatible sélectionné. Préparation de Gemma 3 (environ 426 Mo de poids)…');
   const candidate=await lib.pipeline('text-generation',MODEL,{
    device:'wasm',dtype:'q4f16',
    progress_callback:event=>{
@@ -86,7 +98,10 @@ self.addEventListener('message',async e=>{
   }
   self.postMessage({id,type:'done',answer:response.slice(0,2500)});
  }catch(error){
-  const reason=String(error?.message||error||'Échec du moteur CPU').slice(0,155);
-  self.postMessage({id,type:'error',message:'Le modèle local léger n’a pas pu fonctionner sur ce téléphone (mémoire, stockage ou navigateur). '+reason});
+  const reason=String(error?.message||error||'Échec du moteur CPU').slice(0,170);
+  const kernel=/GatherBlockQuantized|Could not find an implementation|Failed to find kernel|ERROR_CODE:\\s*9/i.test(reason);
+  self.postMessage({id,type:'error',message:kernel
+   ? 'Incompatibilité du noyau ONNX CPU malgré le moteur corrigé. Réessaie avec Chrome à jour. Détail : '+reason
+   : 'Le calcul local ne peut pas démarrer sur ce navigateur (mémoire, téléchargement ou moteur). Détail : '+reason});
  }
 });
