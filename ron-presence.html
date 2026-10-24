@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#03090f">
+<meta name="ron-release" content="development" id="ronRelease">
 <link rel="manifest" href="./ron-presence.webmanifest">
 <link rel="apple-touch-icon" href="./ron-icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -183,6 +184,11 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <button id="gentleBtn" type="button" aria-pressed="false">Voix douce</button>
     <button id="pauseBtn" type="button">Arrêter · micro coupé</button>
     <div id="voiceMeter" aria-hidden="true"><span id="voiceLevel"></span></div>
+  </div>
+  <div id="updateBanner" role="status" aria-live="polite" hidden style="padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#092436;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px">
+    <span id="updateText">Un correctif RON est disponible.</span>
+    <button id="updateApplyBtn" type="button" style="font-weight:700;padding:6px 10px">Installer la mise à jour</button>
+    <button id="updateLaterBtn" type="button" style="padding:6px 10px">Plus tard</button>
   </div>
   <div id="connectionHint" role="status"></div><div id="rateNotice" role="status" style="font-size:12px;color:#f3d29c;text-align:center" hidden></div>
   <div id="listenHint" role="status">À ton rythme. Tu peux parler ou écrire.</div>
@@ -410,6 +416,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
 <script src="./ron-net.js"></script>
+<script src="./ron-updater.js"></script>
 <script src="./ron-browser-ai.js"></script>
 <script>
 'use strict';
@@ -2527,6 +2534,15 @@ async function boot(){
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });
   bootReady=true; // Settings, chat and all command handlers are now bound.
+  // Update only from signed-off, built GitHub Pages release artifacts.
+  // Never interrupt a message, a draft, an open panel or existing chat history.
+  window.RONUpdater?.start?.({canReload:()=>state==='idle'
+    && !$('textIn').value.trim() && history.length===0
+    && !$('panel').classList.contains('open')
+    && !$('dotsPanel').classList.contains('open')
+    && !$('careDialog').open && !$('commandDialog').open
+    && !$('knowledgeDialog').open});
+
   setState('idle'); // Everything below is noncritical background work.
   if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});
   if(window.RONKnowledge)void window.RONKnowledge.init({store:safeStorage,notify:toast})
