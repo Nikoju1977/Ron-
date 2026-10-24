@@ -37,6 +37,8 @@ jobs:
           node --check ron-browser-ai.js
           node --check ron-cpu-worker.js
           node --check ron-net.js
+          node --check ron-food.js
+          node --check ron-tests/food.cjs
           node --check ron-agent-hub.js
           node --check ron-tests/agent-hub.cjs
           node --check ron-updater.js
