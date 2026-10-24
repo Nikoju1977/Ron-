@@ -1888,7 +1888,10 @@ const clock = { start: performance.now(), last: performance.now() };
 function frame(now){
   requestAnimationFrame(frame);
   if (!renderer || document.hidden) return;
-  if(now-clock.last < (reduceMotion?150:window.innerWidth<600?32:16)) return;
+  // Leave CPU time to local WASM inference without hiding or changing the angel.
+  const cpuThinking = state === 'thinking' && cfg.provider === 'browser'
+    && /-cpu$/.test(cfg.model);
+  if(now-clock.last < (reduceMotion?150:cpuThinking?80:window.innerWidth<600?32:16)) return;
   const t = (now - clock.start) / 1000;
   const k = Math.min(1, (now - clock.last) / 16.7) * 0.08;
   clock.last = now;
