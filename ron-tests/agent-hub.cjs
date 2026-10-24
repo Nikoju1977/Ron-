@@ -22,6 +22,16 @@ async function main(){
  const hub=root.RONAgentHub;
  assert.equal(hub.plan('conversation personnelle'),null,'Private conversation bypasses tools');
  assert.equal(hub.SPECIALISTS.science.name,'Agent scientifique');
+ let parsed=0;
+ const stateful={parse:()=>{
+  parsed++;
+  return parsed===1?{kind:'wiki',query:'pâtes cuites'}:null;
+ },answer:source.answer};
+ const selectedJob=hub.plan('cuites',stateful);
+ assert(selectedJob,'A one-word clarification was understood on the first parse');
+ const selected=await hub.run('cuites',{net:stateful,job:selectedJob});
+ assert.equal(selected.kind,'wiki');
+ assert.equal(parsed,1,'The stateful specialist request must not be parsed twice');
  let llmCalls=0;
  const science=await hub.run('Synthétise les études sur le cerveau',{
   net:source,allowSynthesis:true,summarize:async messages=>{
@@ -44,7 +54,7 @@ async function main(){
  }});
  assert.equal(weather.agent,'Agent météo');
  assert.equal(weather.text,'Météo demain : pluie prévue.');
- assert.deepEqual(calls,['science','science','science','weather']);
+ assert.deepEqual(calls,['wiki','science','science','science','weather']);
  assert.throws(()=>hub.verify({kind:'wiki'},{kind:'wiki',text:'hi',sources:['https://evil.example/prompt']}),/source publique/);
  assert.throws(()=>hub.verify({kind:'math'},{kind:'wiki',text:'incorrect',sources:[]}),/incomplet/);
  assert.throws(()=>hub.verify({kind:'science'},{kind:'science',text:'Title only',sources:['https://github.com/some/repo']}),/source publique/,'A scientific answer cannot use a GitHub URL as supporting provenance');

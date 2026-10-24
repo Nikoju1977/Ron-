@@ -1596,6 +1596,8 @@ function cancelPendingTurn(){
 async function handleUser(text, careContext = ''){
   text = String(text || '').trim();
   if (!text) return;
+  // Wake Android text-to-speech while the tap/microphone gesture is still active.
+  unlockSpeech();
   const thisTurn = ++turnId;
   cancelPendingTurn();cancelNetSearch();
   if (companionCommand(text)) return;
@@ -1603,7 +1605,9 @@ async function handleUser(text, careContext = ''){
   if (thisTurn !== turnId) return;
   // Specialized public-source agents use verified tools before any LLM: a tiny offline model
   // cannot invent tomorrow's weather, scientific records or current GitHub data.
-  const netRequest=window.RONAgentHub?.plan?.(text)?.request||window.RONNet?.parse(text);
+  // Resolve a stateful clarification (e.g. 'cuites') exactly once.
+  const netJob=window.RONAgentHub?.plan?.(text);
+  const netRequest=netJob?.request||window.RONNet?.parse(text);
   if(netRequest){
     // The missing-model diagnostic may leave Settings open over the chat.
     // Close it for an explicit live lookup: Internet connectors do not need an LLM.
@@ -1615,6 +1619,7 @@ async function handleUser(text, careContext = ''){
     $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Open Food Facts ou l’étiquette',type1:'l’agent éducatif diabète de type 1',math:'le calcul local',clock:'l’horloge de ton appareil',live:'une source en temps réel indisponible'}[netRequest.kind]||'une source publique')+'…';
     try{
       const result=await window.RONAgentHub.run(text,{
+        job:netJob,
         signal:ctrl.signal,
         allowSynthesis:cfg.provider!=='browser'
          && cfg.model && cfg.endpoint
@@ -1627,7 +1632,7 @@ async function handleUser(text, careContext = ''){
       renderRonAnswer(result.text);
       history.push({role:'user',content:text},{role:'assistant',content:result.text});
       if(history.length>40)history.splice(0,history.length-40);
-      $('connectionHint').textContent='Réponse '+(['math','clock','live'].includes(result.kind)?'déterminée sans modèle et sans invention':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Food Maps',type1:'AJD / Assurance Maladie',math:'Calcul',clock:'Horloge',live:'Prudence'}[result.kind]||'RON')+'.';
+      $('connectionHint').textContent='Réponse '+(result.needsClarification?'en attente de ta précision':result.manual?'calculée à partir de ton étiquette': ['math','clock','live'].includes(result.kind)?'déterminée sans modèle et sans invention':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Food Maps',type1:'AJD / Assurance Maladie',math:'Calcul',clock:'Horloge',live:'Prudence'}[result.kind]||'RON')+'.';
       streamDone=true;
       const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
       enqueueSpeech(String(spoken).slice(0,480));
