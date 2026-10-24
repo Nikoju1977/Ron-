@@ -32,6 +32,8 @@ async function main(){
  assert.doesNotThrow(()=>E("enforceNoPaid('openrouter','https://openrouter.ai/api/v1','openrouter/free')"));
  assert.doesNotThrow(()=>E("enforceNoPaid('openrouter','https://openrouter.ai/api/v1','qwen/example:free')"));
  assert.throws(()=>E("enforceNoPaid('custom','https://example.net/v1','some-model')"),/zéro euro/);
+ assert.doesNotThrow(()=>E("enforceNoPaid('llamacpp','http://localhost:8080/v1','gemma-3-gguf')"));
+ assert.throws(()=>E("enforceNoPaid('llamacpp','https://example.net/v1','model')"),/zéro euro/);
  // Unsaved UI edits must never change active request cost protection.
  d.getElementById('noPaidChk').checked=false;
  E("cfg.provider='mistral';cfg.endpoint='https://api.mistral.ai/v1';cfg.model='mistral-large-latest'");
