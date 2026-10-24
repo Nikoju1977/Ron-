@@ -88,6 +88,28 @@ async function main(){
   await page.locator('#knowledgeNetSearch').fill('météo demain à Nantes');
   await page.locator('#knowledgeNetBtn').click();
   await page.waitForFunction(()=>document.getElementById('knowledgeNetResults')?.textContent?.includes('Prévision pour Nantes, France'),null,{timeout:7500});
+  // Food Maps works without a model, and no personal medical details are sent
+  // to the food service; verify real browser DOM and deterministic arithmetic.
+  assert(await page.locator('#foodSearchBtn').count(),'Food Maps must be available in Savoirs');
+  await page.locator('#foodGrams').fill('150');
+  await page.locator('#foodCarbs100').fill('24,5');
+  await page.locator('#foodSearchBtn').click();
+  await page.waitForFunction(()=>document.getElementById('foodResults')?.textContent?.includes('36,8 g de glucides'),null,{timeout:6000});
+  await page.route('https://world.openfoodfacts.org/**',route=>route.fulfill({
+   status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},
+   body:JSON.stringify({products:[{code:'3017620422003',product_name_fr:'Pâtes test',brands:'Marque test',nutriments:{carbohydrates_100g:70}}]})
+  }));
+  await page.locator('#foodCarbs100').fill('');
+  await page.locator('#foodQuery').fill('pâtes');
+  await page.locator('#foodSearchBtn').click();
+  await page.waitForFunction(()=>document.getElementById('foodResults')?.textContent?.includes('105 g de glucides'),null,{timeout:6000});
+  await page.locator('#knowledgeClose').click();
+  await page.locator('#textIn').fill('150 g de pâtes ?');
+  await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('105 g de glucides'),null,{timeout:6000});
+  await page.locator('#textIn').fill("Quelle dose d’insuline pour 30 g de glucides ?");
+  await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('ne prescris ni dose'),null,{timeout:6000});
   const specialist=await page.evaluate(()=>window.RONAgentHub?.plan('cherche des études scientifiques sur les mitochondries')?.specialist?.name);
   assert.equal(specialist,'Agent scientifique','Specialist router loaded in published Chrome app');
   assert.deepEqual(exceptions,[],'No browser exceptions from live no-key weather integration');
