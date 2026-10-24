@@ -12,6 +12,14 @@ Servir les fichiers sur une adresse HTTPS (ou localhost pour le développement),
 - Après une première ouverture en ligne et l’installation réussie du service worker, l’interface et le carnet peuvent s’ouvrir hors connexion. Le serveur IA et la reconnaissance vocale ne sont pas rendus hors ligne par cette installation.
 - Le service worker est limité à l’URL de cette page et ne met en cache que les fichiers publics de l’interface. Il ne met pas en cache les requêtes IA ni les données de santé.
 
+## Correctifs et mises à jour automatiques
+
+À chaque fusion dans la branche `main`, GitHub Pages publie uniquement les fichiers vérifiés par le processus de déploiement. Le script `ron-tools/build-pages.cjs` ajoute un manifeste `ron-version.json` et inscrit le SHA Git approuvé dans la page et dans le service worker. Le cache de la PWA est unique à chaque publication : plus besoin de modifier à la main un numéro de cache après chaque correctif.
+
+RON vérifie sa version au démarrage (puis périodiquement pendant l'utilisation et lorsque la connexion revient) en consultant **uniquement** `ron-version.json` sur sa propre origine HTTPS. Lorsqu'une mise à jour publiée est disponible, il l'installe via le service worker. Si aucune question n'a été posée, qu'aucun texte n'est en cours d'écriture et qu'aucune fenêtre n'est ouverte, l'interface peut se recharger automatiquement. Sinon, RON affiche « Installer la mise à jour » ou « Plus tard », pour ne pas interrompre une conversation. Le texte personnel, le carnet et les clés ne sont jamais envoyés au système de mise à jour. La commande « Ron, mets-toi à jour » permet aussi une vérification manuelle.
+
+**Limite de sécurité :** la PWA ne modifie pas directement le code de GitHub et n'exécute jamais des « patchs » arbitraires venant d'un dépôt externe. Les changements de code doivent d'abord être publiés et testés dans `main` ; RON les reçoit ensuite automatiquement. Sans Internet, la dernière version déjà installée reste disponible dans le cache. Une session ou un brouillon actif n'est pas effacé automatiquement.
+
 ## Confidentialité et portée
 
 Le carnet est en mémoire de session par défaut. Sa conservation locale est volontaire et n'est pas chiffrée par Ron. Partager avec Ron transmet les 7 dernières entrées au fournisseur configuré. L'historique local peut conserver la réponse générée à partir de ces données. Effacer le carnet efface aussi cet historique, sans supprimer les données déjà transmises au fournisseur.
@@ -28,6 +36,19 @@ Sources techniques :
 - https://developer.samsung.com/health/health-connect-faq.html
 - https://developer.android.com/guide/components/intents-common
 - https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable
+
+## Connecteurs Internet publics sans clé (RON Net)
+
+RON répond directement aux demandes explicites de **météo aujourd’hui/demain**, de **recherche Wikipédia**, d’**études scientifiques** (OpenAlex) et de **dépôts GitHub publics**. Ces requêtes passent par une API publique en HTTPS, **sans démarrer le modèle IA local** : notamment, une météo ne demande pas de calcul Gemma CPU. Les résultats incluent des sources cliquables et RON distingue une réponse en direct d’une réponse générée par le modèle.
+
+- Météo : Open-Meteo, données prévisionnelles avec date, températures, précipitations, vent et source. Une ville écrite dans la question suffit (« météo demain à Nantes »). Sans ville, le navigateur demande l’autorisation de localisation ; si elle est refusée, il invite à préciser la commune. Les coordonnées ne sont envoyées qu’à Open-Meteo lorsque c’est indispensable à la recherche météo.
+- Wikipédia : recherche d’articles et résumés dans l’encyclopédie française, pas une source d’actualités en temps réel.
+- Publications : recherche OpenAlex, affichage de titres, année, revue et liens DOI. Cela ne signifie ni que l’article a été lu ni que ses conclusions sont validées.
+- GitHub : consultation de métadonnées publiques de dépôts, recherche et lien direct vers la source ; quota d’API public possible.
+
+Le nouvel espace **Savoirs et connecteurs → Rechercher en ligne** permet de faire ces recherches sans les ajouter automatiquement à la bibliothèque personnelle. Seul le terme recherché (ou la ville / des coordonnées après autorisation pour la météo) est transmis au fournisseur concerné. Aucun carnet, historique de conversation ou fichier personnel n'est transmis aux connecteurs Internet. Les endpoints sont limités à des hôtes publics déterminés, aucun proxy arbitraire ni clé API, et aucun téléchargement de modèle n'est nécessaire pour ces réponses. Cette approche **n’est pas un moteur de recherche universel** et ne garantit pas la lecture de toutes les pages du Web (restrictions CORS, API et quotas). Pour les actualités récentes, les données devront venir d’une source d’actualité dédiée vérifiable : Wikipédia ne suffit pas. Les API peuvent être indisponibles ou limitées. Gratuité Open-Meteo soumise notamment aux usages non commerciaux et aux seuils du fournisseur ; vérifiez ses conditions.
+
+Documentation : https://open-meteo.com/ ; https://www.mediawiki.org/wiki/API:Cross-site_requests ; https://docs.openalex.org ; https://docs.github.com/en/rest
 
 ## IA automatique sans clé — version navigateur
 

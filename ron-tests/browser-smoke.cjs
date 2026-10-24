@@ -61,7 +61,34 @@ async function main(){
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
   assert.equal(await page.locator('#textIn').inputValue(),'Bonjour','Prompt remains available when there is no AI engine');
+  // The no-engine warning intentionally opens Settings. Dismiss it to type a
+  // later live Internet question like a real user would.
+  if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
   assert.deepEqual(exceptions,[],'No uncaught browser script exceptions');
+  // A live weather question must bypass unavailable local LLM and call only
+  // Open-Meteo public APIs. Use deterministic fixtures, not live network in CI.
+  await page.route('https://geocoding-api.open-meteo.com/**',route=>route.fulfill({
+   status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},
+   body:JSON.stringify({results:[{name:'Nantes',country:'France',latitude:47.22,longitude:-1.55}]})
+  }));
+  await page.route('https://api.open-meteo.com/**',route=>route.fulfill({
+   status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},
+   body:JSON.stringify({daily:{time:['2026-10-24','2026-10-25','2026-10-26'],
+    weather_code:[3,61,0],temperature_2m_min:[8,9,10],temperature_2m_max:[13,16,18],
+    precipitation_probability_max:[10,75,0],precipitation_sum:[0,4.2,0],wind_speed_10m_max:[14,29,9]}})
+  }));
+  await page.locator('#textIn').fill('Quel temps demain à Nantes ?');
+  await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Prévision pour Nantes, France'),null,{timeout:7500});
+  assert.match(await page.locator('#ronLine').innerText(),/9 °C à 16 °C/);
+  assert.match(await page.locator('#ronLine').innerText(),/Open-Meteo/);
+  assert.equal(await page.locator('#textIn').inputValue(),'','Weather question was consumed by live connector');
+  await page.locator('#knowledgeBtn').click();
+  assert(await page.locator('#knowledgeNetBtn').count(),'Internet search is available from Savoirs');
+  await page.locator('#knowledgeNetSearch').fill('météo demain à Nantes');
+  await page.locator('#knowledgeNetBtn').click();
+  await page.waitForFunction(()=>document.getElementById('knowledgeNetResults')?.textContent?.includes('Prévision pour Nantes, France'),null,{timeout:7500});
+  assert.deepEqual(exceptions,[],'No browser exceptions from live no-key weather integration');
   // Also prove the no-key Chrome Prompt API path works in a real browser.
   const nativePage=await context.newPage(),nativeErrors=[];
   nativePage.on('pageerror',e=>nativeErrors.push(e.message));
