@@ -1268,8 +1268,9 @@ let speechQueue = [], speakingNow = false, streamDone = true, speakToken = 0, mo
 function loadVoices(){
   if (!synth) return;
   voices = synth.getVoices();
-  const fr = voices.filter(v => /^fr/i.test(v.lang));
-  const list = fr.length ? fr : voices;
+  // Never silently select an English voice for a French answer.
+  // If voices have not loaded (common on Android), ask the OS for fr-FR.
+  const list = voices.filter(v => /^fr(?:-|$)/i.test(v.lang));
   const sel = $('voiceSel');
   sel.innerHTML = '';
   list.forEach(v => {
@@ -1277,6 +1278,11 @@ function loadVoices(){
     o.value = v.name; o.textContent = v.name + ' (' + v.lang + ')';
     sel.appendChild(o);
   });
+  if (!list.length){
+    const o = document.createElement('option');
+    o.value = ''; o.textContent = 'Voix française automatique (si disponible)';
+    sel.appendChild(o);
+  }
   voice = list.find(v => v.name === cfg.voiceName)
        || list.find(v => /google/i.test(v.name))
        || list.find(v => /thomas|daniel|henri|paul/i.test(v.name))
@@ -1312,11 +1318,17 @@ function nextSpeech(){
   u.lang = voice ? voice.lang : 'fr-FR';
   if (voice) u.voice = voice;
   u.rate = gentleVoice ? 0.88 : 0.98; u.pitch = 1;
-  const done = () => { if (tok === speakToken){ speakToken++; nextSpeech(); } };
+  let watchdog;
+  const done = () => { if (tok === speakToken){ clearTimeout(watchdog); speakToken++; nextSpeech(); } };
+  const voiceError = e => {
+    if (tok === speakToken && !['canceled','interrupted'].includes(e?.error))
+      $('connectionHint').textContent = 'Voix française indisponible. Vérifie les voix françaises installées dans les réglages de synthèse vocale du téléphone.';
+    done();
+  };
   u.onboundary = () => { mouthPulse = 1; };
-  u.onend = done; u.onerror = done;
-  setTimeout(done, s.length * 95 + 4000); // garde-fou : Chrome oublie parfois onend
-  synth.speak(u);
+  u.onend = done; u.onerror = voiceError;
+  watchdog = setTimeout(done, s.length * 95 + 4000); // Android may omit onend
+  try { synth.speak(u); } catch (error) { voiceError(error); }
 }
 
 function stopSpeaking(){
@@ -1472,7 +1484,7 @@ function startWake(){
 async function startPTT(){
   if (!SR){ toast('Reconnaissance vocale indisponible ici. Tu peux écrire.'); return; }
   const attempt = ++micAttempt;
-  ++turnId;
+  ++turnId; cancelPendingTurn();
   if (currentXhr) currentXhr.abort();
   stopSpeaking(); stopRec(); setState('idle');
   if (!(await ensureMicrophonePermission(true)) || attempt !== micAttempt || document.hidden) return;
@@ -1524,11 +1536,22 @@ async function startPTT(){
 
 /* ═══════════ Boucle de conversation agentique ═══════════ */
 let sentenceBuf = '';
+let pendingUserMessage = null;
+// A stopped or replaced inference must not leave an orphan user turn in history.
+function cancelPendingTurn(){
+  window.RONBrowserAI?.cancel?.();
+  if (pendingUserMessage){
+    const index = history.indexOf(pendingUserMessage);
+    if (index >= 0) history.splice(index, 1);
+    pendingUserMessage = null;
+  }
+}
 
 async function handleUser(text, careContext = ''){
   text = String(text || '').trim();
   if (!text) return;
   const thisTurn = ++turnId;
+  cancelPendingTurn();
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
@@ -1545,6 +1568,7 @@ async function handleUser(text, careContext = ''){
   $('ronLine').textContent = '';
   const userMessage = { role: 'user', content: text };
   history.push(userMessage);
+  pendingUserMessage = userMessage;
   setState('thinking'); sentenceBuf = ''; streamDone = false;
   try {
     const agentCtx = await buildAgentContext(text, thisTurn);
@@ -1574,12 +1598,14 @@ async function handleUser(text, careContext = ''){
     sentenceBuf = '';
     renderRonAnswer(full);
     history.push({ role:'assistant', content:full || '…' });
+    if (pendingUserMessage === userMessage) pendingUserMessage = null;
     if (history.length > 40) history.splice(0, history.length - 40);
     if (!speakingNow) onSpeechDrained();
   } catch(err){
     if (thisTurn !== turnId) return;
     streamDone = true;
     const index = history.indexOf(userMessage); if (index >= 0) history.splice(index, 1);
+    if (pendingUserMessage === userMessage) pendingUserMessage = null;
     if (err.message === 'abort') return;
     stopSpeaking();
     if(!$('textIn').value) $('textIn').value=text;
@@ -1602,7 +1628,7 @@ function stopAll(){
   if(state==='thinking' && !$('textIn').value.trim() && $('youLine').textContent.trim())
     $('textIn').value=$('youLine').textContent.trim();
   ++turnId; ++micAttempt; wakePaused = true;
-  window.RONBrowserAI?.cancel?.(); // Terminate CPU worker, not just the chat display.
+  cancelPendingTurn(); // Terminate inference and remove an unfinished history turn.
   if (currentXhr) currentXhr.abort();
   stopSpeaking(); stopRec();
   awaiting = false; clearTimeout(awaitTimer);
