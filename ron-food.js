@@ -34,7 +34,8 @@ function parse(text){
  const medical=/\b(diabete (?:de )?type 1|diabetologue|hypoglycemie|hyperglycemie|acidocetose|insuline|bolus|cetones?|glycemie)\b/.test(q);
  const gc=/\b(glucides?|carbohydrates?|carbs?|comptage des glucides|food maps)\b/.test(q);
  if(medical&&(!gc||/\b(dose|insuline|bolus|unites?|injecter)\b/.test(q)))return {kind:'type1',question:raw};
- const m=raw.match(/\b(\d{1,4}(?:[.,]\d{1,2})?)\s*(kg|g|grammes?)\s+(?:de\s+|d['’])?(.{2,110})$/iu);
+ const portionText=raw.replace(/[?!.,;:]+$/,'').trim();
+ const m=portionText.match(/\b(\d{1,4}(?:[.,]\d{1,2})?)\s*(kg|g|grammes?)\s+(?:de\s+|d['’])?(.{2,110})$/iu);
  const intent=gc&&/\b(combien|quantit[eé]|calcul|estim|dans|pour|contien|aliment|chercher?|recherche)\b/i.test(q);
  if(!m&&!intent)return null;
  let grams=m?num(m[1])*(m[2].toLowerCase()==='kg'?1000:1):100;
