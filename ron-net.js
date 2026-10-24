@@ -73,7 +73,7 @@ function parse(text){
   const topicStarter=subjectRaw!==topicRaw;
   const factual=/^(?:ron[, ]*)?(?:(?:qui|que|quoi|quand|ou|où|lequel|laquelle|lesquels|lesquelles) (?:est|etait|sont|a |ont |se trouve|a cree|a invente|a decouvert|a ecrit|a fonde|a realise)|qu.est.ce que|c.est quoi|(?:quelle|quel|quelles|quels) (?:est|sont|a ete|ont ete)|en quelle annee|pourquoi (?:le|la|les|un|une|des|est|a|sont)|comment (?:fonctionne|se forme|s.appelle|marche)|(?:explique|definis|decris|raconte|presente)(?: moi)?\b)/.test(topic);
   if(factual||topicStarter){
-   let query=topicStarter?subjectRaw:topicRaw.replace(/^(?:ron[, ]*)?(?:qu.est.ce que(?: c.est)?|c.est quoi|qui (?:est|etait|sont|a (?:cree|invente|decouvert|ecrit|fonde|realise))|(?:où|ou) (?:est|se trouve|sont)|(?:comment) (?:fonctionne|marche)|(?:explique|définis|décris|raconte|présente)(?:[- ]moi)?|(?:quelle|quel|quelles|quels) (?:est|sont)|(?:en )?quelle année|pourquoi)\s*/iu,'');
+   let query=topicStarter?subjectRaw:topicRaw.replace(/^(?:ron[, ]*)?(?:qu.est.ce que(?: c.est)?|c.est quoi|qui (?:est|etait|sont|a (?:cr[eé][eé]|invent[eé]|d[eé]couvert|[eé]crit|fond[eé]|r[eé]alis[eé]))|(?:où|ou) (?:est|se trouve|sont)|(?:comment) (?:fonctionne|marche)|(?:explique|définis|décris|raconte|présente)(?:[- ]moi)?|(?:quelle|quel|quelles|quels) (?:est|sont)|(?:en )?quelle année|pourquoi)\s*/iu,'');
    query=clean(query.replace(/[?!]+$/g,'').replace(/^(?:le|la|les|l'|un|une)\s+/i,''),160);
    if(query.length>=3&&!/^(?:ron|toi|moi|l.application ron)$/i.test(norm(query)))return {kind:'wiki',query,automatic:true};
   }
