@@ -54,6 +54,31 @@ async function main(){
   assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'Settings button opens its panel');
   assert(await page.locator('#noPaidChk').isChecked(),'No-spend guard on in real browser');
   await page.locator('#panelClose').click();
+  // DOTS must be a usable, accessible mobile panel, connected to the existing
+  // settings and mission storage rather than a disconnected decorative drawer.
+  await page.locator('#dotsBtn').click();
+  assert(await page.locator('#dotsPanel').evaluate(e=>e.classList.contains('open')),'DOTS drawer opens');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'false','DOTS dialog is announced when open');
+  assert(await page.locator('#dotsBackdrop').isVisible(),'Opaque DOTS backdrop hides the rest of the interface');
+  assert.equal(await page.locator('#dotsPanel').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(6, 21, 34)','DOTS surface is fully opaque');
+  await page.locator('#dotsMissionIn').fill('Suivre les étapes du projet RON');
+  await page.locator('#dotsAddBtn').click();
+  assert((await page.locator('#dotsActivity').innerText()).includes('Suivre les étapes du projet RON'),'Mission appears in DOTS activity');
+  await page.locator('#dotsQuickEnable').check();
+  assert(await page.locator('#dotsEnabledChk').isChecked(),'DOTS toggle synchronizes with settings');
+  await page.locator('#dotsPauseBtn').click();
+  assert.equal((await page.locator('#dotsPauseBtn').innerText()).trim(),'Reprendre','Pause button shows the current action');
+  await page.locator('#dotsPauseBtn').click();
+  assert.equal((await page.locator('#dotsPauseBtn').innerText()).trim(),'Mettre en pause','Resume returns pause action');
+  await page.locator('#dotsConfigureBtn').click();
+  assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'DOTS connects to engine settings');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','DOTS drawer closes on settings transition');
+  await page.locator('#dotsEnabledChk').uncheck();
+  await page.locator('#panelClose').click();
+  await page.locator('#dotsBtn').click();
+  assert.equal(await page.locator('#dotsQuickEnable').isChecked(),false,'Settings toggle synchronizes back to DOTS');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','Escape closes DOTS');
   // Automatic discovery is asynchronous. Submit only after RON has explicitly
   // established that this browser has no local inference server.
   await page.waitForFunction(()=>/aucun modèle conversationnel|aucun moteur local joignable/i.test(document.getElementById('autoEngineStatus')?.textContent||''),null,{timeout:10000});
