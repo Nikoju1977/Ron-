@@ -12,6 +12,14 @@ Servir les fichiers sur une adresse HTTPS (ou localhost pour le développement),
 - Après une première ouverture en ligne et l’installation réussie du service worker, l’interface et le carnet peuvent s’ouvrir hors connexion. Le serveur IA et la reconnaissance vocale ne sont pas rendus hors ligne par cette installation.
 - Le service worker est limité à l’URL de cette page et ne met en cache que les fichiers publics de l’interface. Il ne met pas en cache les requêtes IA ni les données de santé.
 
+## Correctifs et mises à jour automatiques
+
+À chaque fusion dans la branche `main`, GitHub Pages publie uniquement les fichiers vérifiés par le processus de déploiement. Le script `ron-tools/build-pages.cjs` ajoute un manifeste `ron-version.json` et inscrit le SHA Git approuvé dans la page et dans le service worker. Le cache de la PWA est unique à chaque publication : plus besoin de modifier à la main un numéro de cache après chaque correctif.
+
+RON vérifie sa version au démarrage (puis périodiquement pendant l'utilisation et lorsque la connexion revient) en consultant **uniquement** `ron-version.json` sur sa propre origine HTTPS. Lorsqu'une mise à jour publiée est disponible, il l'installe via le service worker. Si aucune question n'a été posée, qu'aucun texte n'est en cours d'écriture et qu'aucune fenêtre n'est ouverte, l'interface peut se recharger automatiquement. Sinon, RON affiche « Installer la mise à jour » ou « Plus tard », pour ne pas interrompre une conversation. Le texte personnel, le carnet et les clés ne sont jamais envoyés au système de mise à jour. La commande « Ron, mets-toi à jour » permet aussi une vérification manuelle.
+
+**Limite de sécurité :** la PWA ne modifie pas directement le code de GitHub et n'exécute jamais des « patchs » arbitraires venant d'un dépôt externe. Les changements de code doivent d'abord être publiés et testés dans `main` ; RON les reçoit ensuite automatiquement. Sans Internet, la dernière version déjà installée reste disponible dans le cache. Une session ou un brouillon actif n'est pas effacé automatiquement.
+
 ## Confidentialité et portée
 
 Le carnet est en mémoire de session par défaut. Sa conservation locale est volontaire et n'est pas chiffrée par Ron. Partager avec Ron transmet les 7 dernières entrées au fournisseur configuré. L'historique local peut conserver la réponse générée à partir de ces données. Effacer le carnet efface aussi cet historique, sans supprimer les données déjà transmises au fournisseur.
