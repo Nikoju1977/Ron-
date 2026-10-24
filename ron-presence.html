@@ -182,6 +182,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <button id="installBtn" type="button">Installer</button>
     <button id="careBtn" type="button">♡ Mon bien-être</button>
     <button id="knowledgeBtn" type="button">◎ Savoirs</button>
+    <button id="foodMapsBtn" type="button">◈ Food Maps</button>
     <button id="gentleBtn" type="button" aria-pressed="false">Voix douce</button>
     <button id="pauseBtn" type="button">Arrêter · micro coupé</button>
     <div id="voiceMeter" aria-hidden="true"><span id="voiceLevel"></span></div>
@@ -404,6 +405,21 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <p class="hint">Les résultats sont consultés en direct et ne sont pas enregistrés dans ton carnet. Les mots de la recherche sont transmis uniquement au service choisi ; ta position météo exige l’autorisation du navigateur.</p>
     <div id="knowledgeNetStatus" role="status" aria-live="polite"></div><div id="knowledgeNetResults"></div>
   </div>
+  <div class="knowledge-form" id="foodMapsSection">
+    <h3>Food Maps · glucides et diabète de type 1</h3>
+    <p class="hint">Recherche mondiale Open Food Facts : aliments, marques et codes-barres. Les valeurs changent selon le produit et selon le poids cru ou cuit. L’agent est pédagogique, pas un diabétologue médical.</p>
+    <label for="foodQuery">Nom d’aliment, marque ou code-barres</label>
+    <input id="foodQuery" type="search" autocomplete="off" maxlength="100" placeholder="Ex. riz cuit, pâtes, 3017620422003">
+    <label for="foodGrams">Poids réellement mangé (grammes)</label>
+    <input id="foodGrams" type="text" inputmode="decimal" value="150" maxlength="8" placeholder="150">
+    <label for="foodCarbs100">Facultatif : glucides de l’étiquette pour 100 g</label>
+    <input id="foodCarbs100" type="text" inputmode="decimal" maxlength="8" placeholder="Ex. 24,5 · inutile avec un code-barres">
+    <button class="btn" id="foodSearchBtn" type="button">Calculer les glucides</button>
+    <p class="hint">Si tu renseignes l’étiquette, le calcul se fait hors ligne. Sinon, seul le nom du produit ou son code-barres est envoyé à Open Food Facts. Aucun historique médical ni glycémie n’est transmis. Aucun dosage d’insuline.</p>
+    <div id="foodStatus" role="status" aria-live="polite"></div>
+    <div id="foodResults"></div>
+    <p class="hint">Sources : <a href="https://world.openfoodfacts.org/" target="_blank" rel="noopener noreferrer">Open Food Facts</a> (produits emballés, données communautaires) · <a href="https://ciqual.anses.fr/" target="_blank" rel="noopener noreferrer">Ciqual / Anses</a> (compositions des aliments génériques) · <a href="https://www.ajd-diabete.fr/vivre-avec-un-diabete-de-type-1/prise-en-charge-du-diabete-de-type-1/lalimentation/" target="_blank" rel="noopener noreferrer">AJD — comptage glucidique</a>.</p>
+  </div>
   <p id="knowledgeStatus" role="status"></p>
   <label class="check"><input type="checkbox" id="knowledgeShare">Autoriser RON à inclure des extraits pertinents dans mes prochaines questions IA (cette session seulement)</label>
   <label class="check"><input type="checkbox" id="knowledgeRemember">Conserver les documents sur cet appareil · stockage non chiffré</label>
@@ -418,6 +434,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
 <script src="./ron-net.js"></script>
+<script src="./ron-food.js"></script>
 <script src="./ron-agent-hub.js"></script>
 <script src="./ron-updater.js"></script>
 <script src="./ron-browser-ai.js"></script>
@@ -1595,7 +1612,7 @@ async function handleUser(text, careContext = ''){
     unlockSpeech();stopRec();stopSpeaking();
     $('youLine').textContent=text;$('ronLine').textContent='';
     setState('thinking');setThinkingDetail('RON consulte une source Internet vérifiable…');
-    $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'le calcul local',clock:'l’horloge de ton appareil',live:'une source en temps réel indisponible'}[netRequest.kind]||'une source publique')+'…';
+    $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Open Food Facts ou l’étiquette',type1:'l’agent éducatif diabète de type 1',math:'le calcul local',clock:'l’horloge de ton appareil',live:'une source en temps réel indisponible'}[netRequest.kind]||'une source publique')+'…';
     try{
       const result=await window.RONAgentHub.run(text,{
         signal:ctrl.signal,
@@ -1610,7 +1627,7 @@ async function handleUser(text, careContext = ''){
       renderRonAnswer(result.text);
       history.push({role:'user',content:text},{role:'assistant',content:result.text});
       if(history.length>40)history.splice(0,history.length-40);
-      $('connectionHint').textContent='Réponse '+(['math','clock','live'].includes(result.kind)?'déterminée sans modèle et sans invention':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'Calcul',clock:'Horloge',live:'Prudence'}[result.kind]||'RON')+'.';
+      $('connectionHint').textContent='Réponse '+(['math','clock','live'].includes(result.kind)?'déterminée sans modèle et sans invention':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Food Maps',type1:'AJD / Assurance Maladie',math:'Calcul',clock:'Horloge',live:'Prudence'}[result.kind]||'RON')+'.';
       streamDone=true;
       const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
       enqueueSpeech(String(spoken).slice(0,480));
@@ -2529,6 +2546,29 @@ async function boot(){
   $('dotsEnabledChk').addEventListener('change', () => { cfg.dotsEnabled=$('dotsEnabledChk').checked; renderDots(); scheduleDots(350); });
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
   $('dotsIntervalSel').addEventListener('change', () => { cfg.dotsInterval=Math.max(60000,Number($('dotsIntervalSel').value)||120000); scheduleDots(); renderDots(); });
+  $('foodMapsBtn').addEventListener('click',()=>{
+    window.RONKnowledge?.open();
+    $('foodQuery').focus();
+  });
+  $('foodSearchBtn').addEventListener('click',async()=>{
+    const button=$('foodSearchBtn'),status=$('foodStatus'),out=$('foodResults');
+    const query=$('foodQuery').value.trim(),grams=$('foodGrams').value.trim();
+    const manualCarb100=$('foodCarbs100').value.trim();
+    if(!query && !manualCarb100){status.textContent='Indique un aliment, un code-barres ou la valeur de l’étiquette.';return;}
+    const parsed=query?window.RONFood?.parse(query):null;
+    const req={kind:'food',query,grams,manualCarb100,code:parsed?.code||null};
+    button.disabled=true;status.textContent=manualCarb100?'Calcul local à partir de l’étiquette…':'Recherche nutritionnelle mondiale…';
+    out.replaceChildren();
+    try{
+      const result=await window.RONFood.answer(req);
+      status.textContent=result.manual?'Calcul exact sur les valeurs que tu as saisies ; étiquette non vérifiée.':'Résultats Open Food Facts : vérifie le nom, la marque et le code-barres.';
+      if(window.marked&&window.DOMPurify){
+        out.innerHTML=window.DOMPurify.sanitize(window.marked.parse(result.text),{ALLOWED_TAGS:['p','br','strong','em','ul','ol','li','a'],ALLOWED_ATTR:['href']});
+        for(const link of out.querySelectorAll('a')){if(!/^https:\/\//.test(link.href)){link.removeAttribute('href');continue;}link.target='_blank';link.rel='noopener noreferrer';}
+      }else out.textContent=result.text;
+    }catch(error){status.textContent='Recherche impossible : '+String(error?.message||error).slice(0,230);}
+    finally{button.disabled=false;}
+  });
   $('knowledgeNetBtn').addEventListener('click',async()=>{
     const field=$('knowledgeNetSearch'),button=$('knowledgeNetBtn'),status=$('knowledgeNetStatus'),out=$('knowledgeNetResults');
     const query=field.value.trim();
