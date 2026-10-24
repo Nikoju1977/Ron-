@@ -49,15 +49,17 @@ function parse(text){
  // Personal, sensitive and open-ended prompts are never sent automatically.
  const privateContext=/\b(je|j ai|j'ai|moi|mon|ma|mes|notre|nos|ton|ta|tes|tu|vous|j aimerais|j'aimerais)\b/.test(n);
  const bibliographic=/\b(quel(?:s|le|les)? livres?|ouvrages?|bibliographie|isbn|livres? de|romans? de|qui a ecrit (?:le |la |les )?(?:livre|roman))\b/.test(n);
- if(!privateContext&&bibliographic&&(/^(?:ron[, ]*)?(?:qui|quel|quels|quelle|quelles|recherche|cherche|trouve|liste|montre|donne|cite|parle|livres?|romans?|bibliographie)/.test(n)||/\?$/.test(raw)))
-   return {kind:'books',query:clean(raw.replace(/^(?:ron[, ]*)?(?:quels? sont|quels? sont les|cherche|trouve|liste|montre|donne[- ]moi|parle[- ]moi)\s*/i,'')
-    .replace(/\b(?:les |des |de |du )?(?:livres?|romans?|ouvrages?|bibliographie|isbn)\b/gi,' '),140).trim()||raw};
+ if(!privateContext&&bibliographic&&(/^(?:ron[, ]*)?(?:qui|quel|quels|quelle|quelles|recherche|cherche|trouve|liste|montre|donne|cite|parle|livres?|romans?|bibliographie)/.test(n)||/\?$/.test(raw))){
+   const query=clean(raw.replace(/^(?:ron[, ]*)?(?:(?:quels?|quelles?) (?:sont )?(?:les )?(?:livres?|romans?|ouvrages?)(?: ecrits?)? (?:de|par)|(?:cherche|trouve|liste|montre|donne[- ]moi|parle[- ]moi)(?:\s+(?:les|des|du|de))?|(?:livres?|romans?|ouvrages?|bibliographie)(?:\s+de)?)\s*/iu,'')
+    .replace(/\b(?:les |des |de |du )?(?:livres?|romans?|ouvrages?|bibliographie|isbn)\b/gi,' ').replace(/[?!]+$/,'').trim(),140);
+   return {kind:'books',query:query||raw};
+  }
  if(!privateContext&&n.length>=8&&n.length<=190){
   const factual=/^(?:ron[, ]*)?(?:(?:qui|que|quoi|quand|ou|où|lequel|laquelle|lesquels|lesquelles) (?:est|etait|sont|a |ont |se trouve|a cree|a invente)|qu.est.ce que|c.est quoi|(?:quelle|quel|quelles|quels) (?:est|sont|a ete|ont ete)|en quelle annee|pourquoi (?:le|la|les|un|une|des|est|a|sont)|comment (?:fonctionne|se forme|s.appelle|marche)|(?:explique|definis|decris|raconte|presente)(?: moi)?\b)/.test(n);
   if(factual){
    let query=raw.replace(/^(?:ron[, ]*)?(?:qu.est.ce que(?: c.est)?|c.est quoi|qui (?:est|etait|sont)|(?:où|ou) (?:est|se trouve|sont)|(?:comment) (?:fonctionne|marche)|(?:explique|définis|décris|raconte|présente)(?:[- ]moi)?|(?:quelle|quel|quelles|quels) (?:est|sont)|(?:en )?quelle année|pourquoi)\s*/iu,'');
    query=clean(query.replace(/[?!]+$/g,'').replace(/^(?:le|la|les|l'|un|une)\s+/i,''),160);
-   if(query.length>=3)return {kind:'wiki',query,automatic:true};
+   if(query.length>=3&&!/^(?:ron|toi|moi|l.application ron)$/i.test(norm(query)))return {kind:'wiki',query,automatic:true};
   }
  }
  return null;
