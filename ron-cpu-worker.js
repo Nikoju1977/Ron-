@@ -1,7 +1,8 @@
 /* RON CPU inference worker. Local user text stays on device; only public runtime
    and model weights are downloaded. Blocking ONNX work never runs on the UI thread. */
 'use strict';
-const MODULE='https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm';
+// Tested upstream combination for the plain WASM CPU kernel fix.
+const MODULE='https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1/+esm';
 // Gemma q4f16 has a ~426 MB ONNX data file (plus the runtime/tokenizer).
 // WebAssembly requires the plain ONNX Runtime build for its quantized embedding op.
 const MODEL='onnx-community/gemma-3-270m-it-ONNX';
