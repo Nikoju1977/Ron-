@@ -90,9 +90,11 @@ function instantFrenchReply(messages){
  const last=[...messages].reverse().find(m=>m?.role==='user');
  if(!last)return null;
  const question=String(last.content||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-  .toLowerCase().trim().replace(/[\s?!.,]+$/g,'');
- // Stable factual capability question: no need to invoke 0.5B parameters.
- if(/^(?:tu |est-ce que tu |ron,? )?(?:peux|sais)(?:-tu)? (?:parler|repondre) (?:en )?francais$/.test(question))
+  .toLowerCase().trim().replace(/[?!.,;:…\s]+$/g,'')
+  .replace(/^ron(?:[\s,:;-]+|$)/,'').trim().replace(/\s+/g,' ');
+ // Answer a stable capability question instantly instead of launching ONNX.
+ // Accept natural French word order, including Android speech-to-text without hyphens.
+ if(/^(?:(?:est[- ]ce que )?tu )?(?:peux|sais)(?:[- ]tu)?(?: me)? (?:parler|repondre) (?:en )?francais$/.test(question))
   return 'Oui, je peux te répondre en français. Que veux-tu savoir ?';
  return null;
 }
