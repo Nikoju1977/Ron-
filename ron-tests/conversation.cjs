@@ -36,6 +36,7 @@ change('careRemember',false);await E('careWrites');assert.equal(await E("safeSto
 E("cfg.provider='custom';cfg.endpoint='http://localhost';cfg.model='mock';cfg.agentMode='direct';");
 click('careShare');await until(()=>calls.length===1&&E("state==='idle'"));
 assert(calls[0].messages.some(m=>m.content.includes('Test privé')));
+assert(calls[0].messages[0].content.includes('Langue de réponse obligatoire : français'),'All configured LLM providers must receive French policy');
 await msg('Parlons cinéma');assert(!calls[1].messages.some(m=>m.content.includes('Test privé')));
 d.querySelector('[data-mode=studio]').click();await msg('Une idée de cadre');assert(calls[2].messages[0].content.includes('Accompagne Niko dans son travail de réalisateur'));
 click('micBtn');await until(()=>E("recMode==='ptt'"));let r=w.__rec.at(-1);let a=[{transcript:'Je prends mon temps'}];a.isFinal=true;r.onresult({resultIndex:0,results:[a]});
