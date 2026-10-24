@@ -38,7 +38,7 @@ async function main(){
  assert.equal(dom.window.eval('cfg.agentMode'),'direct');
  assert.equal(d.getElementById('providerSel').value,'browser');
  assert.equal(d.getElementById('keyIn').disabled,true);
- assert.equal(calls.length,3,'Only loopback probing allowed, never paid cloud endpoints');
+ assert.equal(calls.length,4,'Only loopback probing allowed, never paid cloud endpoints');
  d.getElementById('textIn').value='Bonjour RON';
  d.getElementById('sendBtn').click();
  await until(()=>d.getElementById('ronLine').textContent.includes('Bonjour, bienvenue !'));

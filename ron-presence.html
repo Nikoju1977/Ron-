@@ -260,6 +260,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
       <option value="ollama">Ollama local</option>
       <option value="lmstudio">LM Studio local</option>
       <option value="vllm">vLLM local / serveur</option>
+      <option value="llamacpp">llama.cpp · serveur local open source</option>
       <option value="custom">API OpenAI-compatible personnalisée</option>
     </select>
   </div>
@@ -397,7 +398,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   <div class="knowledge-form"><label for="knowledgeGithub">Connecteur GitHub · dépôt public (owner/repo)</label><input id="knowledgeGithub" type="text" placeholder="Nikoju1977/Ron-" autocomplete="off"><button class="btn ghost" id="knowledgeGithubBtn" type="button">Importer README</button></div>
   <div class="knowledge-form"><label for="knowledgeWiki">Connecteur Wikipédia · encyclopédie française</label><input id="knowledgeWiki" type="search" placeholder="Recherche encyclopédique"><button class="btn ghost" id="knowledgeWikiBtn" type="button">Importer un résumé</button></div>
   <div class="knowledge-form">
-    <label for="knowledgeNetSearch">Rechercher sur Internet · météo, encyclopédie, études scientifiques, GitHub</label>
+    <label for="knowledgeNetSearch">Questions et sources gratuites · météo, connaissances, livres, science, GitHub</label>
     <input id="knowledgeNetSearch" type="search" autocomplete="off" maxlength="220" placeholder="Ex. météo demain à Nantes · recherches scientifiques sur les mitochondries">
     <button class="btn" type="button" id="knowledgeNetBtn">Rechercher en ligne (sans clé)</button>
     <p class="hint">Les résultats sont consultés en direct et ne sont pas enregistrés dans ton carnet. Les mots de la recherche sont transmis uniquement au service choisi ; ta position météo exige l’autorisation du navigateur.</p>
@@ -417,6 +418,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
 <script src="./ron-net.js"></script>
+<script src="./ron-agent-hub.js"></script>
 <script src="./ron-updater.js"></script>
 <script src="./ron-browser-ai.js"></script>
 <script>
@@ -551,6 +553,7 @@ const PROVIDERS = {
   ollama: { endpoint: 'http://localhost:11434/v1', model: 'qwen3.5:4b', needsKey: false },
   lmstudio: { endpoint: 'http://localhost:1234/v1', model: 'local-model', needsKey: false },
   vllm: { endpoint: 'http://localhost:8000/v1', model: 'Qwen/Qwen3-14B', needsKey: false },
+  llamacpp: { endpoint:'http://localhost:8080/v1', model:'local-model', needsKey:false },
   custom: { endpoint: 'http://localhost:8000/v1', model: '', needsKey: false }
 };
 
@@ -930,7 +933,7 @@ function enforceNoPaid(provider,endpoint,model,enabled=cfg.noPaid){
   let url;try{url=new URL(endpoint);}catch(e){throw Error('Adresse du moteur invalide.');}
   if(provider==='browser' && endpoint==='browser://local' && window.RONBrowserAI?.MODEL_IDS.has(model))return;
   const isLocal=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
-  if(isLocal && ['ollama','lmstudio','vllm','custom'].includes(provider))return;
+  if(isLocal && ['ollama','lmstudio','vllm','llamacpp','custom'].includes(provider))return;
   if(provider==='openrouter' && url.origin==='https://openrouter.ai' && (model==='openrouter/free'||String(model).endsWith(':free')||isFreeModelId(model,engineScope(provider,endpoint))))return;
   throw Error('Mode zéro euro actif : seuls Ollama/local sur cet appareil et les modèles OpenRouter explicitement gratuits sont autorisés. Aucun appel payant envoyé.');
 }
@@ -1575,9 +1578,9 @@ async function handleUser(text, careContext = ''){
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
-  // Explicit live-data requests bypass the LLM entirely: a tiny offline model
+  // Specialized public-source agents use verified tools before any LLM: a tiny offline model
   // cannot invent tomorrow's weather, scientific records or current GitHub data.
-  const netRequest=window.RONNet?.parse(text);
+  const netRequest=window.RONAgentHub?.plan?.(text)?.request||window.RONNet?.parse(text);
   if(netRequest){
     // The missing-model diagnostic may leave Settings open over the chat.
     // Close it for an explicit live lookup: Internet connectors do not need an LLM.
@@ -1586,28 +1589,34 @@ async function handleUser(text, careContext = ''){
     unlockSpeech();stopRec();stopSpeaking();
     $('youLine').textContent=text;$('ronLine').textContent='';
     setState('thinking');setThinkingDetail('RON consulte une source Internet vérifiable…');
-    $('connectionHint').textContent='Connexion au service public : '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[netRequest.kind]||'Internet')+'…';
+    $('connectionHint').textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'le calcul local',clock:'l’horloge de ton appareil'}[netRequest.kind]||'une source publique')+'…';
     try{
-      const result=await window.RONNet.answer(netRequest,{signal:ctrl.signal});
+      const result=await window.RONAgentHub.run(text,{
+        signal:ctrl.signal,
+        allowSynthesis:cfg.agentMode!=='direct' && ['ollama','llamacpp','vllm'].includes(cfg.provider)
+         && cfg.noPaid===true && cfg.model && cfg.endpoint && localEngineReady!==false,
+        summarize:async messages=>chatOnce(messages,0.1,450,{turn:thisTurn,userText:text,role:'final'}),
+        onStep:(phase,message)=>{if(thisTurn===turnId){setThinkingDetail('RON · '+message);}}
+      });
       if(thisTurn!==turnId||ctrl.signal.aborted)return;
       renderRonAnswer(result.text);
       history.push({role:'user',content:text},{role:'assistant',content:result.text});
       if(history.length>40)history.splice(0,history.length-40);
-      $('connectionHint').textContent='Résultat Internet consulté · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[result.kind]||'source publique')+' · sans clé API.';
+      $('connectionHint').textContent='Réponse '+(['math','clock'].includes(result.kind)?'calculée sur ton appareil':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'Calcul',clock:'Horloge'}[result.kind]||'RON')+'.';
       streamDone=true;
       const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
       enqueueSpeech(String(spoken).slice(0,480));
       if(!speakingNow)onSpeechDrained();
     }catch(error){
       if(thisTurn!==turnId||ctrl.signal.aborted)return;
-      const message='Recherche Internet indisponible : '+String(error?.message||error).slice(0,230);
+      const message='Réponse vérifiable indisponible : '+String(error?.message||error).slice(0,230);
       $('ronLine').textContent=message;
-      $('connectionHint').textContent='Les données météo et Web ne sont pas inventées si la connexion échoue.';
+      $('connectionHint').textContent='RON n’invente pas de réponse lorsqu’une source manque ou qu’un calcul échoue.';
       $('textIn').value=text;setState('idle');
     }finally{if(netController===ctrl)netController=null;}
     return;
   }
-  if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','browser'].includes(cfg.provider)){
+  if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','llamacpp','browser'].includes(cfg.provider)){
     $('textIn').value=text;
     $('ronLine').textContent=cfg.provider==='browser' ? 'Aucun modèle IA compatible avec ce navigateur n’a été trouvé. RON ne peut pas générer de réponse sans moteur. Essaie Chrome avec IA intégrée, un navigateur WebGPU compatible, ou un serveur local accessible. Aucune clé ni dépense exigée pour la détection.' : 'RON fonctionne, mais aucun moteur IA local ne répond sur cet appareil. Sur téléphone, localhost ne désigne pas ton ordinateur. RON peut aussi utiliser une IA native Chrome, WebGPU ou une IA locale compatible.';
     $('connectionHint').textContent='Interface disponible · IA non connectée. Ouvre Réglages pour choisir un moteur gratuit.';
@@ -1708,7 +1717,7 @@ function setState(s, detail){
     error: detail || 'Erreur'
   };
   if (s === 'idle'){
-    el.textContent = (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','browser'].includes(cfg.provider)) ? 'IA locale absente · ouvre Réglages'
+    el.textContent = (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','llamacpp','browser'].includes(cfg.provider)) ? 'IA locale absente · ouvre Réglages'
       : (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) ? 'Configure le moteur LLM pour commencer'
       : (cfg.wake && SR && !wakePaused) ? 'Dis « Ron » ou touche le micro'
       : SR ? 'Touche le micro ou écris' : 'Écris ton message';
@@ -2263,11 +2272,12 @@ function showEngineHelp(){
     ollama:'Ollama doit être installé et lancé sur l’appareil visé. localhost désigne cet appareil, pas ton ordinateur depuis ton téléphone. Télécharge d’abord un modèle, puis actualise le catalogue.',
     lmstudio:'LM Studio : démarre le serveur local et charge un modèle. Cette application est un outil local distinct ; elle n’est pas présentée comme un logiciel open source.',
     vllm:'vLLM : serveur open source à installer sur une machine adaptée. Connecte son API compatible et charge le catalogue.',
+    llamacpp:'llama.cpp (ggml-org) : serveur open source de modèles GGUF compatible API OpenAI, sur ton ordinateur local. Démarre llama-server avec un modèle chargé et vérifie http://localhost:8080/v1/models. La PWA sur smartphone ne voit pas directement le localhost du PC.',
     custom:'API compatible : indique l’URL exacte et la clé de ce serveur. Sur une page HTTPS, l’accès au réseau local dépend des autorisations et du navigateur.'
   };
   $('engineHelp').textContent=help[provider]||'';
   $('freeOnlyRow').hidden=provider!=='openrouter';
-  $('localGuide').hidden=!['ollama','lmstudio','vllm','custom'].includes(provider);
+  $('localGuide').hidden=!['ollama','lmstudio','vllm','llamacpp','custom'].includes(provider);
   $('endpointIn').readOnly=provider==='browser';
   $('keyIn').disabled=provider==='browser';
   $('refreshModelsBtn').disabled=provider==='browser';
@@ -2299,7 +2309,7 @@ async function autoConfigure(mode='startup'){
  const btn=$('autoDetectBtn'),token=++autoProbeToken,revision=draftRevision;
  if(mode==='startup'&&!cfg.autoEngine)return;
  if(btn)btn.disabled=true;
- autoStatus('RON recherche un moteur IA déjà installé sur cet appareil (Ollama, LM Studio, vLLM)…');
+ autoStatus('RON recherche Ollama, LM Studio, vLLM et llama.cpp sur localhost…');
  let report;
  try{
   // Browsers enforce CORS, mixed-content, private-network and permissions.
@@ -2515,8 +2525,8 @@ async function boot(){
     const field=$('knowledgeNetSearch'),button=$('knowledgeNetBtn'),status=$('knowledgeNetStatus'),out=$('knowledgeNetResults');
     const query=field.value.trim();
     if(!query){status.textContent='Écris un sujet ou une question à rechercher.';return;}
-    const task=window.RONNet?.parse(query)||{kind:'wiki',query};
-    button.disabled=true;status.textContent='RON interroge '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[task.kind]||'la source publique')+'…';
+    const task=window.RONAgentHub?.plan?.(query)?.request||window.RONNet?.parse(query)||{kind:'wiki',query};
+    button.disabled=true;status.textContent='RON consulte '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',math:'la calculatrice locale',clock:'l’horloge locale'}[task.kind]||'la source publique')+'…';
     out.replaceChildren();
     try{
       const result=await window.RONNet.answer(task);

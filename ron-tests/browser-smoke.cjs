@@ -88,6 +88,8 @@ async function main(){
   await page.locator('#knowledgeNetSearch').fill('météo demain à Nantes');
   await page.locator('#knowledgeNetBtn').click();
   await page.waitForFunction(()=>document.getElementById('knowledgeNetResults')?.textContent?.includes('Prévision pour Nantes, France'),null,{timeout:7500});
+  const specialist=await page.evaluate(()=>window.RONAgentHub?.plan('cherche des études scientifiques sur les mitochondries')?.specialist?.name);
+  assert.equal(specialist,'Agent scientifique','Specialist router loaded in published Chrome app');
   assert.deepEqual(exceptions,[],'No browser exceptions from live no-key weather integration');
   // Also prove the no-key Chrome Prompt API path works in a real browser.
   const nativePage=await context.newPage(),nativeErrors=[];

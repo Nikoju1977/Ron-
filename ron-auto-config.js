@@ -5,7 +5,8 @@
 const ENGINES=[
  {provider:'ollama',endpoint:'http://localhost:11434/v1',priority:0},
  {provider:'lmstudio',endpoint:'http://localhost:1234/v1',priority:1},
- {provider:'vllm',endpoint:'http://localhost:8000/v1',priority:2}
+ {provider:'vllm',endpoint:'http://localhost:8000/v1',priority:2},
+ {provider:'llamacpp',endpoint:'http://localhost:8080/v1',priority:3}
 ];
 const BAD_MODEL=/(?:embed|embedding|rerank|whisper|transcrib|moderation|speech|audio|tts|ocr|vision-encoder)/i;
 const MODEL_ID=/^[\w./:+-]{1,180}$/;

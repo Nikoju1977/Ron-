@@ -10,7 +10,9 @@ async function main(){
   'api.openalex.org':{results:[{id:'https://openalex.org/W123',title:'A scientific paper',
    publication_year:2025,doi:'https://doi.org/10.1234/test',primary_location:{source:{display_name:'Test Journal'}}}]},
   'api.github.com':{full_name:'Nikoju1977/Ron-',html_url:'https://github.com/Nikoju1977/Ron-',
-   description:'Assistant personnel',stargazers_count:1,updated_at:'2026-10-24T00:00:00Z'}
+   description:'Assistant personnel',stargazers_count:1,updated_at:'2026-10-24T00:00:00Z'},
+  'openlibrary.org':{docs:[{key:'/works/OL27448W',title:'Le Seigneur des anneaux',
+   author_name:['J. R. R. Tolkien'],first_publish_year:1954}]}
  };
  const fetcher=async(url,opts)=>{
   const u=new URL(url);
@@ -33,6 +35,16 @@ async function main(){
  assert.equal(net.parse('Météo demain à Nantes').kind,'weather');
  assert.equal(net.parse('je ne me sens pas bien'),null,'Private chats must not be transmitted');
  assert.equal(net.parse('mes fichiers personnels'),null);
+ assert.equal(net.parse('Peux-tu m’écouter ?'),null,'Personal dialogue stays local');
+ assert.equal(net.parse('Je me demande qui je suis'),null,'Private self-exploration never sent to Internet');
+ assert.equal(net.parse('Qui est Marie Curie ?').kind,'wiki');
+ assert.equal(net.parse('Qui est Marie Curie ?').query,'Marie Curie');
+ assert.equal(net.parse('Qu’est-ce que la photosynthèse ?').kind,'wiki');
+ assert.equal(net.parse('Comment fonctionne un moteur électrique ?').kind,'wiki');
+ assert.equal(net.parse('Quels livres de Tolkien ?').kind,'books');
+ assert.equal(net.parse('calcule 12 × (3 + 5)').kind,'math');
+ assert.equal(net.parse('combien font 19 + 23 ?').kind,'math');
+ assert.equal(net.parse('quelle heure est-il ?').kind,'clock');
  assert.equal(net.parse('cherche des études scientifiques sur les mitochondries').kind,'science');
  assert.equal(net.parse('Cherche sur Wikipédia la physique quantique').kind,'wiki');
  assert.equal(net.parse('regarde GitHub Nikoju1977/Ron-').kind,'github');
@@ -62,11 +74,30 @@ async function main(){
  assert.match(wiki.text,/fr.wikipedia.org/);
  const sci=await net.answer(net.parse('cherche des études scientifiques sur les mitochondries'),{fetcher});
  assert.equal(sci.kind,'science');assert.match(sci.text,/Test Journal/);assert.match(sci.text,/doi.org/);
+ const fact=await net.answer(net.parse('Qui est Marie Curie ?'),{fetcher});
+ assert.equal(fact.kind,'wiki');
+ assert.match(fact.text,/Physique quantique/);
+ assert.match(fact.text,/Source/);
+ assert.equal(fact.sources.length,1,'Factual summary is backed by an explicit source');
+ const book=await net.answer(net.parse('Quels livres de Tolkien ?'),{fetcher});
+ assert.equal(book.kind,'books');
+ assert.match(book.text,/Seigneur des anneaux/);
+ assert.match(book.text,/1954/);
+ assert.equal(book.sources[0],'https://openlibrary.org/works/OL27448W');
+ const arith=await net.answer(net.parse('calcule 12 × (3 + 5)'),{fetcher});
+ assert.equal(arith.kind,'math');assert.match(arith.text,/96/);
+ const sum=await net.answer(net.parse('combien font 19 + 23 ?'),{fetcher});
+ assert.match(sum.text,/42/);
+ assert.match((await net.answer(net.parse('calcule 5 / 2'),{fetcher})).text,/2,5/);
+ await assert.rejects(()=>net.answer({kind:'math',expression:'1/0'},{fetcher}),/Division par zéro/);
+ await assert.rejects(()=>net.answer({kind:'math',expression:'1+process.exit(0)'},{fetcher}),/non reconnue|invalide/);
+ const clock=await net.answer(net.parse('quelle heure est-il ?'),{fetcher});
+ assert.equal(clock.kind,'clock');assert.match(clock.text,/horloge/);
  const gh=await net.answer(net.parse('regarde GitHub Nikoju1977/Ron-'),{fetcher});
  assert.equal(gh.kind,'github');assert.match(gh.text,/Nikoju1977/);assert.match(gh.text,/github.com/);
- assert(calls.every(c=>['api.open-meteo.com','geocoding-api.open-meteo.com','fr.wikipedia.org','api.openalex.org','api.github.com'].includes(c.host)));
+ assert(calls.every(c=>['api.open-meteo.com','geocoding-api.open-meteo.com','fr.wikipedia.org','api.openalex.org','api.github.com','openlibrary.org'].includes(c.host)));
  const ctrl=new AbortController();ctrl.abort();
  await assert.rejects(()=>net.answer({kind:'weather',day:1,city:'Nantes'},{fetcher,signal:ctrl.signal}),/annulée/);
- console.log(JSON.stringify({passed:true,suite:'net',checks:29,hosts:[...new Set(calls.map(c=>c.host))],paidRequests:0,geoPermissionRequestedOnce:true}));
+ console.log(JSON.stringify({passed:true,suite:'net',checks:51,hosts:[...new Set(calls.map(c=>c.host))],paidRequests:0,geoPermissionRequestedOnce:true}));
 }
 main().catch(error=>{console.error(error);process.exit(1);});

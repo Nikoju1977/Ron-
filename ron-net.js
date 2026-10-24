@@ -18,6 +18,12 @@ function parse(text){
  // Only deliberate requests for a sourced synthesis may send public extracts
  // into an LLM. A normal personal conversation never triggers external search.
  const synthesize=/\b(synthetise|synthese|analyse|analyser|compare|comparaison|expertise|rapport)\b/.test(n);
+ // Arithmetic is local and deterministic; no model, network or eval.
+ const expression=raw.match(/^(?:ron[, ]*)?(?:(?:combien (?:font|fait)|calcule|calculer|effectue|résous|resous)\s*:?\s*)([0-9.,+\-*/^×÷()%\s]{3,100})\s*\??$/iu);
+ if(expression)return {kind:'math',expression:expression[1].trim().replace(/\?$/,'').trim()};
+ if(/^(?:(?:quelle|quel) (?:est )?(?:la )?(?:date|heure) (?:actuelle|d.aujourd.hui)?|(?:on est quel jour|il est quelle heure|quelle heure est.il|quelle heure est-il|quelle date sommes-nous))\s*[?!.,]*$/i.test(n))
+  return {kind:'clock'};
+
  if(/\b(meteo|temps (?:fera|fait|va faire)|temperature|pleuvra|pluie demain|previsions? meteo|quel temps)\b/.test(n)){
   const day=/\b(demain|demain matin|tomorrow)\b/.test(n)?1:0;
   const m=raw.match(/(?:^|\s)(?:à|a|sur|pour|dans)\s+([\p{L}][\p{L}\p{M}' -]{0,68}?)(?:\s*[?!.,;:]|$)/iu);
@@ -36,6 +42,25 @@ function parse(text){
   const query=clean(raw.replace(/^(?:ron[, ]*)?(?:peux[- ]tu\s+)?(?:cherche|recherche|trouve|dis[- ]moi|donne[- ]moi)\s*/i,'')
    .replace(/\b(sur (?:internet|le web|le net)|en ligne|wikip[eé]dia|recherche|internet)\b/gi,' '),180);
   return {kind:'wiki',synthesize,query:query||raw};
+ }
+
+ // First-class information questions: RON retrieves actual references rather
+ // than asking a 270M parameter offline model to guess external facts.
+ // Personal, sensitive and open-ended prompts are never sent automatically.
+ const privateContext=/\b(je|j ai|j'ai|moi|mon|ma|mes|notre|nos|ton|ta|tes|tu|vous|j aimerais|j'aimerais)\b/.test(n);
+ const bibliographic=/\b(quel(?:s|le|les)? livres?|ouvrages?|bibliographie|isbn|livres? de|romans? de|qui a ecrit (?:le |la |les )?(?:livre|roman))\b/.test(n);
+ if(!privateContext&&bibliographic&&(/^(?:ron[, ]*)?(?:qui|quel|quels|quelle|quelles|recherche|cherche|trouve|liste|montre|donne|cite|parle|livres?|romans?|bibliographie)/.test(n)||/\?$/.test(raw))){
+   const query=clean(raw.replace(/^(?:ron[, ]*)?(?:(?:quels?|quelles?) (?:sont )?(?:les )?(?:livres?|romans?|ouvrages?)(?: ecrits?)? (?:de|par)|(?:cherche|trouve|liste|montre|donne[- ]moi|parle[- ]moi)(?:\s+(?:les|des|du|de))?|(?:livres?|romans?|ouvrages?|bibliographie)(?:\s+de)?)\s*/iu,'')
+    .replace(/\b(?:les |des |de |du )?(?:livres?|romans?|ouvrages?|bibliographie|isbn)\b/gi,' ').replace(/[?!]+$/,'').trim(),140);
+   return {kind:'books',query:query||raw};
+  }
+ if(!privateContext&&n.length>=8&&n.length<=190){
+  const factual=/^(?:ron[, ]*)?(?:(?:qui|que|quoi|quand|ou|où|lequel|laquelle|lesquels|lesquelles) (?:est|etait|sont|a |ont |se trouve|a cree|a invente)|qu.est.ce que|c.est quoi|(?:quelle|quel|quelles|quels) (?:est|sont|a ete|ont ete)|en quelle annee|pourquoi (?:le|la|les|un|une|des|est|a|sont)|comment (?:fonctionne|se forme|s.appelle|marche)|(?:explique|definis|decris|raconte|presente)(?: moi)?\b)/.test(n);
+  if(factual){
+   let query=raw.replace(/^(?:ron[, ]*)?(?:qu.est.ce que(?: c.est)?|c.est quoi|qui (?:est|etait|sont)|(?:où|ou) (?:est|se trouve|sont)|(?:comment) (?:fonctionne|marche)|(?:explique|définis|décris|raconte|présente)(?:[- ]moi)?|(?:quelle|quel|quelles|quels) (?:est|sont)|(?:en )?quelle année|pourquoi)\s*/iu,'');
+   query=clean(query.replace(/[?!]+$/g,'').replace(/^(?:le|la|les|l'|un|une)\s+/i,''),160);
+   if(query.length>=3&&!/^(?:ron|toi|moi|l.application ron)$/i.test(norm(query)))return {kind:'wiki',query,automatic:true};
+  }
  }
  return null;
 }
@@ -111,7 +136,15 @@ async function wiki(request,opts){
  const params=new URLSearchParams({action:'query',generator:'search',gsrsearch:term,gsrlimit:'4',prop:'extracts',exintro:'1',explaintext:'1',exlimit:'4',format:'json',origin:'*'});
  const data=await json('https://fr.wikipedia.org/w/api.php?'+params,opts);
  const pages=Object.values(data?.query?.pages||{}).filter(p=>p?.extract&&p?.title).slice(0,3);
- if(!pages.length)throw Error('Aucun résultat encyclopédique fiable trouvé pour cette recherche.');
+ if(!pages.length)throw Error('Aucun résultat encyclopédique trouvé. Reformule avec le nom précis du sujet.');
+ if(request.automatic){
+  const first=pages[0],href='https://fr.wikipedia.org/wiki/'+encodeURIComponent(first.title.replace(/ /g,'_'));
+  const text=clean(first.extract,900);
+  if(!text)throw Error('La source ne contient pas de réponse exploitable.');
+  return {kind:'wiki',text:'**'+md(first.title)+'** — '+md(text)+
+   '\n\n**Source :** [Wikipédia en français]('+href+'). Résumé encyclopédique à vérifier ; ne garantit pas une information en temps réel.',
+   spoken:text.slice(0,550),sources:[href]};
+ }
  const lines=pages.map(p=>{
   const href='https://fr.wikipedia.org/wiki/'+encodeURIComponent(p.title.replace(/ /g,'_'));
   return '**['+md(p.title)+']('+href+')** — '+md(clean(p.extract,430));
@@ -154,7 +187,79 @@ async function github(request,opts){
  if(!lines.length)throw Error('Aucun résultat GitHub public valide.');
  return {kind:'github',text:'**GitHub public :**\n\n'+lines.join('\n\n')+'\n\nDonnées : API publique GitHub, sans authentification.',sources:results.map(x=>urlOf(x.html_url,['github.com'])).filter(Boolean)};
 }
+function mathAnswer(request){
+ const src=String(request.expression||'').replace(/×/g,'*').replace(/÷/g,'/').replace(/,/g,'.').replace(/\s+/g,'');
+ if(src.length>110||!/^[\d.+\-*/^()%]+$/.test(src))throw Error('Expression mathématique non reconnue.');
+ let i=0,level=0;
+ const peek=()=>src[i];
+ const read=()=>{
+  const start=i;
+  while(i<src.length&&/[\d.]/.test(src[i]))i++;
+  const value=Number(src.slice(start,i));
+  if(i===start||!Number.isFinite(value)||src.slice(start,i).split('.').length>2)throw Error('Nombre invalide.');
+  return value;
+ };
+ const primary=()=>{
+  if(++level>20)throw Error('Expression trop complexe.');
+  let sign=1;
+  while(peek()==='-'||peek()==='+'){if(src[i++]==='-')sign=-sign;}
+  let v;
+  if(peek()==='('){i++;v=sum();if(peek()!==')')throw Error('Parenthèses déséquilibrées.');i++;}
+  else v=read();
+  while(peek()==='%'){i++;v/=100;}
+  if(peek()==='^'){i++;const exponent=primary();if(Math.abs(exponent)>20)throw Error('Puissance trop élevée.');v=Math.pow(v,exponent);}
+  level--;return sign*v;
+ };
+ const product=()=>{
+  let v=primary();
+  while(peek()==='*'||peek()==='/'){
+   const op=src[i++],w=primary();
+   if(op==='/'&&w===0)throw Error('Division par zéro.');
+   v=op==='*'?v*w:v/w;
+  }
+  return v;
+ };
+ const sum=()=>{
+  let v=product();
+  while(peek()==='+'||peek()==='-'){
+   const op=src[i++],w=product();v=op==='+'?v+w:v-w;
+  }
+  return v;
+ };
+ const result=sum();
+ if(i!==src.length||!Number.isFinite(result)||Math.abs(result)>1e15)throw Error('Expression invalide ou résultat hors limites.');
+ const value=Number(result.toPrecision(12)).toLocaleString('fr-FR',{maximumFractionDigits:10});
+ return {kind:'math',text:'**Calcul vérifié :** '+md(request.expression)+' = **'+value+'**.',spoken:request.expression+' égale '+value,sources:[]};
+}
+function clockAnswer(){
+ const d=new Date();
+ return {kind:'clock',text:'Selon l’horloge de ton appareil : **'+d.toLocaleString('fr-FR',{dateStyle:'full',timeStyle:'short'})+'**. La précision dépend du réglage de date et de fuseau du téléphone.',sources:[]};
+}
+async function books(request,opts){
+ const term=clean(request.query,140);
+ if(term.length<3)throw Error('Précise un livre, un auteur ou un sujet de lecture.');
+ const q=new URLSearchParams({q:term,limit:'4',lang:'fr',fields:'key,title,author_name,first_publish_year'});
+ const data=await json('https://openlibrary.org/search.json?'+q,opts);
+ const docs=Array.isArray(data?.docs)?data.docs.slice(0,4):[];
+ const lines=[],sources=[];
+ for(const item of docs){
+  const key=String(item?.key||'');
+  if(!/^\/works\/OL\d+W$/.test(key)||!item?.title)continue;
+  const url='https://openlibrary.org'+key;
+  sources.push(url);
+  const author=Array.isArray(item.author_name)?item.author_name.slice(0,2).map(a=>md(clean(a,80))).join(', '):'auteur non précisé';
+  const year=Number.isInteger(item.first_publish_year)&&item.first_publish_year>1400&&item.first_publish_year<2200
+   ?' — première édition : '+item.first_publish_year:'';
+  lines.push('• **['+md(item.title)+']('+url+')** — '+author+year);
+ }
+ if(!lines.length)throw Error('Aucun livre identifiable trouvé. Précise le titre ou l’auteur.');
+ return {kind:'books',text:'**Livres répertoriés dans Open Library** :\n\n'+lines.join('\n')+
+  '\n\nSource : [Open Library](https://openlibrary.org/) (données bibliographiques, pas une analyse des ouvrages).',
+  sources};
+}
 function specialist(request){
+ if(request?.kind==='books')
+  return 'Tu es un bibliographe. Ne déduis pas le contenu ni le jugement critique des livres depuis les titres ou métadonnées bibliographiques.';
  if(request?.kind==='science')
   return 'Tu es un documentaliste scientifique spécialisé en lecture critique et méthode expérimentale. Les références OpenAlex ne contiennent que des titres et des métadonnées. Ne déduis pas les résultats, causalités, preuves ni consensus du seul titre. Identifie clairement les études à consulter.';
  if(request?.kind==='github')
@@ -164,8 +269,8 @@ function specialist(request){
  return '';
 }
 function evidence(request,result){
- if(!result || !['science','github','wiki'].includes(request?.kind))return null;
- const urls=(result.sources||[]).filter(u=>urlOf(u,['doi.org','openalex.org','github.com','fr.wikipedia.org'])).slice(0,4);
+ if(!result || !['science','github','wiki','books'].includes(request?.kind))return null;
+ const urls=(result.sources||[]).filter(u=>urlOf(u,['doi.org','openalex.org','github.com','fr.wikipedia.org','openlibrary.org'])).slice(0,4);
  if(!urls.length)return null;
  return {
   role:'system',
@@ -175,12 +280,15 @@ function evidence(request,result){
 async function answer(request,opts={}){
  if(!request)return null;
  if(opts.signal?.aborted)throw Error('Recherche annulée.');
- if(!root.navigator?.onLine&&opts.fetcher===undefined)throw Error('Tu es hors connexion. RON ne peut pas consulter les sources Internet.');
+ if(!root.navigator?.onLine&&opts.fetcher===undefined&&!['math','clock'].includes(request.kind))throw Error('Tu es hors connexion. RON ne peut pas consulter les sources Internet.');
+ if(request.kind==='math')return mathAnswer(request);
+ if(request.kind==='clock')return clockAnswer();
  if(request.kind==='weather')return weather(request,opts);
  if(request.kind==='wiki')return wiki(request,opts);
  if(request.kind==='science')return science(request,opts);
  if(request.kind==='github')return github(request,opts);
+ if(request.kind==='books')return books(request,opts);
  return null;
 }
-root.RONNet={parse,answer,weather,wiki,science,github,evidence,specialist};
+root.RONNet={parse,answer,weather,wiki,science,github,books,mathAnswer,clockAnswer,evidence,specialist};
 })(window);
