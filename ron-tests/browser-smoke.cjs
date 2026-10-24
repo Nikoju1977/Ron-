@@ -61,6 +61,9 @@ async function main(){
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('aucun moteur IA local'),null,{timeout:8000});
   assert.equal(await page.locator('#textIn').inputValue(),'Bonjour','Prompt remains available when there is no AI engine');
+  // The no-engine warning intentionally opens Settings. Dismiss it to type a
+  // later live Internet question like a real user would.
+  if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
   assert.deepEqual(exceptions,[],'No uncaught browser script exceptions');
   // A live weather question must bypass unavailable local LLM and call only
   // Open-Meteo public APIs. Use deterministic fixtures, not live network in CI.
