@@ -66,7 +66,19 @@ async function main(){
   await page.locator('#foodCarbs100').fill('');
   await page.locator('#foodQuery').fill('riz');
   await page.locator('#foodSearchBtn').click();
-  await page.waitForFunction(()=>document.querySelector('#foodResults')?.textContent?.includes('42 g de glucides'),null,{timeout:8000});
+  try{
+   await page.waitForFunction(()=>document.querySelector('#foodResults')?.textContent?.includes('42 g de glucides'),null,{timeout:8000});
+  }catch(e){
+   const diag=await page.evaluate(()=>({
+    status:document.querySelector('#foodStatus')?.textContent,
+    results:document.querySelector('#foodResults')?.textContent,
+    query:document.querySelector('#foodQuery')?.value,
+    weight:document.querySelector('#foodGrams')?.value,
+    manual:document.querySelector('#foodCarbs100')?.value,
+    hasFood:!!window.RONFood
+   }));
+   throw Error('iOS Open Food Facts search failed: '+JSON.stringify({diag,requests,errors})+' '+e.message);
+  }
   assert.match(await page.locator('#foodResults').innerText(),/Choisis le bon produit/);
   assert.equal(requests,1,'One explicit worldwide food lookup');
   await page.locator('#knowledgeClose').click();
