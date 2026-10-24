@@ -44,7 +44,7 @@ async function main(){
  assert.equal(net.parse('Que sais-tu de Marie Curie ?').kind,'wiki');
  assert.equal(net.parse('Parle-moi de Marie Curie').kind,'wiki');
  assert.equal(net.parse('Qui a découvert la pénicilline ?').kind,'wiki');
- assert.equal(net.parse('Qui a découvert la pénicilline ?').query,'la pénicilline');
+ assert.equal(net.parse('Qui a découvert la pénicilline ?').query,'pénicilline');
  assert.equal(net.parse('Comment fonctionne ma pompe ?'),null,'Personal context must not be auto-retrieved');
  assert.equal(net.parse('Peux-tu me dire ce que mes analyses signifient ?'),null);
  assert.equal(net.parse('Je cherche des études scientifiques sur mon traitement'),null,'Personal medical query must stay local');
