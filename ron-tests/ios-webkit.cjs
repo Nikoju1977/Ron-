@@ -67,7 +67,7 @@ async function main(){
   });
   assert.equal(requests,0,'Manual food label math stays offline and private');
   await page.locator('#foodCarbs100').fill('');
-  await page.locator('#foodQuery').fill('riz');
+  await page.locator('#foodQuery').fill('riz cuit');
   await page.locator('#foodSearchBtn').click();
   try{
    await page.waitForFunction(()=>document.querySelector('#foodResults')?.textContent?.includes('42 g de glucides'),null,{timeout:8000});
@@ -88,7 +88,11 @@ async function main(){
   if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
   await page.locator('#textIn').fill('150 g de riz ?');
   await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.querySelector('#ronLine')?.textContent?.includes('crus ou cuits'),null,{timeout:6500});
+  await page.locator('#textIn').fill('cuit');
+  await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.querySelector('#ronLine')?.textContent?.includes('42 g de glucides'),null,{timeout:6500});
+  assert.equal(requests,1,'Short iPhone cooked follow-up reuses the verified cached food data');
   // An insulin dose question must never reach any public food API.
   const before=requests;
   await page.locator('#textIn').fill('Quelle dose d’insuline pour 30 g de glucides ?');
