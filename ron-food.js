@@ -59,7 +59,9 @@ function parse(text){
  const explicitLabel=raw.match(/(\d{1,3}(?:[.,]\d{1,2})?)\s*g(?:rammes?)?\s+de\s+glucides\s*(?:pour|\/|par)\s*100\s*g\b/i)
   ||raw.match(/glucides\s*(?:pour|par|\/)\s*100\s*g\s*(?::|=|de|a|à)?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*g?\b/i);
  // Strip the trailing conversational question; preserve the food's name.
- let withoutQuestion=raw.replace(/\s*(?:,|;|\?)?\s*(?:ça fait|ca fait|combien (?:ça|ca|de|des|en)|quel(?:le)? (?:est |sont )?(?:le |la )?(?:taux|quantite|nombre)|tu (?:peux|sais) (?:me )?dire).{0,100}$/iu,'').trim();
+ const firstPortion=raw.search(/\d{1,4}(?:[.,]\d{1,2})?\s*(?:kg|grammes?|g)\b/i);
+ let withoutQuestion=(firstPortion>=0?raw.slice(firstPortion):raw)
+  .replace(/\s*(?:,|;|\?)?\s*(?:ça fait|ca fait|combien (?:ça|ca|de|des|en)|quel(?:le)? (?:est |sont )?(?:le |la )?(?:taux|quantite|nombre)|tu (?:peux|sais) (?:me )?dire).{0,100}$/iu,'').trim();
  // A second numeric quantity describing the *label* must never be parsed as
  // another food portion, nor included in the name of the food.
  if(explicitLabel){
