@@ -7,6 +7,8 @@
 const MAX_STEPS=4;
 const SPECIALISTS=Object.freeze({
  weather:{name:'Agent météo',source:'Open-Meteo',verify:'Date, lieu, unités et prévisions observables'},
+ food:{name:'Food Maps · glucides',source:'Open Food Facts / étiquette saisie',verify:'Glucides par 100 g, poids de la portion, étiquette, cru ou cuit'},
+ type1:{name:'Agent éducatif diabète de type 1',source:'AJD et Assurance Maladie',verify:'Information pédagogique ; jamais de dosage d’insuline'},
  wiki:{name:'Agent encyclopédie',source:'Wikipédia',verify:'Article attribué et contexte encyclopédique'},
  science:{name:'Agent scientifique',source:'OpenAlex',verify:'Métadonnées seulement, jamais déduire les conclusions d’un titre'},
  github:{name:'Agent logiciels libres',source:'GitHub',verify:'Dépôts et métadonnées publics, pas de prétention à un audit'},
@@ -16,7 +18,7 @@ const SPECIALISTS=Object.freeze({
  live:{name:'Agent prudence',source:'Aucun flux direct connecté',verify:'Ne pas présenter de fait récent comme vérifié'}
 });
 function plan(text,net=root.RONNet){
- const request=net?.parse?.(text);
+ const request=root.RONFood?.parse?.(text)||net?.parse?.(text);
  if(!request||!Object.hasOwn(SPECIALISTS,request.kind))return null;
  return {request,specialist:SPECIALISTS[request.kind],steps:['router','source','verify','compose'].slice(0,MAX_STEPS)};
 }
@@ -24,6 +26,8 @@ function plan(text,net=root.RONNet){
 // allowlist. This validates provenance, NOT the truth of every claim in a page.
 const SOURCE_HOSTS=Object.freeze({
  weather:['open-meteo.com'],
+ food:['world.openfoodfacts.org'],
+ type1:['www.ajd-diabete.fr','www.ameli.fr'],
  wiki:['fr.wikipedia.org'],
  science:['doi.org','openalex.org'],
  github:['github.com'],
@@ -41,7 +45,7 @@ function verify(request,result){
   ||typeof result.text!=='string'||!result.text.trim()||result.text.length>12000)
   throw Error('Une source a renvoyé un résultat incomplet.');
  const sources=[...new Set(Array.isArray(result.sources)?result.sources:[])].filter(u=>validUrl(u,result.kind)).slice(0,5);
- if(!['math','clock','live'].includes(result.kind)&&!sources.length)
+ if(!['math','clock','live'].includes(result.kind)&&!(result.kind==='food'&&result.manual===true)&&!sources.length)
   throw Error('Aucune source publique vérifiable n’a été trouvée pour cet agent.');
  // Keep evidence and origin separate. The URL proves where metadata came from,
  // not that an article's assertions or an LLM summary have been fact checked.
@@ -68,7 +72,7 @@ async function run(text,options={}){
  const status=typeof options.onStep==='function'?options.onStep:()=>{};
  status('route',job.specialist.name);
  status('source','Recherche via '+job.specialist.source);
- const raw=await net.answer(job.request,{signal,...(options.connectorOptions||{})});
+ const raw=await (['food','type1'].includes(job.request.kind)?root.RONFood.answer(job.request,{signal,...(options.connectorOptions||{})}):net.answer(job.request,{signal,...(options.connectorOptions||{})}));
  if(signal?.aborted)throw Error('Recherche annulée.');
  status('verify',job.specialist.verify);
  const source=verify(job.request,raw);
@@ -76,7 +80,7 @@ async function run(text,options={}){
  // An optional higher-capacity LLM may summarize explicit public-source
  // requests. Never silently synthesize with a tiny mobile model.
  // The audited source list is appended from verified tool output, not LLM text.
- if(job.request.synthesize===true && options.allowSynthesis===true && typeof options.summarize==='function'
+ if(!['food','type1'].includes(job.request.kind) && job.request.synthesize===true && options.allowSynthesis===true && typeof options.summarize==='function'
    && ['wiki','science','github','books'].includes(job.request.kind)){
   status('compose','Synthèse par le modèle local spécialisé');
   try{

@@ -32,11 +32,14 @@ jobs:
           node --check ron-tests/startup.cjs
           node --check ron-tests/recovery.cjs
           node --check ron-tests/browser-smoke.cjs
+          node --check ron-tests/ios-webkit.cjs
           node --check ron-tests/public-bundle.cjs
           node --check ron-tools/build-pages.cjs
           node --check ron-browser-ai.js
           node --check ron-cpu-worker.js
           node --check ron-net.js
+          node --check ron-food.js
+          node --check ron-tests/food.cjs
           node --check ron-agent-hub.js
           node --check ron-tests/agent-hub.cjs
           node --check ron-updater.js
@@ -52,3 +55,7 @@ jobs:
         run: google-chrome --version
       - name: Check RON UI in a real Chromium browser
         run: node ron-tests/browser-smoke.cjs
+      - name: Install WebKit for iPhone Safari compatibility checks
+        run: cd ron-tests && npx playwright install --with-deps webkit
+      - name: Check RON Food Maps in Apple WebKit (iPhone 13)
+        run: node ron-tests/ios-webkit.cjs

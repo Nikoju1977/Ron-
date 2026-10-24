@@ -1,7 +1,7 @@
 'use strict';
 const RELEASE='development';
 const CACHE='ron-presence-shell-'+RELEASE;
-const shell=['ron-presence.html','ron-angel.svg','ron-presence.webmanifest','ron-icon-192.png','ron-icon-512.png','ron-vendor/marked.js','ron-vendor/purify.min.js','ron-vendor/fuse.basic.min.js','ron-knowledge.js','ron-auto-config.js','ron-browser-ai.js','ron-cpu-worker.js','ron-net.js','ron-agent-hub.js','ron-updater.js','ron-knowledge.css'].map(p=>new URL(p,self.location.href).href);
+const shell=['ron-presence.html','ron-angel.svg','ron-presence.webmanifest','ron-icon-192.png','ron-icon-512.png','ron-vendor/marked.js','ron-vendor/purify.min.js','ron-vendor/fuse.basic.min.js','ron-knowledge.js','ron-auto-config.js','ron-browser-ai.js','ron-cpu-worker.js','ron-net.js','ron-food.js','ron-agent-hub.js','ron-updater.js','ron-knowledge.css'].map(p=>new URL(p,self.location.href).href);
 // An optional resource failure should not prevent the app from installing.
 self.addEventListener('install',event=>event.waitUntil((async()=>{
  const cache=await caches.open(CACHE);
