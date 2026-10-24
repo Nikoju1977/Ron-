@@ -42,7 +42,7 @@ async function main(){
   assert.equal(E('cfg.autoEngine'),true);
   assert.equal($('modelIn').value,'qwen3.5:2b','4 GB device hint chooses smaller installed model');
   assert.match($('autoEngineStatus').textContent,/aucune dépense API/);
-  assert.equal(urls.length,3);
+  assert.equal(urls.length,4);
   assert(urls.every(x=>x.url.startsWith('http://localhost:')&&x.url.endsWith('/v1/models')));
   assert(urls.every(x=>x.options.credentials==='omit'&&!x.options.headers));
   assert.equal(E("RONAutoEngine.rankModels(['qwen3.5:2b','qwen3.5:4b'],{memory:8})[0]"),'qwen3.5:4b');
@@ -74,6 +74,6 @@ async function main(){
   assert.equal($('providerSel').value,'groq','User manual choice must win over outdated scan');
   dom.window.close();
  }
- console.log(JSON.stringify({passed:true,suite:'auto-config',scenarios:3,checks:19,noPaidCloudCalls:true}));
+ console.log(JSON.stringify({passed:true,suite:'auto-config',scenarios:3,checks:22,noPaidCloudCalls:true}));
 }
 main().catch(error=>{console.error(error);process.exit(1)});
