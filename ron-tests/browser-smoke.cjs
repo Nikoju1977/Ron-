@@ -97,17 +97,41 @@ async function main(){
   await page.waitForFunction(()=>document.getElementById('foodResults')?.textContent?.includes('36,8 g de glucides'),null,{timeout:6000});
   await page.route('https://world.openfoodfacts.org/**',route=>route.fulfill({
    status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},
-   body:JSON.stringify({products:[{code:'3017620422003',product_name_fr:'Pâtes test',brands:'Marque test',nutriments:{carbohydrates_100g:70}}]})
+   body:JSON.stringify({products:[{code:'3017620422003',product_name_fr:'Pâtes sèches',brands:'Marque test',nutriments:{carbohydrates_100g:70}},
+    {code:'3245410000005',product_name_fr:'Pâtes cuites',brands:'Autre marque',nutriments:{carbohydrates_100g:23.5}}]})
   }));
   await page.locator('#foodCarbs100').fill('');
-  await page.locator('#foodQuery').fill('pâtes');
+  await page.locator('#foodQuery').fill('pâtes cuites');
   await page.locator('#foodSearchBtn').click();
-  await page.waitForFunction(()=>document.getElementById('foodResults')?.textContent?.includes('105 g de glucides'),null,{timeout:6000});
+  await page.waitForFunction(()=>document.getElementById('foodResults')?.textContent?.includes('35,3 g de glucides'),null,{timeout:6000});
   await page.locator('#knowledgeClose').click();
-  await page.locator('#textIn').fill('150 g de pâtes ?');
+  // Intercept OS speech synthesizer to verify an actual spoken, concise French
+  // carb result (rather than only text on screen or a long product list).
+  await page.evaluate(()=>{
+   window.__foodSpeech=[];
+   if(window.speechSynthesis){
+    window.speechSynthesis.speak=u=>{
+     window.__foodSpeech.push({text:u.text,lang:u.lang});
+     setTimeout(()=>u.onend?.(),10);
+    };
+    window.speechSynthesis.cancel=()=>{};
+   }
+  });
+  await page.locator('#textIn').fill('Ron, 150 grammes de pâtes, combien de glucides ?');
   await page.locator('#sendBtn').click();
-  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('105 g de glucides'),null,{timeout:6000});
-  await page.locator('#textIn').fill("Quelle dose d’insuline pour 30 g de glucides ?");
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('crus ou cuits'),null,{timeout:6000});
+  assert(!/105 g de glucides/.test(await page.locator('#ronLine').innerText()),'Must not invent cooked-vs-dry carbs');
+  await page.locator('#textIn').fill('cuites');
+  await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('35,3 g de glucides'),null,{timeout:6000});
+  await page.waitForFunction(()=>window.__foodSpeech?.some(v=>v.text.includes('35,3 grammes de glucides')),null,{timeout:6000});
+  assert((await page.evaluate(()=>window.__foodSpeech.find(v=>v.text.includes('35,3 grammes de glucides'))?.lang))==='fr-FR',
+   'The computed carb quantity must be spoken aloud in French');
+  await page.locator('#textIn').fill('100 g de pâtes cuites et 50 g de pain, ça fait combien de glucides ?');
+  await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Repas composé'),null,{timeout:6000});
+  assert.match(await page.locator('#ronLine').innerText(),/glucides pour 100 grammes de chaque aliment/);
+    await page.locator('#textIn').fill("Quelle dose d’insuline pour 30 g de glucides ?");
   await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('ne prescris ni dose'),null,{timeout:6000});
   const specialist=await page.evaluate(()=>window.RONAgentHub?.plan('cherche des études scientifiques sur les mitochondries')?.specialist?.name);
