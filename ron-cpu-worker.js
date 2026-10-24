@@ -18,7 +18,7 @@ async function getPipeline(id){
   const lib=await import(MODULE);
   if(typeof lib.pipeline!=='function')throw Error('Le moteur CPU téléchargé est incomplet.');
   const ort=lib.env?.backends?.onnx;
-  if(!ort?.wasm || !/^\\d+[\\w.+-]*\\.\\d+[\\w.+-]*$/.test(String(ort.versions?.web||'')))
+  if(!ort?.wasm || !/^[0-9A-Za-z.+-]{3,80}$/.test(String(ort.versions?.web||'')) || !String(ort.versions.web).includes('.'))
    throw Error('Version du moteur ONNX Runtime non reconnue : aucun modèle téléchargé.');
   // IMPORTANT: The asyncify ONNX WASM build may miss the CPU
   // GatherBlockQuantized kernel used in the Gemma embedding table.
