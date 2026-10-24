@@ -88,10 +88,10 @@ async function main(){
    Object.defineProperty(navigator,'userAgent',{configurable:true,value:'Mozilla/5.0 (Linux; Android 14; Samsung SM-S721B) AppleWebKit/537.36 Chrome/155 Mobile Safari/537.36'});
   });
   // Simulate the external WASM generator; integration test covers CDN import,
-  // UI message routing and local CPU result without downloading 137 MB in CI.
-  await context.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm',route=>route.fulfill({
+  // UI message routing and local CPU result without downloading several hundred MB in CI.
+  await context.route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1/+esm',route=>route.fulfill({
    status:200,contentType:'application/javascript',headers:{'Access-Control-Allow-Origin':'*'},
-   body:"export const env={backends:{onnx:{wasm:{}}}};export async function pipeline(task,model,opts){if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q4f16'||model!=='onnx-community/gemma-3-270m-it-ONNX')throw Error('Wrong French CPU model');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(!chat[0]?.content?.includes('français naturel'))throw Error('Missing French instruction');if(chat.at(-1).content.includes('malforme'))return [{generated_text:[...chat,{role:'assistant',content:'Ze chat répond comme une chaleur sans des mots de des'}]}];if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
+   body:"export const env={backends:{onnx:{wasm:{},versions:{web:'1.31.0-dev.20260914'}}}};export async function pipeline(task,model,opts){const wasm=env.backends.onnx.wasm;if(wasm.numThreads!==1||!wasm.wasmPaths?.mjs?.includes('onnxruntime-web@1.31.0-dev.20260914/dist/ort-wasm-simd-threaded.mjs')||!wasm.wasmPaths?.wasm?.endsWith('ort-wasm-simd-threaded.wasm'))throw Error('Plain CPU WASM override missing or set after model loads');if(task!=='text-generation'||opts.device!=='wasm'||opts.dtype!=='q4f16'||model!=='onnx-community/gemma-3-270m-it-ONNX')throw Error('Wrong French CPU model');opts.progress_callback?.({status:'progress',progress:100});return async (chat)=>{if(!chat[0]?.content?.includes('français naturel'))throw Error('Missing French instruction');if(chat.at(-1).content.includes('malforme'))return [{generated_text:[...chat,{role:'assistant',content:'Ze chat répond comme une chaleur sans des mots de des'}]}];if(chat.at(-1).content.includes('bloque')){const until=Date.now()+15000;while(Date.now()<until){} }return [{generated_text:[...chat,{role:'assistant',content:'Bonjour du CPU sans GPU.'}]}]};}"
   }));
   await cpuPage.goto('http://127.0.0.1:'+port+'/ron-presence.html',{waitUntil:'domcontentloaded',timeout:12000});
   await cpuPage.waitForFunction(()=>document.getElementById('providerSel')?.value==='browser'&&
@@ -100,7 +100,17 @@ async function main(){
   assert(await cpuPage.locator('#noPaidChk').isChecked(),'CPU mode never enables a paid API');
   await cpuPage.locator('#textIn').fill('Bonjour RON');
   await cpuPage.locator('#sendBtn').click();
-  await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Bonjour du CPU sans GPU.'),null,{timeout:10000});
+  try{
+   await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Bonjour du CPU sans GPU.'),null,{timeout:10000});
+  }catch(error){
+   const diag=await cpuPage.evaluate(()=>({
+    state:document.getElementById('state')?.textContent,
+    output:document.getElementById('ronLine')?.textContent,
+    hint:document.getElementById('connectionHint')?.textContent,
+    input:document.getElementById('textIn')?.value
+   }));
+   throw Error('Android CPU worker failed: '+JSON.stringify({diag,cpuErrors})+'; '+error.message);
+  }
   assert.deepEqual(cpuErrors,[],'Android CPU autodetection and a mocked response have no script errors');
   // A CPU engine that never yields must not freeze the DOM or the Stop button:
   // emulate 15s synchronous WASM work inside the dedicated worker.

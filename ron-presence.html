@@ -2168,7 +2168,7 @@ async function refreshModels(){
 function showEngineHelp(){
   const provider=$('providerSel').value;
   const help={
-    browser:'Sans clé ni paiement : Chrome IA, Gemma 3 270M sur CPU WebAssembly (sans GPU) ou WebGPU sur appareil compatible. Sur Android, RON essaie le modèle Gemma compact d’environ 273 Mo (plus les fichiers de support). Les ressources mémoire restent indispensables ; si le téléphone refuse le modèle, RON indique l’échec au lieu d’inventer une réponse.',
+    browser:'Sans clé ni paiement : Chrome IA, Gemma 3 270M sur CPU WebAssembly (sans GPU) ou WebGPU sur appareil compatible. Sur Android, RON essaie le modèle Gemma compact d’environ 426 Mo (plus les fichiers de support). Les ressources mémoire restent indispensables ; si le téléphone refuse le modèle, RON indique l’échec au lieu d’inventer une réponse.',
     mistral:'Mistral : clé personnelle. Les alias latest évoluent ; le catalogue permet de choisir un modèle précis. Les poids ouverts et le prix de l’API sont deux sujets distincts.',
     openrouter:'OpenRouter : une clé ouvre un catalogue de plusieurs éditeurs. Le filtre gratuit concerne le tarif des tokens annoncé, avec quotas et disponibilité variables. Ron demande des fournisseurs sans collecte de données ; certains modèles peuvent donc être indisponibles.',
     groq:'Groq : modèles hébergés, clé et limites propres à ton compte. Le catalogue permet de voir les identifiants actuellement proposés.',
@@ -2237,7 +2237,7 @@ async function autoConfigure(mode='startup'){
      await safeStorage.set('autoEngineV1',true);
      const message=fallback.kind==='native'
        ? (fallback.ready ? 'IA Chrome prête : RON peut répondre sans clé et sans serveur.' : 'IA Chrome compatible : modèle à télécharger à la première question, aucune clé requise.')
-       : fallback.kind==='cpu' ? 'Mode Android sans GPU : Gemma 3 270M sur CPU, environ 273 Mo à télécharger au premier usage, plus les fichiers de support. Calcul local plus léger, sans clé API. Le démarrage reste à vérifier sur cet appareil.'
+       : fallback.kind==='cpu' ? 'Mode Android sans GPU : Gemma 3 270M sur CPU, environ 426 Mo à télécharger au premier usage, plus les fichiers de support. Calcul local plus léger, sans clé API. Le démarrage reste à vérifier sur cet appareil.'
        : 'GPU détecté, non encore testé : RON tente un modèle WebGPU puis se replie sur le CPU si le GPU refuse de démarrer. Aucune clé requise.';
      autoStatus(message,fallback.ready===true);$('freeEngineStatus').textContent=message;
      $('connectionHint').textContent=message;setState('idle');return {selected:{provider:'browser',model:cfg.model}};
