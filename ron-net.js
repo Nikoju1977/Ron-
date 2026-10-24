@@ -18,6 +18,7 @@ function parse(text){
  // Recognize polite formulations without mistaking "peux-tu me dire" for a private request.
  const topicRaw=raw.replace(/^(?:ron[, ]*)?(?:(?:(?:peux|pourrais)[ -]tu|tu peux|est[- ]ce que tu peux|vous pouvez|pourriez[ -]vous)\s+(?:me\s+)?(?:dire|expliquer|raconter|présenter)\s+|(?:dis|explique|raconte|présente)[- ]moi\s+)/iu,'');
  const topic=norm(topicRaw);
+ const explainIntent=/^(?:ron[, ]*)?(?:(?:explique|définis|décris)[- ]moi|(?:peux|pourrais)[- ]tu (?:me |m['’])?(?:expliquer|définir|décrire))\s+/iu.test(raw);
  const subjectRaw=topicRaw.replace(/^(?:que sais[- ]tu (?:de|sur)|que peux[- ]tu (?:me )?dire (?:de|sur)|parle[- ]moi de|raconte[- ]moi l'histoire de)\s+/iu,'');
  const privateSubject=norm(subjectRaw);
  const privateContext=/\b(?:je|j['’]?ai|j['’]?suis|j['’]?aimerais|moi|mon|ma|mes|nous|notre|nos|ton|ta|tes)\b/.test(privateSubject)
@@ -43,7 +44,9 @@ function parse(text){
  // and browser consent for geolocation.
  if(privateContext)return null;
  // No reliable live-news/market/score provider is connected. Do not guess.
- if(/\b(?:actualites?|dernieres? nouvelles|news|en direct|cours (?:du|de la|de l') (?:bitcoin|bourse|action)|prix (?:actuel|aujourd'hui)|score (?:du|de la|du dernier) match)\b/.test(n))
+ if(/\b(?:actualites?|dernieres? nouvelles|news|en direct|cours (?:du|de la|de l') (?:bitcoin|bourse|action)|prix (?:actuel|aujourd'hui)|score (?:du|de la|du dernier) match)\b/.test(n)
+  || (/\b(?:president|premier ministre|chef d.etat|cours|bourse|taux de change|prix)\b/.test(n)
+   && /\b(?:actuel|actuelle|aujourd'hui|en ce moment|maintenant|cette semaine)\b/.test(n)))
   return {kind:'live',query:raw};
  // Limited, intentional online searches; don't send arbitrary private chats.
  const scientific=/\b(articles? scientifiques?|publications? scientifiques?|etudes? scientifiques?|recherche scientifique|cherche des etudes?|openalex)\b/.test(n);
@@ -72,7 +75,7 @@ function parse(text){
   // including everyday French voice questions without "cherche sur Internet".
   const topicStarter=subjectRaw!==topicRaw;
   const factual=/^(?:ron[, ]*)?(?:(?:qui|que|quoi|quand|ou|où|lequel|laquelle|lesquels|lesquelles) (?:est|etait|sont|a |ont |se trouve|a cree|a invente|a decouvert|a ecrit|a fonde|a realise)|qu.est.ce que|c.est quoi|(?:quelle|quel|quelles|quels) (?:est|sont|a ete|ont ete)|en quelle annee|pourquoi (?:le|la|les|un|une|des|est|a|sont)|comment (?:fonctionne|se forme|s.appelle|marche)|(?:explique|definis|decris|raconte|presente)(?: moi)?\b)/.test(topic);
-  if(factual||topicStarter){
+  if(factual||topicStarter||explainIntent){
    let query=topicStarter?subjectRaw:topicRaw.replace(/^(?:ron[, ]*)?(?:qu.est.ce que(?: c.est)?|c.est quoi|qui (?:est|etait|sont|a (?:cr[eé][eé]|invent[eé]|d[eé]couvert|[eé]crit|fond[eé]|r[eé]alis[eé]))|(?:où|ou) (?:est|se trouve|sont)|(?:comment) (?:fonctionne|marche)|(?:explique|définis|décris|raconte|présente)(?:[- ]moi)?|(?:quelle|quel|quelles|quels) (?:est|sont)|(?:en )?quelle année|pourquoi)\s*/iu,'');
    query=clean(query.replace(/[?!]+$/g,'').replace(/^(?:le|la|les|l'|un|une)\s+/i,''),160);
    if(query.length>=3&&!/^(?:ron|toi|moi|l.application ron)$/i.test(norm(query)))return {kind:'wiki',query,automatic:true};
@@ -151,7 +154,10 @@ async function wiki(request,opts){
  if(term.length<2)throw Error('Précise le sujet de ta recherche.');
  const params=new URLSearchParams({action:'query',generator:'search',gsrsearch:term,gsrlimit:'4',prop:'extracts',exintro:'1',explaintext:'1',exlimit:'4',format:'json',origin:'*'});
  const data=await json('https://fr.wikipedia.org/w/api.php?'+params,opts);
- const pages=Object.values(data?.query?.pages||{}).filter(p=>p?.extract&&p?.title).slice(0,3);
+ // MediaWiki generator results include an index for search relevance; do not
+ // accidentally choose page-ID order as the most relevant result.
+ const pages=Object.values(data?.query?.pages||{}).filter(p=>p?.extract&&p?.title)
+  .sort((a,b)=>(Number.isFinite(a.index)?a.index:100000)-(Number.isFinite(b.index)?b.index:100000)).slice(0,3);
  if(!pages.length)throw Error('Aucun résultat encyclopédique trouvé. Reformule avec le nom précis du sujet.');
  if(request.automatic){
   const first=pages[0],href='https://fr.wikipedia.org/wiki/'+encodeURIComponent(first.title.replace(/ /g,'_'));
