@@ -384,11 +384,18 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 </dialog>
 <dialog id="knowledgeDialog" aria-labelledby="knowledgeTitleDialog">
   <div class="panel-head"><h2 id="knowledgeTitleDialog">RON · Savoirs & connecteurs</h2><button class="icon-btn" id="knowledgeClose" aria-label="Fermer la bibliothèque" type="button">✕</button></div>
-  <p class="hint">Trois sources gratuites sans compte ni clé : documents texte sur ton appareil, README de dépôts GitHub publics et extraits de Wikipédia. Les services externes ne sont contactés que si tu demandes explicitement une importation.</p>
+  <p class="hint">Sources locales, GitHub public et Wikipédia ; recherche Internet en direct sans clé : Open-Meteo, Wikipédia, OpenAlex (publications scientifiques) et GitHub. Les services externes sont contactés uniquement pour une recherche demandée : mots-clés, ville ou, avec autorisation, position pour la météo.</p>
   <div class="knowledge-form"><label for="knowledgeTitle">Titre de la note</label><input id="knowledgeTitle" type="text" maxlength="140" placeholder="Ex. Recherche scénario"><label for="knowledgeText">Contenu à conserver localement</label><textarea id="knowledgeText" maxlength="32000" placeholder="Colle des notes, une idée, un script ou du texte…"></textarea><button class="btn" id="knowledgePasteBtn" type="button">Ajouter la note</button></div>
   <div class="knowledge-form"><label for="knowledgeFiles">Importer des fichiers texte (.txt, .md, .csv, .json, .js, .py…)</label><input id="knowledgeFiles" type="file" multiple accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.css,.js,.mjs,.cjs,.jsx,.ts,.tsx,.xml,.yaml,.yml,.py,.sql,.log,.rtf" hidden><button class="btn ghost" id="knowledgeFileBtn" type="button">Choisir des fichiers</button></div>
   <div class="knowledge-form"><label for="knowledgeGithub">Connecteur GitHub · dépôt public (owner/repo)</label><input id="knowledgeGithub" type="text" placeholder="Nikoju1977/Ron-" autocomplete="off"><button class="btn ghost" id="knowledgeGithubBtn" type="button">Importer README</button></div>
   <div class="knowledge-form"><label for="knowledgeWiki">Connecteur Wikipédia · encyclopédie française</label><input id="knowledgeWiki" type="search" placeholder="Recherche encyclopédique"><button class="btn ghost" id="knowledgeWikiBtn" type="button">Importer un résumé</button></div>
+  <div class="knowledge-form">
+    <label for="knowledgeNetSearch">Rechercher sur Internet · météo, encyclopédie, études scientifiques, GitHub</label>
+    <input id="knowledgeNetSearch" type="search" autocomplete="off" maxlength="220" placeholder="Ex. météo demain à Nantes · recherches scientifiques sur les mitochondries">
+    <button class="btn" type="button" id="knowledgeNetBtn">Rechercher en ligne (sans clé)</button>
+    <p class="hint">Les résultats sont consultés en direct et ne sont pas enregistrés dans ton carnet. Les mots de la recherche sont transmis uniquement au service choisi ; ta position météo exige l’autorisation du navigateur.</p>
+    <div id="knowledgeNetStatus" role="status" aria-live="polite"></div><div id="knowledgeNetResults"></div>
+  </div>
   <p id="knowledgeStatus" role="status"></p>
   <label class="check"><input type="checkbox" id="knowledgeShare">Autoriser RON à inclure des extraits pertinents dans mes prochaines questions IA (cette session seulement)</label>
   <label class="check"><input type="checkbox" id="knowledgeRemember">Conserver les documents sur cet appareil · stockage non chiffré</label>
@@ -402,6 +409,7 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 <script src="./ron-vendor/fuse.basic.min.js"></script>
 <script src="./ron-knowledge.js"></script>
 <script src="./ron-auto-config.js"></script>
+<script src="./ron-net.js"></script>
 <script src="./ron-browser-ai.js"></script>
 <script>
 'use strict';
@@ -690,6 +698,8 @@ const SYSTEM = () => [
 const history = [];
 let currentXhr = null;
 let turnId = 0;
+let netController=null;
+function cancelNetSearch(){if(netController){netController.abort();netController=null;}}
 function checkTurn(routing){ if (routing.turn !== undefined && routing.turn !== turnId) throw new Error('abort'); }
 
 function apiBase(){ return String(cfg.endpoint || '').trim().replace(/\/+$/, ''); }
@@ -1553,10 +1563,39 @@ async function handleUser(text, careContext = ''){
   text = String(text || '').trim();
   if (!text) return;
   const thisTurn = ++turnId;
-  cancelPendingTurn();
+  cancelPendingTurn();cancelNetSearch();
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
+  // Explicit live-data requests bypass the LLM entirely: a tiny offline model
+  // cannot invent tomorrow's weather, scientific records or current GitHub data.
+  const netRequest=window.RONNet?.parse(text);
+  if(netRequest){
+    const ctrl=new AbortController();netController=ctrl;
+    unlockSpeech();stopRec();stopSpeaking();
+    $('youLine').textContent=text;$('ronLine').textContent='';
+    setState('thinking');setThinkingDetail('RON consulte une source Internet vérifiable…');
+    $('connectionHint').textContent='Connexion au service public : '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[netRequest.kind]||'Internet')+'…';
+    try{
+      const result=await window.RONNet.answer(netRequest,{signal:ctrl.signal});
+      if(thisTurn!==turnId||ctrl.signal.aborted)return;
+      renderRonAnswer(result.text);
+      history.push({role:'user',content:text},{role:'assistant',content:result.text});
+      if(history.length>40)history.splice(0,history.length-40);
+      $('connectionHint').textContent='Résultat Internet consulté · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[result.kind]||'source publique')+' · sans clé API.';
+      streamDone=true;
+      const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
+      enqueueSpeech(String(spoken).slice(0,480));
+      if(!speakingNow)onSpeechDrained();
+    }catch(error){
+      if(thisTurn!==turnId||ctrl.signal.aborted)return;
+      const message='Recherche Internet indisponible : '+String(error?.message||error).slice(0,230);
+      $('ronLine').textContent=message;
+      $('connectionHint').textContent='Les données météo et Web ne sont pas inventées si la connexion échoue.';
+      $('textIn').value=text;setState('idle');
+    }finally{if(netController===ctrl)netController=null;}
+    return;
+  }
   if (localEngineReady===false && cfg.noPaid && ['ollama','lmstudio','vllm','browser'].includes(cfg.provider)){
     $('textIn').value=text;
     $('ronLine').textContent=cfg.provider==='browser' ? 'Aucun modèle IA compatible avec ce navigateur n’a été trouvé. RON ne peut pas générer de réponse sans moteur. Essaie Chrome avec IA intégrée, un navigateur WebGPU compatible, ou un serveur local accessible. Aucune clé ni dépense exigée pour la détection.' : 'RON fonctionne, mais aucun moteur IA local ne répond sur cet appareil. Sur téléphone, localhost ne désigne pas ton ordinateur. RON peut aussi utiliser une IA native Chrome, WebGPU ou une IA locale compatible.';
@@ -1626,6 +1665,7 @@ function onSpeechDrained(){
 }
 
 function stopAll(){
+  cancelNetSearch();
   // Preserve the unsent question when the user interrupts a slow local model.
   if(state==='thinking' && !$('textIn').value.trim() && $('youLine').textContent.trim())
     $('textIn').value=$('youLine').textContent.trim();
@@ -2454,6 +2494,23 @@ async function boot(){
   $('dotsEnabledChk').addEventListener('change', () => { cfg.dotsEnabled=$('dotsEnabledChk').checked; renderDots(); scheduleDots(350); });
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
   $('dotsIntervalSel').addEventListener('change', () => { cfg.dotsInterval=Math.max(60000,Number($('dotsIntervalSel').value)||120000); scheduleDots(); renderDots(); });
+  $('knowledgeNetBtn').addEventListener('click',async()=>{
+    const field=$('knowledgeNetSearch'),button=$('knowledgeNetBtn'),status=$('knowledgeNetStatus'),out=$('knowledgeNetResults');
+    const query=field.value.trim();
+    if(!query){status.textContent='Écris un sujet ou une question à rechercher.';return;}
+    const task=window.RONNet?.parse(query)||{kind:'wiki',query};
+    button.disabled=true;status.textContent='RON interroge '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub'}[task.kind]||'la source publique')+'…';
+    out.replaceChildren();
+    try{
+      const result=await window.RONNet.answer(task);
+      status.textContent='Réponse vérifiable · aucune donnée enregistrée ni clé utilisée.';
+      if(window.marked&&window.DOMPurify){
+        out.innerHTML=window.DOMPurify.sanitize(window.marked.parse(result.text),{ALLOWED_TAGS:['p','br','strong','em','ul','ol','li','a'],ALLOWED_ATTR:['href']});
+        for(const a of out.querySelectorAll('a')){if(!/^https:\/\//i.test(a.href)){a.removeAttribute('href');continue;}a.target='_blank';a.rel='noopener noreferrer';}
+      }else out.textContent=result.text;
+    }catch(error){status.textContent='Recherche impossible : '+String(error?.message||error).slice(0,200);}
+    finally{button.disabled=false;}
+  });
   $('saveBtn').addEventListener('click', saveSettings);
   $('clearBtn').addEventListener('click', clearKey);
   $('voiceSel').addEventListener('change', () => {
