@@ -21,7 +21,7 @@ function parse(text){
  // Arithmetic is local and deterministic; no model, network or eval.
  const expression=raw.match(/^(?:ron[, ]*)?(?:(?:combien (?:font|fait)|calcule|calculer|effectue|résous|resous)\s*:?\s*)([0-9.,+\-*/^×÷()%\s]{3,100})\s*\??$/iu);
  if(expression)return {kind:'math',expression:expression[1].trim().replace(/\?$/,'').trim()};
- if(/^(?:(?:quelle|quel) (?:est )?(?:la )?(?:date|heure) (?:actuelle|d.aujourd.hui)?|(?:on est quel jour|il est quelle heure|quelle heure est.il|quelle date sommes-nous))\s*[?!.,]*$/i.test(n))
+ if(/^(?:(?:quelle|quel) (?:est )?(?:la )?(?:date|heure) (?:actuelle|d.aujourd.hui)?|(?:on est quel jour|il est quelle heure|quelle heure est.il|quelle heure est-il|quelle date sommes-nous))\s*[?!.,]*$/i.test(n))
   return {kind:'clock'};
 
  if(/\b(meteo|temps (?:fera|fait|va faire)|temperature|pleuvra|pluie demain|previsions? meteo|quel temps)\b/.test(n)){
