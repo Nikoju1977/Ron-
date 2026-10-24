@@ -1599,7 +1599,7 @@ async function handleUser(text, careContext = ''){
     try{
       const result=await window.RONAgentHub.run(text,{
         signal:ctrl.signal,
-        allowSynthesis:cfg.agentMode!=='direct' && cfg.provider!=='browser'
+        allowSynthesis:cfg.provider!=='browser'
          && cfg.model && cfg.endpoint
          && (!(PROVIDERS[cfg.provider]||{}).needsKey || !!cfg.key)
          && (!['ollama','lmstudio','llamacpp','vllm'].includes(cfg.provider)||localEngineReady!==false),
