@@ -27,3 +27,16 @@
 #freeEngines code{font:12px ui-monospace,monospace;overflow-wrap:anywhere}
 #freeEngineStatus{line-height:1.6;padding:10px;background:rgba(4,15,22,.7);border-radius:10px}
 #freeEngines .check{margin-top:12px;line-height:1.5}
+
+/* iOS Safari / home-screen PWA: accessible Food Maps controls without
+   automatic Safari text-field zoom and with momentum-scrolling dialogs. */
+#knowledgeDialog{-webkit-overflow-scrolling:touch;padding-bottom:max(15px,env(safe-area-inset-bottom))}
+#foodMapsSection>*{grid-column:1/-1;min-width:0}
+#foodMapsSection h3{font:600 16px var(--display);color:var(--ice);margin:8px 0 2px}
+#foodMapsSection input{font-size:16px;min-height:44px}
+#foodMapsSection .btn{width:100%;min-height:46px}
+#foodResults{overflow-wrap:anywhere;line-height:1.65;font-size:14px}
+#foodResults p{margin:8px 0}
+#foodResults a{color:var(--ice);overflow-wrap:anywhere}
+#foodStatus{color:var(--mist);font-size:13px;line-height:1.5}
+@media(max-width:520px){#foodMapsSection{grid-template-columns:minmax(0,1fr)}}
