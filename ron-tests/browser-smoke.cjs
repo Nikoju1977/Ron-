@@ -100,7 +100,17 @@ async function main(){
   assert(await cpuPage.locator('#noPaidChk').isChecked(),'CPU mode never enables a paid API');
   await cpuPage.locator('#textIn').fill('Bonjour RON');
   await cpuPage.locator('#sendBtn').click();
-  await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Bonjour du CPU sans GPU.'),null,{timeout:10000});
+  try{
+   await cpuPage.waitForFunction(()=>document.getElementById('ronLine')?.textContent?.includes('Bonjour du CPU sans GPU.'),null,{timeout:10000});
+  }catch(error){
+   const diag=await cpuPage.evaluate(()=>({
+    state:document.getElementById('state')?.textContent,
+    output:document.getElementById('ronLine')?.textContent,
+    hint:document.getElementById('connectionHint')?.textContent,
+    input:document.getElementById('textIn')?.value
+   }));
+   throw Error('Android CPU worker failed: '+JSON.stringify({diag,cpuErrors})+'; '+error.message);
+  }
   assert.deepEqual(cpuErrors,[],'Android CPU autodetection and a mocked response have no script errors');
   // A CPU engine that never yields must not freeze the DOM or the Stop button:
   // emulate 15s synchronous WASM work inside the dedicated worker.
