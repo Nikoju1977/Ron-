@@ -112,6 +112,18 @@ async function main(){
   const nativeResume=await page.evaluate(()=>window.nativeMessages.at(-2));
   assert.equal(nativeResume.explicitPause,true,'/dots reprendre also updates the native engine');
   assert.equal(nativeResume.paused,false);
+  const mergedByTimestamp=await page.evaluate(async()=>{
+    const current=dotsRuntime.missions[0],old={...current};
+    if(!current)return false;
+    dotsRuntime.missions[0]={...old,progress:1,updatedAt:'2026-10-25T05:00:00Z'};
+    const incoming={...old,progress:77,updatedAt:'2026-10-25T05:00:00.900Z'};
+    await window.RONAndroid.applyState(JSON.stringify({missions:[incoming],paused:dotsRuntime.paused}));
+    const ok=dotsRuntime.missions[0].progress===77;
+    dotsRuntime.missions[0]=old;
+    await saveDotsState();
+    return ok;
+  });
+  assert(mergedByTimestamp,'More recent Android missions win despite different ISO timestamp precision');
   await page.locator('#dotsClose').click();
   await page.evaluate(()=>{delete window.RonNative;renderDots();});
   // Regression: slow old IndexedDB writes must not overwrite a newer pause.
