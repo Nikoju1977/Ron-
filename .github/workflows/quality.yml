@@ -41,6 +41,8 @@ jobs:
           node --check ron-food.js
           node --check ron-tests/food.cjs
           node --check ron-agent-hub.js
+          node --check ron-autonomy.js
+          node --check ron-tests/autonomy.cjs
           node --check ron-tests/agent-hub.cjs
           node --check ron-updater.js
           node --check ron-tests/updater.cjs
