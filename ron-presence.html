@@ -1401,7 +1401,9 @@ function renderDots(){
   const decision=dotsInspect();
   const mind=dotsRuntime.mind;
   const time=mind.lastCycleAt?new Date(mind.lastCycleAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'jamais';
-  const next=decision.mode==='scheduled'?new Date(Date.now()+decision.delay).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'—';
+  const next=['scheduled','budget','cooldown'].includes(decision.mode)&&decision.delay
+    ? new Date(Date.now()+decision.delay).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+    : '—';
   const line=['Mode : '+decision.reason,'Attention : '+(dotsActiveMission()?.title||'aucune mission').slice(0,100),
     'Dernier cycle : '+time+' · Suivant : '+next,
     'Cycles autonomes aujourd’hui : '+mind.cycles+'/'+window.RONAutonomy.DAILY_LIMIT];
@@ -1509,10 +1511,10 @@ function scheduleDots(delay){
   dotsRuntime.timer=0;
   if(!dotsRuntime.loaded)return;
   const d=dotsInspect(Number.isFinite(delay)?delay:1200);
-  dotsRuntime.mind.nextAt=d.mode==='scheduled'?Date.now()+d.delay:0;
+  dotsRuntime.mind.nextAt=['scheduled','budget','cooldown'].includes(d.mode)&&d.delay?Date.now()+d.delay:0;
   if(d.mode==='scheduled'||d.mode==='ready')
     dotsRuntime.timer=setTimeout(()=>runDotsCycle(false),d.mode==='ready'?Math.max(1000,Number.isFinite(delay)?delay:1200):Math.max(0,d.delay||0));
-  else if(d.mode==='cooldown' && d.delay)
+  else if((d.mode==='cooldown'||d.mode==='budget') && d.delay)
     dotsRuntime.timer=setTimeout(()=>scheduleDots(1200),Math.max(1000,d.delay));
   renderDots();
 }
