@@ -19,9 +19,5 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-started persistent local assistant mission execution with visible stop notification, no hidden microphone, location or remote access"/>
         </service>
-        <receiver android:name=".BootReceiver" android:exported="false">
-            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter>
-        </receiver>
     </application>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 </manifest>
