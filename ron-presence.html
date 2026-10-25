@@ -266,6 +266,10 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <label for="dotsMissionIn">Nouvelle responsabilité</label>
     <textarea id="dotsMissionIn" placeholder="Ex. Suis le développement de RON, repère les blocages et demande-moi de trancher quand nécessaire."></textarea>
   </div>
+<div class="dots-native-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 14px">
+    <button class="btn ghost" type="button" id="dotsExportAndroid" style="flex:none;min-height:44px">Exporter vers Android</button>
+    <span id="dotsAndroidState" style="font-size:12px;color:var(--mist);flex:1">Compagnon Android : non connecté</span>
+  </div>
   <div class="dots-controls">
     <button class="btn" id="dotsAddBtn" type="button">Ajouter la mission</button>
     <button class="btn ghost" id="dotsRunBtn" type="button">Lancer un cycle</button>
@@ -1229,6 +1233,60 @@ async function loadDotsState(){
   }
   dotsRuntime.loaded = true;
   renderDots();
+  ronSendMissionsToAndroid();
+}
+
+
+/* Bridge limité au WebView du compagnon Android. Aucun démarrage de service ici. */
+let ronAndroidSyncing=false;
+function ronSendMissionsToAndroid(){
+  if(ronAndroidSyncing||!dotsRuntime.loaded||typeof window.RonNative?.submit!=='function')return;
+  try{
+    window.RonNative.submit(JSON.stringify({version:1,missions:dotsRuntime.missions.slice(-30),
+      paused:dotsRuntime.paused}));
+  }catch(error){console.warn('RON Android : synchronisation indisponible',error);}
+}
+window.RONAndroid={
+  async applyState(raw){
+    if(!dotsRuntime.loaded)return;
+    let remote;
+    try{remote=JSON.parse(raw);}catch(error){return;}
+    if(!Array.isArray(remote?.missions))return;
+    let changed=false,localNewer=false;
+    for(const item of remote.missions.slice(-30)){
+      if(!item||typeof item.id!=='string'||typeof item.title!=='string')continue;
+      const i=dotsRuntime.missions.findIndex(m=>m.id===item.id);
+      if(i<0){
+        if(dotsRuntime.missions.length<30){dotsRuntime.missions.push(item);changed=true;}
+      }else{
+        const local=dotsRuntime.missions[i];
+        if(String(item.updatedAt||'')>String(local.updatedAt||'')){
+          dotsRuntime.missions[i]=item;changed=true;
+        }else if(String(local.updatedAt||'')>String(item.updatedAt||''))localNewer=true;
+      }
+    }
+    if(typeof remote.paused==='boolean'&&dotsRuntime.paused!==remote.paused){
+      dotsRuntime.paused=remote.paused;changed=true;
+    }
+    const mind=$('dotsAndroidState');
+    if(mind)mind.textContent='Android : '+String(remote.status||'en attente').slice(0,180)+
+      ' · '+Math.max(0,Number(remote.cycles)||0)+' cycles UTC';
+    if(changed){
+      ronAndroidSyncing=true;
+      try{await saveDotsState();renderDots();scheduleDots(1200);}
+      finally{ronAndroidSyncing=false;}
+    }
+    if(localNewer)ronSendMissionsToAndroid();
+  }
+};
+function ronExportMissions(){
+  const state={version:1,missions:dotsRuntime.missions.slice(-30),paused:dotsRuntime.paused};
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement('a');
+  anchor.href=url;anchor.download='ron-dots-missions.json';
+  document.body.appendChild(anchor);anchor.click();anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
 async function saveDotsState(){
@@ -1240,6 +1298,7 @@ async function saveDotsState(){
     mind: window.RONAutonomy.mind(dotsRuntime.mind),
     savedAt: dotsNow()
   });
+  ronSendMissionsToAndroid();
 }
 
 function dotsLog(message){
@@ -2708,6 +2767,7 @@ async function boot(){
   $('dotsBackdrop').addEventListener('click',()=>closeDotsPanel());
   $('dotsConfigureBtn').addEventListener('click',openPanel);
   $('dotsQuickEnable').addEventListener('change',()=>setDotsEnabled($('dotsQuickEnable').checked));
+  $('dotsExportAndroid').addEventListener('click',ronExportMissions);
   $('dotsAddBtn').addEventListener('click', async () => {
     const v = $('dotsMissionIn').value.trim();
     if (!v) return;
