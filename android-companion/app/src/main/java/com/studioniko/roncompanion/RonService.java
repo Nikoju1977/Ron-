@@ -24,7 +24,8 @@ public final class RonService extends Service {
     private boolean stopped=false;
     private final Runnable cycle=new Runnable(){
         @Override public void run(){
-            if(stopped||!RonStore.active(RonService.this))return;
+            if(stopped)return;
+            if(!RonStore.active(RonService.this)){shutdown();return;}
             if(queue!=null)queue.execute(()->RonCycle.run(getApplicationContext()));
             handler.postDelayed(this,60_000);
         }
@@ -70,6 +71,7 @@ public final class RonService extends Service {
     @Override public void onDestroy(){
         stopped=true;handler.removeCallbacks(cycle);
         if(queue!=null)queue.shutdownNow();
+        stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent){return null;}

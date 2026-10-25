@@ -18,6 +18,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class RonCycle {
     private static final AtomicBoolean BUSY=new AtomicBoolean(false);
     private RonCycle(){}
+    /** 0 means invalid; validates before multiplying to avoid integer overflow. */
+    static long validIntervalMs(long minutes){
+        return minutes>=1 && minutes<=60 ? minutes*60_000L : 0;
+    }
     public static boolean isAllowedEndpoint(String raw) {
         try {
             URI uri=new URI(raw.trim());
@@ -97,6 +101,7 @@ public final class RonCycle {
             }
         }catch(Exception e){
             synchronized(RonStore.class){
+                if(!RonStore.active(c))return; // Do not resurrect errors after a user stop.
                 JSONObject s=RonStore.state(c);
                 RonStore.put(s,"failures",Math.min(8,s.optInt("failures",0)+1));
                 RonStore.put(s,"status","Cycle impossible : "+RonStore.clip(e.getMessage(),100));

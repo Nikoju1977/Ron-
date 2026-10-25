@@ -15,9 +15,10 @@ function mind(previous,now=Date.now()){
  return {
    day, cycles:sameDay?Math.min(DAILY_LIMIT,numeric(m.cycles)):0,
    failures:sameDay?Math.min(8,numeric(m.failures)):0,
-   lastAttemptAt:numeric(m.lastAttemptAt),
-   lastCycleAt:numeric(m.lastCycleAt),
-   nextAt:0,
+   // The device clock may move backwards; never freeze an agent until a future timestamp.
+   lastAttemptAt:Math.min(now,numeric(m.lastAttemptAt)),
+   lastCycleAt:Math.min(now,numeric(m.lastCycleAt)),
+   nextAt:numeric(m.nextAt),
    focus:String(m.focus||'').slice(0,160),
    reflection:String(m.reflection||'').slice(0,400),
    uncertainty:String(m.uncertainty||'').slice(0,240)
@@ -32,7 +33,13 @@ function inspect(input){
  if(!o.engineReady)return {mode:'blocked',reason:'Moteur IA non disponible',mind:m};
  if(o.needsKey)return {mode:'approval',reason:'IA avec clé : lancement manuel uniquement pour éviter des dépenses',mind:m};
  if(o.cooldownUntil>clock)return {mode:'cooldown',reason:'Pause du fournisseur',mind:m,delay:Math.max(1000,o.cooldownUntil-clock)};
- if(m.cycles>=DAILY_LIMIT)return {mode:'budget',reason:'Plafond de 24 cycles autonomes par jour atteint',mind:m};
+ if(m.cycles>=DAILY_LIMIT){
+   // Without a wake-up at UTC midnight, reaching the budget freezes autonomy forever
+   // until the user manually interacts with the page.
+   const midnight=Date.parse(m.day+'T00:00:00.000Z')+86400000;
+   return {mode:'budget',reason:'Plafond de 24 cycles autonomes par jour atteint',
+     mind:m,delay:Math.max(1000,midnight-clock)};
+ }
  if(o.running)return {mode:'working',reason:'Cycle en cours',mind:m};
  const interval=Math.max(MIN_INTERVAL,numeric(o.interval,120000));
  const backoff=m.failures?Math.min(3600000,MIN_INTERVAL*Math.pow(2,Math.min(5,m.failures))):0;

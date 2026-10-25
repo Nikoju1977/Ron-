@@ -1254,15 +1254,18 @@ window.RONAndroid={
     if(!Array.isArray(remote?.missions))return;
     let changed=false,localNewer=false;
     for(const item of remote.missions.slice(-30)){
-      if(!item||typeof item.id!=='string'||typeof item.title!=='string')continue;
+      if(!item||typeof item.id!=='string'||typeof item.title!=='string'
+         ||!Number.isFinite(Date.parse(item.updatedAt||'')))continue;
       const i=dotsRuntime.missions.findIndex(m=>m.id===item.id);
       if(i<0){
         if(dotsRuntime.missions.length<30){dotsRuntime.missions.push(item);changed=true;}
       }else{
         const local=dotsRuntime.missions[i];
-        if(String(item.updatedAt||'')>String(local.updatedAt||'')){
+        const incomingTime=Date.parse(item.updatedAt||'');
+        const localTime=Date.parse(local.updatedAt||'');
+        if(Number.isFinite(incomingTime)&&(!Number.isFinite(localTime)||incomingTime>localTime)){
           dotsRuntime.missions[i]=item;changed=true;
-        }else if(String(local.updatedAt||'')>String(item.updatedAt||''))localNewer=true;
+        }else if(Number.isFinite(localTime)&&localTime>incomingTime)localNewer=true;
       }
     }
     if(typeof remote.paused==='boolean'&&dotsRuntime.paused!==remote.paused){
@@ -1289,16 +1292,24 @@ function ronExportMissions(){
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
+// Enqueue immutable snapshots so a slow IndexedDB transaction cannot overwrite
+// a newer mission, pause or self-evaluation state.
+let dotsSaveQueue=Promise.resolve();
 async function saveDotsState(){
-  if (!dotsRuntime.loaded) return;
-  await safeStorage.set('dotsState', {
-    missions: dotsRuntime.missions.slice(-30),
-    log: dotsRuntime.log.slice(-80),
-    paused: dotsRuntime.paused,
-    mind: window.RONAutonomy.mind(dotsRuntime.mind),
-    savedAt: dotsNow()
-  });
+  if(!dotsRuntime.loaded)return;
+  const snapshot=JSON.parse(JSON.stringify({
+    missions:dotsRuntime.missions.slice(-30),
+    log:dotsRuntime.log.slice(-80),
+    paused:dotsRuntime.paused,
+    mind:window.RONAutonomy.mind(dotsRuntime.mind),
+    savedAt:dotsNow()
+  }));
+  // Deliver the current state to the native companion without waiting for disk I/O.
   ronSendMissionsToAndroid();
+  const pending=dotsSaveQueue.catch(()=>{}).then(()=>safeStorage.set('dotsState',snapshot));
+  dotsSaveQueue=pending;
+  try{await pending;}
+  catch(error){console.warn('RON DOTS : sauvegarde locale indisponible',error);}
 }
 
 function dotsLog(message){
@@ -1365,9 +1376,13 @@ function renderDots(){
   btn.classList.toggle('active', cfg.dotsEnabled && !dotsRuntime.paused);
   $('dotsQuickEnable').checked=cfg.dotsEnabled;
   $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  const nativeCompanion=typeof window.RonNative?.postMessage==='function';
+  // Native service and web DOTS share missions, not process control or permissions.
+  $('dotsQuickEnable').disabled=nativeCompanion;
+  $('dotsEnabledChk').disabled=nativeCompanion;
   const engineConfigured=!!(cfg.endpoint && cfg.model && (!(PROVIDERS[cfg.provider]||{}).needsKey || cfg.key));
-  $('dotsRunBtn').disabled=!cfg.dotsEnabled || dotsRuntime.paused || dotsRuntime.running || !engineConfigured || !dotsActiveMission();
-  $('dotsPauseBtn').disabled=!cfg.dotsEnabled;
+  $('dotsRunBtn').disabled=nativeCompanion || !cfg.dotsEnabled || dotsRuntime.paused || dotsRuntime.running || !engineConfigured || !dotsActiveMission();
+  $('dotsPauseBtn').disabled=!cfg.dotsEnabled && !nativeCompanion;
   $('dotsPauseBtn').textContent=dotsRuntime.paused?'Reprendre':'Mettre en pause';
   $('dotsClearBtn').disabled=!dotsRuntime.missions.some(m=>m.status==='done');
   const active = dotsRuntime.missions.filter(m => m.status === 'active').length;
@@ -1380,10 +1395,18 @@ function renderDots(){
     status.className='waiting';
     status.textContent='DOTS est activé, mais aucun moteur IA utilisable n’est configuré. Ouvre « Réglages IA ».';
   }
+  if(nativeCompanion){
+    status.className=dotsRuntime.paused?'waiting':'active';
+    status.textContent=dotsRuntime.paused
+      ? 'Missions du compagnon Android en pause. Reprends ici ou dans « Contrôles ».'
+      : 'Les cycles sont pilotés par le compagnon Android. Ouvre « Contrôles » pour démarrer ou arrêter le service ; ce panneau gère les missions.';
+  }
   const decision=dotsInspect();
   const mind=dotsRuntime.mind;
   const time=mind.lastCycleAt?new Date(mind.lastCycleAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'jamais';
-  const next=decision.mode==='scheduled'?new Date(Date.now()+decision.delay).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'—';
+  const next=['scheduled','budget','cooldown'].includes(decision.mode)&&decision.delay
+    ? new Date(Date.now()+decision.delay).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+    : '—';
   const line=['Mode : '+decision.reason,'Attention : '+(dotsActiveMission()?.title||'aucune mission').slice(0,100),
     'Dernier cycle : '+time+' · Suivant : '+next,
     'Cycles autonomes aujourd’hui : '+mind.cycles+'/'+window.RONAutonomy.DAILY_LIMIT];
@@ -1491,10 +1514,10 @@ function scheduleDots(delay){
   dotsRuntime.timer=0;
   if(!dotsRuntime.loaded)return;
   const d=dotsInspect(Number.isFinite(delay)?delay:1200);
-  dotsRuntime.mind.nextAt=d.mode==='scheduled'?Date.now()+d.delay:0;
+  dotsRuntime.mind.nextAt=['scheduled','budget','cooldown'].includes(d.mode)&&d.delay?Date.now()+d.delay:0;
   if(d.mode==='scheduled'||d.mode==='ready')
     dotsRuntime.timer=setTimeout(()=>runDotsCycle(false),d.mode==='ready'?Math.max(1000,Number.isFinite(delay)?delay:1200):Math.max(0,d.delay||0));
-  else if(d.mode==='cooldown' && d.delay)
+  else if((d.mode==='cooldown'||d.mode==='budget') && d.delay)
     dotsRuntime.timer=setTimeout(()=>scheduleDots(1200),Math.max(1000,d.delay));
   renderDots();
 }
@@ -1515,8 +1538,8 @@ async function dotsCommand(text){
     $('ronLine').textContent='RON · état opérationnel : '+d.reason+' · '+dotsRuntime.mind.cycles+' cycles aujourd’hui. Auto-évaluation : '+(dotsRuntime.mind.reflection||'aucune');
     return true;
   }
-  if (/^pause$/i.test(cmd)){ dotsRuntime.paused=true; await saveDotsState(); scheduleDots(); renderDots(); $('ronLine').textContent='DOTS mis en pause.'; return true; }
-  if (/^(resume|reprendre)$/i.test(cmd)){ dotsRuntime.paused=false; await saveDotsState(); scheduleDots(350); renderDots(); $('ronLine').textContent='DOTS reprend.'; return true; }
+  if (/^pause$/i.test(cmd)){ dotsRuntime.paused=true; renderDots(); scheduleDots(); ronSendMissionsToAndroid(true); await saveDotsState(); $('ronLine').textContent='DOTS mis en pause.'; return true; }
+  if (/^(resume|reprendre)$/i.test(cmd)){ dotsRuntime.paused=false; renderDots(); scheduleDots(350); ronSendMissionsToAndroid(true); await saveDotsState(); $('ronLine').textContent='DOTS reprend.'; return true; }
   if (/^run$/i.test(cmd)){ runDotsCycle(true); return true; }
   if (/^clear$/i.test(cmd)){ dotsRuntime.missions = dotsRuntime.missions.filter(m=>m.status!=='done'); await saveDotsState(); renderDots(); $('ronLine').textContent='Missions DOTS terminées effacées.'; return true; }
   await addDotsMission(cmd);
