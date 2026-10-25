@@ -91,7 +91,9 @@ public final class RonStore {
             }
             put(current,"missions",merged);
             // The web UI may pause missions, but cannot secretly start a native service.
-            put(current,"paused",incoming.optBoolean("paused",current.optBoolean("paused")));
+            // Initial PWA handshake must not cancel a native pause; only user-triggered toggles may change it.
+            if(incoming.optBoolean("explicitPause",false))
+                put(current,"paused",incoming.optBoolean("paused",current.optBoolean("paused")));
             write(c,current);
             return current;
         }
