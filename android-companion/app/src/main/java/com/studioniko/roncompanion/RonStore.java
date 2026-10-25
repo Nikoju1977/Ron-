@@ -16,6 +16,12 @@ public final class RonStore {
     static SharedPreferences preferences(Context c){return c.getApplicationContext().getSharedPreferences(PREFS,Context.MODE_PRIVATE);}
     static String day(){return DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneOffset.UTC).format(Instant.now());}
     static String stamp(){return Instant.now().toString();}
+    /** Android Instant and browser ISO dates may have different fractional precision.
+     * Compare instants, never strings ("...Z" sorts after "...900Z"). */
+    static boolean isNewerStamp(String incoming,String previous){
+        try{return Instant.parse(incoming).isAfter(Instant.parse(previous));}
+        catch(Exception error){return false;}
+    }
     static JSONObject state(Context c) {
         JSONObject result;
         try {result=new JSONObject(preferences(c).getString(KEY,"{}"));}catch(Exception ex){result=new JSONObject();}
@@ -85,7 +91,7 @@ public final class RonStore {
                     if(entry.optString("id").equals(merged.optJSONObject(j).optString("id"))){duplicate=j;break;}
                 }
                 if(duplicate>=0){
-                    if(entry.optString("updatedAt").compareTo(merged.optJSONObject(duplicate).optString("updatedAt"))>0)
+                    if(isNewerStamp(entry.optString("updatedAt"),merged.optJSONObject(duplicate).optString("updatedAt")))
                         putAt(merged,duplicate,entry);
                 }else if(merged.length()<MAX_MISSIONS)merged.put(entry);
             }
