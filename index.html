@@ -1263,6 +1263,17 @@ async function testConnection(){
   }
 }
 
+/* Keep the conversation usable if a local PWA asset is temporarily absent.
+   This fallback NEVER runs autonomous cycles or spends API credits. */
+if(!window.RONAutonomy){
+  window.RONAutonomy=Object.freeze({
+    DAILY_LIMIT:0,
+    mind:state=>Object.assign({day:'',cycles:0,failures:0,lastAttemptAt:0,lastCycleAt:0,nextAt:0,focus:'',reflection:'',uncertainty:''},state||{}),
+    inspect:state=>({mode:'blocked',reason:'Module d’autonomie indisponible (recharge RON)',mind:state.mind||{},delay:0}),
+    observe:()=>({status:'waiting',progress:0,stalls:0,question:'Module non disponible',reflection:'',uncertainty:''})
+  });
+}
+
 /* ═══════════ RON DOTS : responsabilités persistantes locales ═══════════ */
 const dotsRuntime = {
   missions: [], log: [], running: false, paused: false, timer: 0, loaded: false,
