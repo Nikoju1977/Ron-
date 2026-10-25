@@ -118,7 +118,7 @@ public final class RonCycle {
         JSONObject body=new JSONObject();
         RonStore.put(body,"model",RonStore.clip(model,120));
         RonStore.put(body,"temperature",0.1);RonStore.put(body,"max_tokens",500);
-        JSONArray messages=new JSONArray(),ms=new JSONObject(),user=new JSONObject();
+        JSONArray messages=new JSONArray();JSONObject ms=new JSONObject(),user=new JSONObject();
         RonStore.put(ms,"role","system");
         RonStore.put(ms,"content","Tu es RON, agent de suivi local. Aucun accès à des outils, fichiers ou au monde extérieur. Ne prétends jamais avoir effectué une action. Évalue sincèrement la progression, signale le manque de preuves. Réponds strictement en JSON avec status(active|waiting|done), summary, next_step, needs_user, question, progress(0..100), private_note, self_check, uncertainty. Quand aucune avancée vérifiable n'est possible, demande une décision.");
         messages.put(ms);
