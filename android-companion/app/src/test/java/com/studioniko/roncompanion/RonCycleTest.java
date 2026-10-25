@@ -4,6 +4,12 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class RonCycleTest {
+    @Test public void comparesCrossPlatformTimestampsChronologically() {
+        assertTrue(RonStore.isNewerStamp("2026-10-25T05:00:00.900Z","2026-10-25T05:00:00Z"));
+        assertTrue(RonStore.isNewerStamp("2026-10-25T05:00:00.123456789Z","2026-10-25T05:00:00.123Z"));
+        assertFalse(RonStore.isNewerStamp("2026-10-25T05:00:00Z","2026-10-25T05:00:00.900Z"));
+        assertFalse(RonStore.isNewerStamp("invalid","2026-10-25T05:00:00Z"));
+    }
     @Test public void rejectsInvalidIntervalsWithoutFallbackOrOverflow() {
         assertEquals(60_000L,RonCycle.validIntervalMs(1));
         assertEquals(3_600_000L,RonCycle.validIntervalMs(60));
