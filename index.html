@@ -119,6 +119,49 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .ron-table tr:last-child td{border-bottom:0}
 .ron-table th:last-child,.ron-table td:last-child{border-right:0}
 .artifact-note{color:var(--mist);font-size:11px;line-height:1.45;margin-top:8px}
+
+/* DOTS : panneau mobile opaque, accessible et intégré aux réglages */
+#dotsBackdrop{position:fixed;inset:0;z-index:9;background:rgba(0,5,12,.82);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s}
+#dotsBackdrop.open{opacity:1;visibility:visible;pointer-events:auto}
+#dotsPanel{z-index:10;width:min(460px,100%);background:#061522;color:var(--frost);--mist:#b0c1ca;--line:rgba(159,232,220,.29);box-shadow:20px 0 70px rgba(0,0,0,.55);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#dotsPanel .panel-head{gap:14px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}
+#dotsPanel .panel-title{font-size:clamp(18px,4vw,22px);letter-spacing:.12em}
+#dotsPanel .dot-mini{font-size:12px;letter-spacing:.08em}
+#dotsPanel #dotsClose{flex:0 0 48px;width:48px;height:48px;background:#112b39}
+#dotsPanel .hint{font-size:14px;line-height:1.55;color:#b0c1ca}
+#dotsPanel .field label{font-size:14px;color:#d9eeed}
+#dotsPanel .field textarea{min-height:108px;max-height:32dvh;background:#0c2534;color:#eff9fa;border-color:var(--line);font:16px/1.45 var(--mono)}
+#dotsPanel .field textarea::placeholder{color:#a8b9c4;opacity:1}
+#dotsPanel .dots-quick-settings{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 18px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#0b2430}
+#dotsPanel .dots-quick-settings .check{flex:1 1 175px;margin:0;min-height:44px;color:#eff9fa;line-height:1.4}
+#dotsPanel .dots-quick-settings .check input{flex:0 0 20px;width:20px;height:20px}
+#dotsPanel #dotsConfigureBtn{flex:0 0 auto;min-height:44px;padding:8px 14px}
+#dotsPanel .dots-status-card{margin:16px 0;padding:14px;border:1px solid var(--line);background:#0b2532;border-radius:12px}
+#dotsPanel #dotsStatus{font-size:14px;line-height:1.5;margin:0;color:#c5d5dc}
+#dotsPanel #dotsStatus.active{color:var(--ice)}
+#dotsPanel #dotsStatus.waiting{color:var(--amber)}
+#dotsPanel .dots-controls,#dotsPanel .dots-secondary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 0}
+#dotsPanel .btn{min-width:0;min-height:48px;padding:11px 10px;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+#dotsPanel .btn:disabled{opacity:.45;cursor:not-allowed}
+#dotsPanel #dotsActivity{margin:14px 0}
+#dotsPanel #dotsActivity .hint{margin-bottom:0}
+#dotsPanel .dot-card{background:#0d2633;border-color:var(--line)}
+#dotsPanel .dot-card .dot-title{font-size:15px}
+#dotsPanel .dot-card .dot-meta{color:#b4c8cf;font-size:13px}
+#dotsPanel .dots-log-field{margin:20px 0 16px}
+#dotsPanel .dot-log{max-height:min(24dvh,210px);font-size:13px;color:#b0c1ca}
+#toast{z-index:12}
+@media(max-width:520px){
+  #dotsPanel{width:100%;border-right:0;padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(26px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  #dotsPanel .panel-head{margin-bottom:14px}
+}
+@media(max-width:340px){#dotsPanel .dots-controls,#dotsPanel .dots-secondary{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#dotsBackdrop,#dotsPanel{transition:none}}
+
+#dotsPanel .dots-mind{border:1px solid var(--line);border-radius:14px;padding:13px 14px;background:#0b2633;margin:12px 0 16px}
+#dotsPanel .dots-mind .dot-mini{color:var(--ice);margin-bottom:7px}
+#dotsMind{font-size:13px;line-height:1.6;color:var(--frost);white-space:pre-wrap;overflow-wrap:anywhere}
+#dotsPanel .dots-mind-note{font-size:12px;color:#b0c1ca;line-height:1.5;margin-top:8px}
 </style>
 </head>
 <body>
@@ -131,7 +174,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   </div>
   <div style="display:flex;gap:10px;align-items:center">
   <a href="./ron-presence.html" title="RON Présence : IA gratuite avec agents locaux" style="color:var(--ice);border:1px solid var(--line);padding:12px;border-radius:12px;text-decoration:none;font:12px var(--mono)">IA GRATUITE</a>
-  <button class="icon-btn" id="dotsBtn" aria-label="RON DOTS" title="RON DOTS">
+  <button class="icon-btn" id="dotsBtn" aria-label="RON DOTS" aria-controls="dotsPanel" aria-expanded="false" title="RON DOTS">
     <span class="dot-core" aria-hidden="true"></span>
   </button>
   <button class="icon-btn" id="settingsBtn" aria-label="Réglages" title="Réglages">
@@ -165,31 +208,45 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   </div>
 </footer>
 
-<aside id="dotsPanel" aria-label="RON DOTS">
+<div id="dotsBackdrop" aria-hidden="true"></div>
+<aside id="dotsPanel" aria-label="RON DOTS" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1" inert>
   <div class="panel-head">
     <div>
       <div class="panel-title">RON · DOTS</div>
-      <div class="dot-mini">agent persistant local</div>
+      <div class="dot-mini">Agent persistant local</div>
     </div>
-    <button class="icon-btn" id="dotsClose" aria-label="Fermer DOTS">✕</button>
+    <button class="icon-btn" id="dotsClose" type="button" aria-label="Fermer DOTS">✕</button>
   </div>
-  <p class="hint">Donne à RON une responsabilité à suivre dans le temps. Les missions et notes sont conservées localement sur cet appareil.</p>
+  <p class="hint">Confie à RON une responsabilité à suivre. Missions et journal restent sur cet appareil ; les cycles nécessitent un moteur IA disponible et cette page ouverte.</p>
+  <div class="dots-quick-settings">
+    <label class="check" for="dotsQuickEnable"><input id="dotsQuickEnable" type="checkbox"> Activer DOTS</label>
+    <button class="btn ghost" id="dotsConfigureBtn" type="button">Réglages IA</button>
+  </div>
   <div class="field">
     <label for="dotsMissionIn">Nouvelle responsabilité</label>
-    <textarea id="dotsMissionIn" placeholder="Ex. Garde le développement de RON cohérent, repère les points bloquants et demande-moi une décision quand nécessaire."></textarea>
+    <textarea id="dotsMissionIn" placeholder="Ex. Suis le développement de RON, repère les blocages et demande-moi de trancher quand nécessaire."></textarea>
   </div>
-  <div class="row">
-    <button class="btn" id="dotsAddBtn" type="button">Ajouter</button>
-    <button class="btn ghost" id="dotsRunBtn" type="button">Exécuter un cycle</button>
+<div class="dots-native-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 14px">
+    <button class="btn ghost" type="button" id="dotsExportAndroid" style="flex:none;min-height:44px">Exporter vers Android</button>
+    <span id="dotsAndroidState" style="font-size:12px;color:var(--mist);flex:1">Compagnon Android : non connecté</span>
   </div>
-  <div id="dotsStatus">DOTS est désactivé.</div>
-  <div id="dotsActivity"></div>
-  <div class="row">
-    <button class="btn ghost" id="dotsPauseBtn" type="button">Pause / reprise</button>
+  <div class="dots-controls">
+    <button class="btn" id="dotsAddBtn" type="button">Ajouter la mission</button>
+    <button class="btn ghost" id="dotsRunBtn" type="button">Lancer un cycle</button>
+  </div>
+  <div class="dots-status-card"><div id="dotsStatus" role="status" aria-live="polite">DOTS est désactivé.</div></div>
+  <div id="dotsActivity" aria-label="Missions DOTS"></div>
+  <div class="dots-secondary">
+    <button class="btn ghost" id="dotsPauseBtn" type="button">Mettre en pause</button>
     <button class="btn ghost" id="dotsClearBtn" type="button">Effacer terminées</button>
   </div>
-  <div class="field" style="margin-top:18px">
-    <label>Journal</label>
+  <section class="dots-mind" aria-label="État interne de RON">
+    <div class="dot-mini">Attention · mémoire · auto-évaluation</div>
+    <div id="dotsMind" role="status" aria-live="polite">Initialisation de l’état opérationnel…</div>
+    <p class="dots-mind-note">Autonomie fonctionnelle, non conscience subjective. Cycles automatiques seulement sur moteur local/sans clé, quand l’application est ouverte et active. Reprise au retour dans RON.</p>
+  </section>
+  <div class="field dots-log-field">
+    <label for="dotsLog">Journal d’activité</label>
     <div class="dot-log" id="dotsLog"></div>
   </div>
 </aside>
@@ -316,6 +373,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./ron-autonomy.js"></script>
 <script>
 const RON_BUILD='2026.10.01-studio-artifacts-1';
 
@@ -1209,9 +1267,21 @@ async function testConnection(){
   }
 }
 
+/* Keep the conversation usable if a local PWA asset is temporarily absent.
+   This fallback NEVER runs autonomous cycles or spends API credits. */
+if(!window.RONAutonomy){
+  window.RONAutonomy=Object.freeze({
+    DAILY_LIMIT:0,
+    mind:state=>Object.assign({day:'',cycles:0,failures:0,lastAttemptAt:0,lastCycleAt:0,nextAt:0,focus:'',reflection:'',uncertainty:''},state||{}),
+    inspect:state=>({mode:'blocked',reason:'Module d’autonomie indisponible (recharge RON)',mind:state.mind||{},delay:0}),
+    observe:()=>({status:'waiting',progress:0,stalls:0,question:'Module non disponible',reflection:'',uncertainty:''})
+  });
+}
+
 /* ═══════════ RON DOTS : responsabilités persistantes locales ═══════════ */
 const dotsRuntime = {
-  missions: [], log: [], running: false, paused: false, timer: 0, loaded: false
+  missions: [], log: [], running: false, paused: false, timer: 0, loaded: false,
+  mind:window.RONAutonomy.mind(null)
 };
 
 function dotsNow(){ return new Date().toISOString(); }
@@ -1224,19 +1294,87 @@ async function loadDotsState(){
     dotsRuntime.missions = Array.isArray(saved.missions) ? saved.missions : [];
     dotsRuntime.log = Array.isArray(saved.log) ? saved.log.slice(-80) : [];
     dotsRuntime.paused = saved.paused === true;
+    dotsRuntime.mind = window.RONAutonomy.mind(saved.mind);
   }
   dotsRuntime.loaded = true;
   renderDots();
+  ronSendMissionsToAndroid();
 }
 
+
+/* Bridge limité au WebView du compagnon Android. Aucun démarrage de service ici. */
+let ronAndroidSyncing=false;
+function ronSendMissionsToAndroid(explicitPause=false){
+  if(ronAndroidSyncing||!dotsRuntime.loaded||typeof window.RonNative?.postMessage!=='function')return;
+  try{
+    window.RonNative.postMessage(JSON.stringify({version:1,missions:dotsRuntime.missions.slice(-30),
+      paused:dotsRuntime.paused,explicitPause}));
+  }catch(error){console.warn('RON Android : synchronisation indisponible',error);}
+}
+window.RONAndroid={
+  async applyState(raw){
+    if(!dotsRuntime.loaded)return;
+    let remote;
+    try{remote=JSON.parse(raw);}catch(error){return;}
+    if(!Array.isArray(remote?.missions))return;
+    let changed=false,localNewer=false;
+    for(const item of remote.missions.slice(-30)){
+      if(!item||typeof item.id!=='string'||typeof item.title!=='string'
+         ||!Number.isFinite(Date.parse(item.updatedAt||'')))continue;
+      const i=dotsRuntime.missions.findIndex(m=>m.id===item.id);
+      if(i<0){
+        if(dotsRuntime.missions.length<30){dotsRuntime.missions.push(item);changed=true;}
+      }else{
+        const local=dotsRuntime.missions[i];
+        const incomingTime=Date.parse(item.updatedAt||'');
+        const localTime=Date.parse(local.updatedAt||'');
+        if(Number.isFinite(incomingTime)&&(!Number.isFinite(localTime)||incomingTime>localTime)){
+          dotsRuntime.missions[i]=item;changed=true;
+        }else if(Number.isFinite(localTime)&&localTime>incomingTime)localNewer=true;
+      }
+    }
+    if(typeof remote.paused==='boolean'&&dotsRuntime.paused!==remote.paused){
+      dotsRuntime.paused=remote.paused;changed=true;
+    }
+    const mind=$('dotsAndroidState');
+    if(mind)mind.textContent='Android : '+String(remote.status||'en attente').slice(0,180)+
+      ' · '+Math.max(0,Number(remote.cycles)||0)+' cycles UTC';
+    if(changed){
+      ronAndroidSyncing=true;
+      try{await saveDotsState();renderDots();scheduleDots(1200);}
+      finally{ronAndroidSyncing=false;}
+    }
+    if(localNewer)ronSendMissionsToAndroid();
+  }
+};
+function ronExportMissions(){
+  const state={version:1,missions:dotsRuntime.missions.slice(-30),paused:dotsRuntime.paused};
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement('a');
+  anchor.href=url;anchor.download='ron-dots-missions.json';
+  document.body.appendChild(anchor);anchor.click();anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+// Enqueue immutable snapshots so a slow IndexedDB transaction cannot overwrite
+// a newer mission, pause or self-evaluation state.
+let dotsSaveQueue=Promise.resolve();
 async function saveDotsState(){
-  if (!dotsRuntime.loaded) return;
-  await safeStorage.set('dotsState', {
-    missions: dotsRuntime.missions.slice(-30),
-    log: dotsRuntime.log.slice(-80),
-    paused: dotsRuntime.paused,
-    savedAt: dotsNow()
-  });
+  if(!dotsRuntime.loaded)return;
+  const snapshot=JSON.parse(JSON.stringify({
+    missions:dotsRuntime.missions.slice(-30),
+    log:dotsRuntime.log.slice(-80),
+    paused:dotsRuntime.paused,
+    mind:window.RONAutonomy.mind(dotsRuntime.mind),
+    savedAt:dotsNow()
+  }));
+  // Deliver the current state to the native companion without waiting for disk I/O.
+  ronSendMissionsToAndroid();
+  const pending=dotsSaveQueue.catch(()=>{}).then(()=>safeStorage.set('dotsState',snapshot));
+  dotsSaveQueue=pending;
+  try{await pending;}
+  catch(error){console.warn('RON DOTS : sauvegarde locale indisponible',error);}
 }
 
 function dotsLog(message){
@@ -1249,16 +1387,98 @@ function dotsActiveMission(){
   return dotsRuntime.missions.find(m => m.status === 'active') || null;
 }
 
+
+let dotsPreviousFocus = null;
+function openDotsPanel(){
+  closePanel();
+  dotsPreviousFocus = document.activeElement;
+  const panel = $('dotsPanel');
+  panel.classList.add('open');
+  panel.removeAttribute('inert');
+  panel.setAttribute('aria-hidden','false');
+  $('dotsBackdrop').classList.add('open');
+  $('dotsBackdrop').setAttribute('aria-hidden','false');
+  $('dotsBtn').setAttribute('aria-expanded','true');
+  renderDots();
+  $('dotsClose').focus({preventScroll:true});
+}
+function closeDotsPanel(restoreFocus=true){
+  const panel=$('dotsPanel');
+  panel.classList.remove('open');
+  panel.setAttribute('inert','');
+  panel.setAttribute('aria-hidden','true');
+  $('dotsBackdrop').classList.remove('open');
+  $('dotsBackdrop').setAttribute('aria-hidden','true');
+  $('dotsBtn').setAttribute('aria-expanded','false');
+  if(restoreFocus && dotsPreviousFocus && dotsPreviousFocus.isConnected) dotsPreviousFocus.focus({preventScroll:true});
+}
+function setDotsEnabled(enabled){
+  cfg.dotsEnabled=!!enabled;
+  $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  $('dotsQuickEnable').checked=cfg.dotsEnabled;
+  renderDots();
+  scheduleDots(350);
+  Promise.resolve(safeStorage.set('dotsEnabled',cfg.dotsEnabled)).catch(()=>toast('Impossible de conserver le réglage DOTS sur cet appareil.'));
+}
+
+function dotsInspect(firstDelay=1200){
+  const p=PROVIDERS[cfg.provider]||{};
+  const allowedLocal=['browser','ollama','lmstudio','vllm','llamacpp'].includes(cfg.provider) && !p.needsKey;
+  const engineReady=!!(cfg.endpoint && cfg.model && (!p.needsKey || cfg.key));
+  const decision=window.RONAutonomy.inspect({
+    now:Date.now(),mind:dotsRuntime.mind,enabled:cfg.dotsEnabled,paused:dotsRuntime.paused,
+    running:dotsRuntime.running,hasMission:!!dotsActiveMission(),visible:!document.hidden,
+    engineReady,needsKey:!allowedLocal,interval:cfg.dotsInterval,firstDelay,
+    cooldownUntil:rateRuntime.cooldownUntil||0
+  });
+  dotsRuntime.mind=decision.mind;
+  return decision;
+}
+
 function renderDots(){
   const status = $('dotsStatus'), cards = $('dotsActivity'), log = $('dotsLog'), btn = $('dotsBtn');
   if (!status || !cards || !log || !btn) return;
   btn.classList.toggle('active', cfg.dotsEnabled && !dotsRuntime.paused);
+  $('dotsQuickEnable').checked=cfg.dotsEnabled;
+  $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  const nativeCompanion=typeof window.RonNative?.postMessage==='function';
+  // Native service and web DOTS share missions, not process control or permissions.
+  $('dotsQuickEnable').disabled=nativeCompanion;
+  $('dotsEnabledChk').disabled=nativeCompanion;
+  const engineConfigured=!!(cfg.endpoint && cfg.model && (!(PROVIDERS[cfg.provider]||{}).needsKey || cfg.key));
+  $('dotsRunBtn').disabled=nativeCompanion || !cfg.dotsEnabled || dotsRuntime.paused || dotsRuntime.running || !engineConfigured || !dotsActiveMission();
+  $('dotsPauseBtn').disabled=!cfg.dotsEnabled && !nativeCompanion;
+  $('dotsPauseBtn').textContent=dotsRuntime.paused?'Reprendre':'Mettre en pause';
+  $('dotsClearBtn').disabled=!dotsRuntime.missions.some(m=>m.status==='done');
   const active = dotsRuntime.missions.filter(m => m.status === 'active').length;
   const waiting = dotsRuntime.missions.filter(m => m.status === 'waiting').length;
   if (!cfg.dotsEnabled){ status.className=''; status.textContent='DOTS est désactivé dans les réglages.'; }
   else if (dotsRuntime.paused){ status.className='waiting'; status.textContent='DOTS en pause · ' + active + ' active · ' + waiting + ' en attente.'; }
   else if (dotsRuntime.running){ status.className='active'; status.textContent='DOTS travaille sur une responsabilité…'; }
   else { status.className=waiting ? 'waiting' : 'active'; status.textContent=active + ' active · ' + waiting + ' en attente · cycle ' + Math.round(cfg.dotsInterval/60000) + ' min.'; }
+  if (cfg.dotsEnabled && !engineConfigured) {
+    status.className='waiting';
+    status.textContent='DOTS est activé, mais aucun moteur IA utilisable n’est configuré. Ouvre « Réglages IA ».';
+  }
+  if(nativeCompanion){
+    status.className=dotsRuntime.paused?'waiting':'active';
+    status.textContent=dotsRuntime.paused
+      ? 'Missions du compagnon Android en pause. Reprends ici ou dans « Contrôles ».'
+      : 'Les cycles sont pilotés par le compagnon Android. Ouvre « Contrôles » pour démarrer ou arrêter le service ; ce panneau gère les missions.';
+  }
+  const decision=dotsInspect();
+  const mind=dotsRuntime.mind;
+  const time=mind.lastCycleAt?new Date(mind.lastCycleAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'jamais';
+  const next=['scheduled','budget','cooldown'].includes(decision.mode)&&decision.delay
+    ? new Date(Date.now()+decision.delay).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+    : '—';
+  const line=['Mode : '+decision.reason,'Attention : '+(dotsActiveMission()?.title||'aucune mission').slice(0,100),
+    'Dernier cycle : '+time+' · Suivant : '+next,
+    'Cycles autonomes aujourd’hui : '+mind.cycles+'/'+window.RONAutonomy.DAILY_LIMIT];
+  if(mind.reflection)line.push('Auto-évaluation : '+mind.reflection);
+  if(mind.uncertainty)line.push('Incertitude : '+mind.uncertainty);
+  $('dotsMind').textContent=line.join('\n');
+
   const visible = dotsRuntime.missions.slice().reverse().slice(0, 10);
   cards.innerHTML = visible.length ? visible.map(m => {
     const meta = (m.status === 'active' ? 'active' : m.status === 'waiting' ? 'en attente' : m.status === 'done' ? 'terminée' : 'pause') +
@@ -1295,9 +1515,15 @@ async function runDotsCycle(manual=false){
   }
   if (state === 'thinking' || state === 'speaking' || recMode === 'ptt') { scheduleDots(15000); return; }
   if (!cfg.endpoint || !cfg.model || ((PROVIDERS[cfg.provider] || {}).needsKey && !cfg.key)) return;
-  const mission = dotsActiveMission();
-  if (!mission) { renderDots(); return; }
-  dotsRuntime.running = true; renderDots();
+  const mission=dotsActiveMission();
+  if(!mission){renderDots();return;}
+  if(!manual && dotsInspect().mode!=='ready'){scheduleDots();return;}
+  dotsRuntime.mind=window.RONAutonomy.mind(dotsRuntime.mind);
+  dotsRuntime.mind.cycles+=manual?0:1;
+  dotsRuntime.mind.lastAttemptAt=Date.now();
+  dotsRuntime.mind.focus=mission.title.slice(0,160);
+  dotsRuntime.running=true;renderDots();
+  void saveDotsState();
   const notes = (mission.notes || []).slice(-8).map(n => '- ' + n).join('\n') || 'Aucune note.';
   try {
     const raw = await chatOnce([
@@ -1306,26 +1532,35 @@ async function runDotsCycle(manual=false){
         "Tu n'as ni navigateur autonome, ni accès aux apps, ni capacité d'agir hors de cette page sauf si un outil explicite est fourni. " +
         "Ne prétends jamais avoir vérifié une information externe. Cherche seulement la prochaine étape utile à partir du contexte disponible. " +
         "Si aucune progression honnête n'est possible sans nouvelle information, passe en waiting et pose une question précise. " +
-        "Réponds UNIQUEMENT en JSON avec: status(active|waiting|done), summary, next_step, needs_user(boolean), question, progress(0..100), private_note."},
+        "Sépare hypothèses et faits observés. N'invente jamais de résultat, fichier créé ou recherche externe. Évalue ta progression réelle. " +
+        "Réponds UNIQUEMENT en JSON avec: status(active|waiting|done), summary, next_step, needs_user(boolean), question, progress(0..100), private_note, self_check, uncertainty."},
       {role:'user', content:`RESPONSABILITÉ:\n${mission.title}\n\nNOTES PRÉCÉDENTES:\n${notes}\n\nMode autonomie: ${cfg.dotsMode}. Effectue un seul cycle de progression.`}
     ], 0.15, 650, { userText:mission.title, role:'dots', domain:detectDomain(mission.title) });
     const j = parseDotsJson(raw);
     if (!j) throw new Error('Réponse DOTS non structurée.');
     const st = ['active','waiting','done'].includes(j.status) ? j.status : (j.needs_user ? 'waiting' : 'active');
-    mission.status = st;
-    mission.progress = Math.max(0, Math.min(100, Number(j.progress) || mission.progress || 0));
-    mission.updatedAt = dotsNow();
-    mission.nextStep = String(j.next_step || '').trim();
+    const feedback=window.RONAutonomy.observe(mission,j);
+    mission.status=feedback.status;
+    mission.progress=feedback.progress;
+    mission.stalls=feedback.stalls;
+    mission.updatedAt=dotsNow();
+    mission.nextStep=String(j.next_step||'').trim();
+    mission.question=feedback.question;
+    dotsRuntime.mind.lastCycleAt=Date.now();
+    dotsRuntime.mind.failures=0;
+    dotsRuntime.mind.focus=mission.title.slice(0,160);
+    dotsRuntime.mind.reflection=feedback.reflection;
+    dotsRuntime.mind.uncertainty=feedback.uncertainty;
     if (j.private_note){
       mission.notes = Array.isArray(mission.notes) ? mission.notes : [];
       mission.notes.push(String(j.private_note).slice(0, 1200));
       if (mission.notes.length > 16) mission.notes.splice(0, mission.notes.length - 16);
     }
     const summary = String(j.summary || mission.nextStep || 'Cycle terminé.').trim();
-    dotsLog((st === 'done' ? 'Terminé : ' : st === 'waiting' ? 'Décision requise : ' : 'Progression : ') + summary);
-    if (j.needs_user || st === 'waiting'){
+    dotsLog((feedback.status === 'done' ? 'Terminé : ' : feedback.status === 'waiting' ? 'Décision requise : ' : 'Plan revu : ') + summary);
+    if (feedback.status === 'waiting'){
       mission.status = 'waiting';
-      const q = String(j.question || 'RON DOTS a besoin de ton avis pour continuer.').trim();
+      const q = feedback.question;
       mission.question = q;
       $('ronLine').textContent = 'DOTS · ' + q;
       toast('RON DOTS a besoin de toi.');
@@ -1334,6 +1569,8 @@ async function runDotsCycle(manual=false){
     }
     await saveDotsState();
   } catch(err){
+    dotsRuntime.mind.failures=Math.min(8,(dotsRuntime.mind.failures||0)+1);
+    dotsRuntime.mind.uncertainty='Cycle échoué : '+String(err?.message||err).slice(0,160);
     dotsLog('Erreur DOTS : ' + (err && err.message ? err.message : String(err)));
   } finally {
     dotsRuntime.running = false; renderDots(); scheduleDots();
@@ -1342,15 +1579,17 @@ async function runDotsCycle(manual=false){
 
 function scheduleDots(delay){
   clearTimeout(dotsRuntime.timer);
-  if (!cfg.dotsEnabled || dotsRuntime.paused) return;
-  if (cfg.provider==='mistral') return;
-  const floor = cfg.provider === 'mistral' ? rateProfile().dotsFloor : 60000;
-  const requested = Number.isFinite(delay) ? Math.max(0,delay) : (cfg.dotsInterval || 120000);
-  let d = cfg.provider === 'mistral' ? Math.max(floor, requested) : Math.max(1000, requested);
-  if(cfg.provider === 'mistral' && rateRuntime.dotsSuppressedUntil > Date.now()){
-    d = Math.max(d, rateRuntime.dotsSuppressedUntil - Date.now() + 5000);
-  }
-  dotsRuntime.timer = setTimeout(() => runDotsCycle(false), d);
+  // The native resident engine owns automatic cycles inside the Android WebView.
+  if(typeof window.RonNative?.postMessage==='function'){renderDots();return;}
+  dotsRuntime.timer=0;
+  if(!dotsRuntime.loaded)return;
+  const d=dotsInspect(Number.isFinite(delay)?delay:1200);
+  dotsRuntime.mind.nextAt=['scheduled','budget','cooldown'].includes(d.mode)&&d.delay?Date.now()+d.delay:0;
+  if(d.mode==='scheduled'||d.mode==='ready')
+    dotsRuntime.timer=setTimeout(()=>runDotsCycle(false),d.mode==='ready'?Math.max(1000,Number.isFinite(delay)?delay:1200):Math.max(0,d.delay||0));
+  else if((d.mode==='cooldown'||d.mode==='budget') && d.delay)
+    dotsRuntime.timer=setTimeout(()=>scheduleDots(1200),Math.max(1000,d.delay));
+  renderDots();
 }
 
 async function dotsCommand(text){
@@ -1364,8 +1603,13 @@ async function dotsCommand(text){
     $('ronLine').textContent = `DOTS : ${active} responsabilité(s) active(s), ${waiting} en attente. ${cfg.dotsEnabled ? 'Moteur activé.' : 'Moteur désactivé.'}`;
     renderDots(); return true;
   }
-  if (/^pause$/i.test(cmd)){ dotsRuntime.paused=true; await saveDotsState(); scheduleDots(); renderDots(); $('ronLine').textContent='DOTS mis en pause.'; return true; }
-  if (/^(resume|reprendre)$/i.test(cmd)){ dotsRuntime.paused=false; await saveDotsState(); scheduleDots(350); renderDots(); $('ronLine').textContent='DOTS reprend.'; return true; }
+  if (/^(mind|conscience|attention)$/i.test(cmd)){
+    const d=dotsInspect();
+    $('ronLine').textContent='RON · état opérationnel : '+d.reason+' · '+dotsRuntime.mind.cycles+' cycles aujourd’hui. Auto-évaluation : '+(dotsRuntime.mind.reflection||'aucune');
+    return true;
+  }
+  if (/^pause$/i.test(cmd)){ dotsRuntime.paused=true; renderDots(); scheduleDots(); ronSendMissionsToAndroid(true); await saveDotsState(); $('ronLine').textContent='DOTS mis en pause.'; return true; }
+  if (/^(resume|reprendre)$/i.test(cmd)){ dotsRuntime.paused=false; renderDots(); scheduleDots(350); ronSendMissionsToAndroid(true); await saveDotsState(); $('ronLine').textContent='DOTS reprend.'; return true; }
   if (/^run$/i.test(cmd)){ runDotsCycle(true); return true; }
   if (/^clear$/i.test(cmd)){ dotsRuntime.missions = dotsRuntime.missions.filter(m=>m.status!=='done'); await saveDotsState(); renderDots(); $('ronLine').textContent='Missions DOTS terminées effacées.'; return true; }
   await addDotsMission(cmd);
@@ -1376,7 +1620,7 @@ async function dotsCommand(text){
 window.RON_DOTS = {
   addMission:addDotsMission,
   run:()=>runDotsCycle(true),
-  getState:()=>JSON.parse(JSON.stringify({missions:dotsRuntime.missions, paused:dotsRuntime.paused, enabled:cfg.dotsEnabled}))
+  getState:()=>JSON.parse(JSON.stringify({missions:dotsRuntime.missions, paused:dotsRuntime.paused, enabled:cfg.dotsEnabled, mind:dotsRuntime.mind}))
 };
 
 /* ═══════════ Voix : synthèse ═══════════ */
@@ -2512,7 +2756,7 @@ function setState(s, detail){
 }
 
 /* ═══════════ Panneau ═══════════ */
-function openPanel(){ $('panel').classList.add('open'); setTimeout(() => $('keyIn').focus(), 200); }
+function openPanel(){ if ($('dotsPanel').classList.contains('open')) closeDotsPanel(false); $('panel').classList.add('open'); setTimeout(() => $('keyIn').focus(), 200); }
 function closePanel(){ $('panel').classList.remove('open'); }
 
 async function saveSettings(){
@@ -2561,7 +2805,7 @@ async function saveSettings(){
     ? 'Configuration enregistrée. Aucun test API consommé. RON utilisera Mistral Conversations : 1 requête par message.'
     : 'Configuration enregistrée.';
   unlockSpeech(); stopRec(); setState('idle'); startWake();
-  if(cfg.provider!=='mistral') scheduleDots();
+  scheduleDots();
   setTimeout(closePanel, 900);
 }
 
@@ -2874,7 +3118,7 @@ async function boot(){
   await loadCfg();
   await loadDotsState();
   await loadMistralConversation();
-  if(cfg.provider!=='mistral') scheduleDots();
+  scheduleDots();
   if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
   else $('voiceSel').innerHTML = '<option value="">Synthèse vocale indisponible</option>';
   if (!SR){ $('micBtn').hidden = true; $('wakeChk').disabled = true; }
@@ -2932,17 +3176,21 @@ async function boot(){
       stopRec();
     }
   });
-  $('dotsBtn').addEventListener('click', () => { $('dotsPanel').classList.add('open'); renderDots(); });
-  $('dotsClose').addEventListener('click', () => $('dotsPanel').classList.remove('open'));
+  $('dotsBtn').addEventListener('click',openDotsPanel);
+  $('dotsClose').addEventListener('click',()=>closeDotsPanel());
+  $('dotsBackdrop').addEventListener('click',()=>closeDotsPanel());
+  $('dotsConfigureBtn').addEventListener('click',openPanel);
+  $('dotsQuickEnable').addEventListener('change',()=>setDotsEnabled($('dotsQuickEnable').checked));
+  $('dotsExportAndroid').addEventListener('click',ronExportMissions);
   $('dotsAddBtn').addEventListener('click', async () => {
     const v = $('dotsMissionIn').value.trim();
     if (!v) return;
     await addDotsMission(v); $('dotsMissionIn').value=''; renderDots();
   });
   $('dotsRunBtn').addEventListener('click', () => runDotsCycle(true));
-  $('dotsPauseBtn').addEventListener('click', async () => { dotsRuntime.paused=!dotsRuntime.paused; await saveDotsState(); renderDots(); scheduleDots(350); });
-  $('dotsClearBtn').addEventListener('click', async () => { dotsRuntime.missions=dotsRuntime.missions.filter(m=>m.status!=='done'); await saveDotsState(); renderDots(); });
-  $('dotsEnabledChk').addEventListener('change', () => { cfg.dotsEnabled=$('dotsEnabledChk').checked; renderDots(); scheduleDots(350); });
+  $('dotsPauseBtn').addEventListener('click', async () => { dotsRuntime.paused=!dotsRuntime.paused; renderDots(); scheduleDots(350); ronSendMissionsToAndroid(true); await saveDotsState(); });
+  $('dotsClearBtn').addEventListener('click', async () => { dotsRuntime.missions=dotsRuntime.missions.filter(m=>m.status!=='done'); renderDots(); await saveDotsState(); });
+  $('dotsEnabledChk').addEventListener('change', () => setDotsEnabled($('dotsEnabledChk').checked));
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
   $('dotsIntervalSel').addEventListener('change', () => { cfg.dotsInterval=Math.max(60000,Number($('dotsIntervalSel').value)||120000); scheduleDots(); renderDots(); });
   $('settingsBtn').addEventListener('click', openPanel);
@@ -2953,9 +3201,21 @@ async function boot(){
     const v = voices.find(x => x.name === $('voiceSel').value);
     if (v){ voice = v; cfg.voiceName = v.name; safeStorage.set('voice', v.name); }
   });
+  document.addEventListener('visibilitychange',()=>scheduleDots(1200));
+  window.addEventListener('pageshow',()=>scheduleDots(1200));
+  window.addEventListener('pagehide',()=>clearTimeout(dotsRuntime.timer));
   addEventListener('keydown', e => {
+    if(e.key==='Tab' && $('dotsPanel').classList.contains('open')){
+      const focusable=[...$('dotsPanel').querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled])')];
+      if(focusable.length){
+        const first=focusable[0],last=focusable[focusable.length-1],current=document.activeElement;
+        if(e.shiftKey && (current===first || !$('dotsPanel').contains(current))){e.preventDefault();last.focus();}
+        else if(!e.shiftKey && (current===last || !$('dotsPanel').contains(current))){e.preventDefault();first.focus();}
+      }
+      return;
+    }
     const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement && document.activeElement.tagName);
-    if (e.key === 'Escape'){ if ($('panel').classList.contains('open')) closePanel(); else if ($('dotsPanel').classList.contains('open')) $('dotsPanel').classList.remove('open'); else stopAll(); }
+    if (e.key === 'Escape'){ if ($('panel').classList.contains('open')) closePanel(); else if ($('dotsPanel').classList.contains('open')) closeDotsPanel(); else stopAll(); }
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
   addEventListener('pointerdown', unlockSpeech, { once: true });

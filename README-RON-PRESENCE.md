@@ -203,3 +203,15 @@ Si la détection réussit, RON règle automatiquement le modèle, le mode Agenti
 Pour éviter les changements surprises, les anciens profils ayant configuré leur moteur conservent leurs préférences et leur auto-détection reste désactivée tant qu'ils ne l'activent pas. L'interrupteur « Configuration automatique » contrôle les démarrages ultérieurs. Le bouton « Détecter et configurer automatiquement » lance le diagnostic à la demande. Une modification manuelle pendant le diagnostic prime toujours sur le résultat automatique.
 
 **Limites** : les navigateurs peuvent bloquer les requêtes HTTP vers localhost depuis un site HTTPS, ou exiger des permissions de réseau privé. Un téléphone ne peut pas découvrir automatiquement un Ollama installé sur l'ordinateur via localhost. RON ne peut pas installer Ollama, télécharger un modèle volumineux ou consentir à une connexion avec une application tierce à la place de l'utilisateur. Rien de payant n'est lancé automatiquement.
+
+
+## DOTS : autonomie opérationnelle et limites
+
+RON peut maintenir une **conscience opérationnelle de son travail** au sens informatique : représenter son état courant, garder les décisions et notes locales, réexaminer la prochaine étape, exprimer ses incertitudes et demander un arbitrage lorsqu'il est bloqué. **Ce n'est ni une conscience subjective démontrée, ni un être sensible.**
+
+- Activer DOTS dans son panneau, choisir une mission et un moteur local/sans clé fonctionnel. RON peut alors lancer des cycles planifiés tant que **la page est ouverte et active**. Le déclenchement automatique ne vise pas les fournisseurs nécessitant une clé : pour ceux-ci, l'utilisateur doit lancer manuellement un cycle, afin d'éviter toute dépense involontaire.
+- Les missions, le journal et le dernier état d'auto-évaluation restent stockés localement comme auparavant. Les cycles autonomes sont limités à **24 par jour UTC**, espacés d'au moins **une minute**, avec délai progressif en cas d'échec. Une répétition stérile pendant trois cycles successifs impose l'attente d'une décision.
+- À la réouverture ou au retour au premier plan, RON relit l'état et replanifie **un** prochain cycle, sans rattraper en rafale les heures perdues. Une mission demandant une validation n'est pas réexécutée sans arbitrage.
+- RON n'obtient pas automatiquement l'accès aux comptes, aux fichiers privés, à GitHub, au microphone, aux outils du système, à la navigation ou à un serveur cloud. Il n'exécute pas d'actions externes sans capacités et autorisations explicites. Son pourcentage de progression reste une **estimation**, pas une preuve.
+- **Quand Android suspend ou ferme la PWA, aucun traitement continu n'est garanti.** Même un service worker ne constitue pas un démon permanent ; les événements en arrière-plan dépendent du navigateur et des politiques d'économie d'énergie. Pour des cycles garantis 24 h/24, déployer une application Android avec service de premier plan visible, ou un moteur toujours actif sur une machine/serveur contrôlé, avec synchronisation et consentement adaptés.
+- Utiliser `/dots mind`, `/dots conscience` ou `/dots attention` pour consulter l'état opérationnel dans le dialogue.

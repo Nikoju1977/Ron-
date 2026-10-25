@@ -64,6 +64,91 @@ async function main(){
   // The no-engine warning intentionally opens Settings. Dismiss it to type a
   // later live Internet question like a real user would.
   if(await page.locator('#panel').evaluate(e=>e.classList.contains('open')))await page.locator('#panelClose').click();
+  // DOTS must be a usable, accessible mobile panel, connected to the existing
+  // settings and mission storage rather than a disconnected decorative drawer.
+  await page.locator('#dotsBtn').click();
+  assert(await page.locator('#dotsPanel').evaluate(e=>e.classList.contains('open')),'DOTS drawer opens');
+  assert(await page.locator('#dotsMind').innerText().then(x=>x.includes('Attention :')),'DOTS exposes an inspectable operational state');
+  assert(await page.evaluate(()=>!!window.RONAutonomy),'RON autonomy module is loaded before conversation runtime');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'false','DOTS dialog is announced when open');
+  await page.waitForFunction(()=>getComputedStyle(document.getElementById('dotsBackdrop')).visibility==='visible',null,{timeout:3000});
+  assert(await page.locator('#dotsBackdrop').isVisible(),'Opaque DOTS backdrop hides the rest of the interface');
+  assert.equal(await page.locator('#dotsPanel').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(6, 21, 34)','DOTS surface is fully opaque');
+  await page.locator('#dotsMissionIn').fill('Suivre les étapes du projet RON');
+  await page.locator('#dotsAddBtn').click();
+  assert((await page.locator('#dotsActivity').innerText()).includes('Suivre les étapes du projet RON'),'Mission appears in DOTS activity');
+  await page.locator('#dotsQuickEnable').check();
+  assert(await page.locator('#dotsEnabledChk').isChecked(),'DOTS toggle synchronizes with settings');
+  await page.locator('#dotsPauseBtn').click();
+  assert.equal((await page.locator('#dotsPauseBtn').innerText()).trim(),'Reprendre','Pause button shows the current action');
+  await page.locator('#dotsPauseBtn').click();
+  assert.equal((await page.locator('#dotsPauseBtn').innerText()).trim(),'Mettre en pause','Resume returns pause action');
+  await page.locator('#dotsConfigureBtn').click();
+  assert(await page.locator('#panel').evaluate(e=>e.classList.contains('open')),'DOTS connects to engine settings');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','DOTS drawer closes on settings transition');
+  await page.locator('#dotsEnabledChk').uncheck();
+  await page.locator('#panelClose').click();
+  await page.locator('#dotsBtn').click();
+  assert.equal(await page.locator('#dotsQuickEnable').isChecked(),false,'Settings toggle synchronizes back to DOTS');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'true','Escape closes DOTS');
+  // Simulate the native bridge without a real Android device. Text commands must
+  // update the same resident pause state as the DOTS pause button.
+  await page.evaluate(()=>{
+    window.nativeMessages=[];
+    window.RonNative={postMessage(raw){window.nativeMessages.push(JSON.parse(raw));}};
+    renderDots();
+  });
+  await page.locator('#dotsBtn').click();
+  assert.match(await page.locator('#dotsStatus').innerText(),/compagnon Android/i,
+    'The WebView does not claim it can control native background execution');
+  assert(await page.locator('#dotsRunBtn').isDisabled(),
+    'No duplicated automatic and manual web cycle in the Android companion');
+  await page.evaluate(()=>dotsCommand('/dots pause'));
+  const nativePause=await page.evaluate(()=>window.nativeMessages.at(-2));
+  assert.equal(nativePause.explicitPause,true,'/dots pause sends an explicit native command');
+  assert.equal(nativePause.paused,true);
+  await page.evaluate(()=>dotsCommand('/dots reprendre'));
+  const nativeResume=await page.evaluate(()=>window.nativeMessages.at(-2));
+  assert.equal(nativeResume.explicitPause,true,'/dots reprendre also updates the native engine');
+  assert.equal(nativeResume.paused,false);
+  const mergedByTimestamp=await page.evaluate(async()=>{
+    const current=dotsRuntime.missions[0],old={...current};
+    if(!current)return false;
+    dotsRuntime.missions[0]={...old,progress:1,updatedAt:'2026-10-25T05:00:00Z'};
+    const incoming={...old,progress:77,updatedAt:'2026-10-25T05:00:00.900Z'};
+    await window.RONAndroid.applyState(JSON.stringify({missions:[incoming],paused:dotsRuntime.paused}));
+    const ok=dotsRuntime.missions[0].progress===77;
+    dotsRuntime.missions[0]=old;
+    await saveDotsState();
+    return ok;
+  });
+  assert(mergedByTimestamp,'More recent Android missions win despite different ISO timestamp precision');
+  await page.locator('#dotsClose').click();
+  await page.evaluate(()=>{delete window.RonNative;renderDots();});
+  // Regression: slow old IndexedDB writes must not overwrite a newer pause.
+  const lastPersisted=await page.evaluate(async()=>{
+    await dotsSaveQueue;
+    const original=safeStorage.set;
+    let persisted=null;
+    safeStorage.set=async (key,value)=>{
+      if(key!=='dotsState')return original(key,value);
+      await new Promise(resolve=>setTimeout(resolve,value.paused?1:60));
+      persisted=value.paused;
+    };
+    const previous=dotsRuntime.paused;
+    try{
+      dotsRuntime.paused=false;const first=saveDotsState();
+      dotsRuntime.paused=true;const second=saveDotsState();
+      await Promise.all([first,second]);
+    }finally{
+      safeStorage.set=original;
+      dotsRuntime.paused=previous;
+      await saveDotsState();
+    }
+    return persisted;
+  });
+  assert.equal(lastPersisted,true,'Newer DOTS state wins over a slower earlier write');
   assert.deepEqual(exceptions,[],'No uncaught browser script exceptions');
   // A live weather question must bypass unavailable local LLM and call only
   // Open-Meteo public APIs. Use deterministic fixtures, not live network in CI.
