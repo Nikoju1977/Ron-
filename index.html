@@ -1354,16 +1354,24 @@ function ronExportMissions(){
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
+// Enqueue immutable snapshots so a slow IndexedDB transaction cannot overwrite
+// a newer mission, pause or self-evaluation state.
+let dotsSaveQueue=Promise.resolve();
 async function saveDotsState(){
-  if (!dotsRuntime.loaded) return;
-  await safeStorage.set('dotsState', {
-    missions: dotsRuntime.missions.slice(-30),
-    log: dotsRuntime.log.slice(-80),
-    paused: dotsRuntime.paused,
-    mind: window.RONAutonomy.mind(dotsRuntime.mind),
-    savedAt: dotsNow()
-  });
+  if(!dotsRuntime.loaded)return;
+  const snapshot=JSON.parse(JSON.stringify({
+    missions:dotsRuntime.missions.slice(-30),
+    log:dotsRuntime.log.slice(-80),
+    paused:dotsRuntime.paused,
+    mind:window.RONAutonomy.mind(dotsRuntime.mind),
+    savedAt:dotsNow()
+  }));
+  // Deliver the current state to the native companion without waiting for disk I/O.
   ronSendMissionsToAndroid();
+  const pending=dotsSaveQueue.catch(()=>{}).then(()=>safeStorage.set('dotsState',snapshot));
+  dotsSaveQueue=pending;
+  try{await pending;}
+  catch(error){console.warn('RON DOTS : sauvegarde locale indisponible',error);}
 }
 
 function dotsLog(message){
@@ -1430,9 +1438,13 @@ function renderDots(){
   btn.classList.toggle('active', cfg.dotsEnabled && !dotsRuntime.paused);
   $('dotsQuickEnable').checked=cfg.dotsEnabled;
   $('dotsEnabledChk').checked=cfg.dotsEnabled;
+  const nativeCompanion=typeof window.RonNative?.postMessage==='function';
+  // Native service and web DOTS share missions, not process control or permissions.
+  $('dotsQuickEnable').disabled=nativeCompanion;
+  $('dotsEnabledChk').disabled=nativeCompanion;
   const engineConfigured=!!(cfg.endpoint && cfg.model && (!(PROVIDERS[cfg.provider]||{}).needsKey || cfg.key));
-  $('dotsRunBtn').disabled=!cfg.dotsEnabled || dotsRuntime.paused || dotsRuntime.running || !engineConfigured || !dotsActiveMission();
-  $('dotsPauseBtn').disabled=!cfg.dotsEnabled;
+  $('dotsRunBtn').disabled=nativeCompanion || !cfg.dotsEnabled || dotsRuntime.paused || dotsRuntime.running || !engineConfigured || !dotsActiveMission();
+  $('dotsPauseBtn').disabled=!cfg.dotsEnabled && !nativeCompanion;
   $('dotsPauseBtn').textContent=dotsRuntime.paused?'Reprendre':'Mettre en pause';
   $('dotsClearBtn').disabled=!dotsRuntime.missions.some(m=>m.status==='done');
   const active = dotsRuntime.missions.filter(m => m.status === 'active').length;
@@ -1444,6 +1456,12 @@ function renderDots(){
   if (cfg.dotsEnabled && !engineConfigured) {
     status.className='waiting';
     status.textContent='DOTS est activé, mais aucun moteur IA utilisable n’est configuré. Ouvre « Réglages IA ».';
+  }
+  if(nativeCompanion){
+    status.className=dotsRuntime.paused?'waiting':'active';
+    status.textContent=dotsRuntime.paused
+      ? 'Missions du compagnon Android en pause. Reprends ici ou dans « Contrôles ».'
+      : 'Les cycles sont pilotés par le compagnon Android. Ouvre « Contrôles » pour démarrer ou arrêter le service ; ce panneau gère les missions.';
   }
   const decision=dotsInspect();
   const mind=dotsRuntime.mind;
@@ -1585,8 +1603,8 @@ async function dotsCommand(text){
     $('ronLine').textContent='RON · état opérationnel : '+d.reason+' · '+dotsRuntime.mind.cycles+' cycles aujourd’hui. Auto-évaluation : '+(dotsRuntime.mind.reflection||'aucune');
     return true;
   }
-  if (/^pause$/i.test(cmd)){ dotsRuntime.paused=true; await saveDotsState(); scheduleDots(); renderDots(); $('ronLine').textContent='DOTS mis en pause.'; return true; }
-  if (/^(resume|reprendre)$/i.test(cmd)){ dotsRuntime.paused=false; await saveDotsState(); scheduleDots(350); renderDots(); $('ronLine').textContent='DOTS reprend.'; return true; }
+  if (/^pause$/i.test(cmd)){ dotsRuntime.paused=true; renderDots(); scheduleDots(); ronSendMissionsToAndroid(true); await saveDotsState(); $('ronLine').textContent='DOTS mis en pause.'; return true; }
+  if (/^(resume|reprendre)$/i.test(cmd)){ dotsRuntime.paused=false; renderDots(); scheduleDots(350); ronSendMissionsToAndroid(true); await saveDotsState(); $('ronLine').textContent='DOTS reprend.'; return true; }
   if (/^run$/i.test(cmd)){ runDotsCycle(true); return true; }
   if (/^clear$/i.test(cmd)){ dotsRuntime.missions = dotsRuntime.missions.filter(m=>m.status!=='done'); await saveDotsState(); renderDots(); $('ronLine').textContent='Missions DOTS terminées effacées.'; return true; }
   await addDotsMission(cmd);
