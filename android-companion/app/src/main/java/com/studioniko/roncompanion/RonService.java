@@ -55,6 +55,8 @@ public final class RonService extends Service {
         if(!RonStore.active(this)){shutdown();return START_NOT_STICKY;}
         try{notice();}catch(RuntimeException e){
             // Platform may reject FGS if its policy or runtime permission disallows it.
+            RonStore.active(this,false);
+            RonWorker.cancel(this);
             stopped=true;stopSelf();return START_NOT_STICKY;
         }
         stopped=false;handler.removeCallbacks(cycle);handler.post(cycle);
