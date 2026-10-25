@@ -1304,11 +1304,11 @@ async function loadDotsState(){
 
 /* Bridge limité au WebView du compagnon Android. Aucun démarrage de service ici. */
 let ronAndroidSyncing=false;
-function ronSendMissionsToAndroid(){
+function ronSendMissionsToAndroid(explicitPause=false){
   if(ronAndroidSyncing||!dotsRuntime.loaded||typeof window.RonNative?.postMessage!=='function')return;
   try{
     window.RonNative.postMessage(JSON.stringify({version:1,missions:dotsRuntime.missions.slice(-30),
-      paused:dotsRuntime.paused}));
+      paused:dotsRuntime.paused,explicitPause}));
   }catch(error){console.warn('RON Android : synchronisation indisponible',error);}
 }
 window.RONAndroid={
@@ -1556,6 +1556,8 @@ async function runDotsCycle(manual=false){
 
 function scheduleDots(delay){
   clearTimeout(dotsRuntime.timer);
+  // The native resident engine owns automatic cycles inside the Android WebView.
+  if(typeof window.RonNative?.postMessage==='function'){renderDots();return;}
   dotsRuntime.timer=0;
   if(!dotsRuntime.loaded)return;
   const d=dotsInspect(Number.isFinite(delay)?delay:1200);
@@ -3163,7 +3165,7 @@ async function boot(){
     await addDotsMission(v); $('dotsMissionIn').value=''; renderDots();
   });
   $('dotsRunBtn').addEventListener('click', () => runDotsCycle(true));
-  $('dotsPauseBtn').addEventListener('click', async () => { dotsRuntime.paused=!dotsRuntime.paused; renderDots(); scheduleDots(350); await saveDotsState(); });
+  $('dotsPauseBtn').addEventListener('click', async () => { dotsRuntime.paused=!dotsRuntime.paused; renderDots(); scheduleDots(350); ronSendMissionsToAndroid(true); await saveDotsState(); });
   $('dotsClearBtn').addEventListener('click', async () => { dotsRuntime.missions=dotsRuntime.missions.filter(m=>m.status!=='done'); renderDots(); await saveDotsState(); });
   $('dotsEnabledChk').addEventListener('change', () => setDotsEnabled($('dotsEnabledChk').checked));
   $('dotsModeSel').addEventListener('change', () => { cfg.dotsMode=$('dotsModeSel').value; });
