@@ -36,7 +36,7 @@ function inspect(input){
  if(o.running)return {mode:'working',reason:'Cycle en cours',mind:m};
  const interval=Math.max(MIN_INTERVAL,numeric(o.interval,120000));
  const backoff=m.failures?Math.min(3600000,MIN_INTERVAL*Math.pow(2,Math.min(5,m.failures))):0;
- const due=m.lastAttemptAt?m.lastAttemptAt+Math.max(interval,backoff):clock+Math.max(1000,numeric(o.firstDelay,1200));
+ const due=m.lastAttemptAt?m.lastAttemptAt+Math.max(interval,backoff):clock;
  const delay=Math.max(0,due-clock);
  return {mode:delay?'scheduled':'ready',reason:delay?'Prochain cycle planifié':'Prêt à analyser la mission',mind:m,delay};
 }
