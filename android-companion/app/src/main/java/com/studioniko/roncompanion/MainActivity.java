@@ -77,7 +77,7 @@ public final class MainActivity extends Activity {
         inside.addView(endpoint);
         model=input("Modèle local (ex. qwen3:4b)",RonStore.model(this));inside.addView(model);
         interval=input("Intervalle en minutes (1 à 60)",String.valueOf(RonStore.interval(this)/60000));inside.addView(interval);
-        inside.addView(button("Enregistrer le moteur local",this::configure));
+        inside.addView(button("Enregistrer le moteur local",()->configure()));
         LinearLayout actions=new LinearLayout(this);
         actions.addView(button("Démarrer",this::startResident),new LinearLayout.LayoutParams(0,-2,1));
         actions.addView(button("Arrêter",this::stopResident),new LinearLayout.LayoutParams(0,-2,1));
@@ -135,21 +135,31 @@ public final class MainActivity extends Activity {
         }
         updateUI();
     }
-    private void configure(){
+    /** Refuse de lancer avec une ancienne configuration lorsque la saisie courante est invalide. */
+    private boolean configure(){
         String uri=endpoint.getText().toString().trim();
         String m=model.getText().toString().trim();
         if(!RonCycle.isAllowedEndpoint(uri)||m.isEmpty()||m.length()>120){
-            status.setText("Adresse refusée : uniquement HTTP vers une adresse IPv4 privée avec port, chemin /v1. Aucun fournisseur cloud autorisé.");return;
+            status.setText("Configuration non enregistrée : indique une adresse IPv4 privée HTTP avec port, et un modèle local valide.");return false;
         }
+        long minutes;
         try{
-            long minutes=Long.parseLong(interval.getText().toString().trim());
-            RonStore.interval(this,minutes*60000);
-        }catch(Exception ignored){RonStore.interval(this,120000);}
-        RonStore.configure(this,uri,m);updateUI();
+            minutes=Long.parseLong(interval.getText().toString().trim());
+        }catch(NumberFormatException ex){
+            status.setText("Intervalle invalide : indique un nombre entier de 1 à 60 minutes.");return false;
+        }
+        long intervalMs=RonCycle.validIntervalMs(minutes);
+        if(intervalMs==0){
+            status.setText("Intervalle hors limites : 1 à 60 minutes.");return false;
+        }
+        RonStore.interval(this,intervalMs);
+        RonStore.configure(this,uri,m);
+        updateUI();
+        return true;
     }
     private void startResident(){
-        configure();
-        if(!RonCycle.isAllowedEndpoint(RonStore.endpoint(this))||RonStore.model(this).isEmpty())return;
+        // Do not silently fall back to a previously saved endpoint on invalid input.
+        if(!configure())return;
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFY_REQUEST);return;
         }
@@ -174,8 +184,10 @@ public final class MainActivity extends Activity {
     }
     private void stopResident(){
         RonStore.active(this,false);RonWorker.cancel(this);
-        try{startService(new Intent(this,RonService.class).setAction(RonService.ACTION_STOP));}
-        catch(RuntimeException ignored){}
+        // stopService works even if background starts are restricted; it also removes
+        // the resident notification via the service's onDestroy lifecycle.
+        try{stopService(new Intent(this,RonService.class));}
+        catch(RuntimeException e){status.setText("Arrêt demandé : "+e.getClass().getSimpleName());}
         updateUI();
     }
     private void updateUI(){if(status!=null)status.setText((RonStore.active(this)?"Résident : demandé":"Résident : arrêté")+"\n"+RonStore.summary(this));}
