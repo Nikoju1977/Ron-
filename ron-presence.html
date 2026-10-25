@@ -148,6 +148,25 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
 @media(max-height:520px){html,body{overflow:auto;min-height:100%}#top{position:relative}#modeNav{position:relative;top:auto;left:auto;transform:none;margin:18px auto;width:max-content}#bottom{position:relative;margin-top:30px;min-height:200px}#fallbackPresence,#stage{opacity:.3}#panel,#dotsPanel{height:100dvh}}
 
 #ronLine p{margin:.5em 0}#ronLine pre{padding:12px;white-space:pre;overflow:auto;background:#061421;border:1px solid var(--line);border-radius:10px;text-align:left}#ronLine code{font:13px ui-monospace,monospace}#ronLine ul,#ronLine ol{padding-left:24px;text-align:left}#ronLine table{border-collapse:collapse;text-align:left;display:block;overflow:auto}#ronLine td,#ronLine th{border:1px solid var(--line);padding:7px}#ronLine a,#localGuide a{color:var(--ice)}#localGuide{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:18px}#localGuide code{overflow-wrap:anywhere}#localGuide summary{cursor:pointer;margin-bottom:10px}#engineHelp{border-left:2px solid var(--ice);padding-left:12px}#freeOnlyRow[hidden],#localGuide[hidden]{display:none}
+#conversationDialog{margin:auto;width:min(760px,96vw);max-height:90dvh;overflow:auto;padding:24px;background:#071b26;color:var(--frost);border:1px solid var(--line);border-radius:20px;font-family:var(--mono);-webkit-overflow-scrolling:touch}
+#conversationDialog::backdrop{background:#000b;backdrop-filter:blur(6px)}
+#conversationDialog h2{font:500 22px var(--display)}
+#conversationList{display:grid;gap:16px;margin:20px 0}
+.conversation-entry{min-width:0;padding:16px;border:1px solid var(--line);border-radius:14px;background:#0b2631;overflow-wrap:anywhere}
+.conversation-entry[data-role=user]{background:#0a1d27;margin-left:24px}
+.conversation-entry h3{font:600 12px var(--mono);letter-spacing:.12em;color:var(--ice);margin-bottom:10px}
+.conversation-content{font-size:15px;line-height:1.7;white-space:pre-wrap}
+.conversation-entry[data-role=assistant] .conversation-content{white-space:normal}
+.conversation-content p{margin:.5em 0}.conversation-content ul,.conversation-content ol{padding-left:24px}
+.conversation-content pre{padding:12px;white-space:pre;overflow:auto;background:#04131e;border-radius:8px}
+.conversation-content table{border-collapse:collapse;display:block;overflow:auto}.conversation-content td,.conversation-content th{border:1px solid var(--line);padding:8px}
+.conversation-content a{color:var(--ice)}
+.conversation-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.conversation-tools button,.conversation-copy{font:14px var(--mono);padding:10px 13px;min-height:44px;background:#0a2633;color:var(--ice);border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.conversation-copy{margin-top:12px}
+#conversationStatus{font-size:13px;color:var(--mist);min-height:1.5em;margin-top:12px}
+#muteBtn[aria-pressed=true]{border-color:var(--ice);background:#153938}
+@media(max-width:520px){#conversationDialog{padding:16px}.conversation-entry{padding:12px}.conversation-entry[data-role=user]{margin-left:12px}}
 </style>
 <link rel="stylesheet" href="./ron-knowledge.css">
 <script src="./ron-vendor/marked.js" defer></script>
@@ -179,11 +198,13 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
     <div id="ronLine"></div>
   </div>
   <div id="presenceBar">
+    <button id="conversationBtn" type="button" aria-haspopup="dialog" aria-controls="conversationDialog">Conversation</button>
     <button id="installBtn" type="button">Installer</button>
     <button id="careBtn" type="button">♡ Mon bien-être</button>
     <button id="knowledgeBtn" type="button">◎ Savoirs</button>
     <button id="foodMapsBtn" type="button">◈ Food Maps</button>
     <button id="gentleBtn" type="button" aria-pressed="false">Voix douce</button>
+    <button id="muteBtn" type="button" aria-pressed="false" title="Couper la lecture audio, en gardant les réponses écrites">Mode silencieux</button>
     <button id="pauseBtn" type="button">Arrêter · micro coupé</button>
     <div id="voiceMeter" aria-hidden="true"><span id="voiceLevel"></span></div>
   </div>
@@ -355,10 +376,22 @@ html,body{height:100%;height:100dvh}#panel,#dotsPanel{height:100%;height:100dvh}
   <div id="keyStatus"></div>
 </aside>
 
+<dialog id="conversationDialog" aria-labelledby="conversationTitle" aria-describedby="conversationHint">
+  <div class="panel-head"><h2 id="conversationTitle">Notre conversation</h2><button class="icon-btn" id="conversationClose" aria-label="Fermer la conversation" autofocus>✕</button></div>
+  <p class="hint" id="conversationHint">Les 20 derniers échanges terminés, dans cet onglet uniquement. Exporte-les avant de fermer ou de recharger la page. Un export peut contenir les informations personnelles que tu as partagées.</p>
+  <div id="conversationList"></div>
+  <div class="conversation-tools">
+    <button id="conversationExport" type="button">Exporter en texte</button>
+    <button id="conversationClear" type="button">Nouvelle conversation</button>
+  </div>
+  <p id="conversationStatus" role="status" aria-live="polite"></p>
+</dialog>
+
 <dialog id="commandDialog" aria-labelledby="commandTitle">
 <div class="panel-head"><h2 id="commandTitle">Centre de commande</h2><button class="icon-btn" id="commandClose" aria-label="Fermer les commandes">✕</button></div>
 <input id="commandSearch" type="search" placeholder="Que veux-tu faire ?" aria-label="Filtrer les commandes">
 <div id="commandActions">
+<button data-command="conversation"><span>☰</span><div>Relire notre conversation<small>Copier une réponse ou exporter les échanges de cet onglet</small></div></button>
 <button data-command="care"><span>♡</span><div>Faire le point sur mon bien-être<small>Carnet personnel · partage volontaire</small></div></button>
 <button data-command="knowledge"><span>⌕</span><div>Ma bibliothèque et mes connecteurs<small>Fichiers, GitHub public, Wikipédia · sans abonnement</small></div></button>
 <button data-command="studio"><span>◈</span><div>Entrer en création<small>Préparer une intention de mise en scène</small></div></button>
@@ -1031,13 +1064,14 @@ function chatStream(messages,onDelta,routing={}){
     const attempt=async()=>{
       await acquireRateSlot(routing);checkTurn(routing);
       const model=candidates[attemptIndex],xhr=new XMLHttpRequest();currentXhr=xhr;
-      let seen=0,buf='',full='',streamError=null,finished=false;
+      let seen=0,buf='',full='',streamError=null,finished=false,sawSse=false;
       const clear=()=>{if(currentXhr===xhr)currentXhr=null;};
       const fail=error=>{if(finished)return;finished=true;clear();reject(error);};
       xhr.open('POST',apiBase()+'/chat/completions');xhr.timeout=LLM_TIMEOUT_MS;
       Object.entries(apiHeaders(true)).forEach(([k,v])=>xhr.setRequestHeader(k,v));
       const line=raw=>{
         const l=raw.trim();if(!l.startsWith('data:'))return;
+        sawSse=true;
         const data=l.slice(5).trim();if(!data||data==='[DONE]')return;
         try{
           const j=JSON.parse(data);
@@ -1060,6 +1094,13 @@ function chatStream(messages,onDelta,routing={}){
         const headers={get:n=>xhr.getResponseHeader(n)};absorbRateHeaders(headers);
         if(xhr.status===200){
           parse(true);
+          // Some compatible servers ignore stream:true and send a JSON completion.
+          // Never duplicate deltas or hide an error from a genuine SSE stream.
+          if(!sawSse && !streamError){
+            try{full=completionText(JSON.parse(xhr.responseText));}
+            catch(error){throw new Error('La réponse du serveur est illisible. Réessaie.');}
+            if(full)onDelta(full);
+          }
           if(streamError)throw streamError;
           if(!full.trim())throw new Error('Le serveur a renvoyé une réponse vide. Réessaie ou change de modèle.');
           finished=true;resolve(full);return;
@@ -1306,6 +1347,7 @@ window.RON_DOTS = {
 
 /* ═══════════ Voix : synthèse ═══════════ */
 const synth = window.speechSynthesis || null;
+let voiceMuted = false;
 let voices = [], voice = null;
 let speechQueue = [], speakingNow = false, streamDone = true, speakToken = 0, mouthPulse = 0;
 
@@ -1343,7 +1385,7 @@ function cleanForSpeech(s){
 
 function enqueueSpeech(s){
   s = cleanForSpeech(s);
-  if (!s || !synth) return;
+  if (!s || !synth || voiceMuted) return;
   speechQueue.push(s);
   if (!speakingNow) nextSpeech();
 }
@@ -1383,7 +1425,7 @@ function stopSpeaking(){
 }
 
 function unlockSpeech(){
-  if (!synth || unlockSpeech.done) return;
+  if (!synth || voiceMuted || unlockSpeech.done) return;
   unlockSpeech.done = true;
   const u = new SpeechSynthesisUtterance(' ');
   u.volume = 0;
@@ -1600,6 +1642,7 @@ async function handleUser(text, careContext = ''){
   unlockSpeech();
   const thisTurn = ++turnId;
   cancelPendingTurn();cancelNetSearch();
+  if(currentXhr){currentXhr.abort();currentXhr=null;}
   if (companionCommand(text)) return;
   if (await dotsCommand(text)) return;
   if (thisTurn !== turnId) return;
@@ -1632,6 +1675,7 @@ async function handleUser(text, careContext = ''){
       renderRonAnswer(result.text);
       history.push({role:'user',content:text},{role:'assistant',content:result.text});
       if(history.length>40)history.splice(0,history.length-40);
+      refreshConversation();
       $('connectionHint').textContent='Réponse '+(result.needsClarification?'en attente de ta précision':result.manual?'calculée à partir de ton étiquette': ['math','clock','live'].includes(result.kind)?'déterminée sans modèle et sans invention':'appuyée sur une source publique')+' · '+({weather:'Open-Meteo',wiki:'Wikipédia',science:'OpenAlex',github:'GitHub',books:'Open Library',food:'Food Maps',type1:'AJD / Assurance Maladie',math:'Calcul',clock:'Horloge',live:'Prudence'}[result.kind]||'RON')+'.';
       streamDone=true;
       const spoken=result.spoken||result.text.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*#]/g,'');
@@ -1691,6 +1735,7 @@ async function handleUser(text, careContext = ''){
     history.push({ role:'assistant', content:full || '…' });
     if (pendingUserMessage === userMessage) pendingUserMessage = null;
     if (history.length > 40) history.splice(0, history.length - 40);
+    refreshConversation();
     if (!speakingNow) onSpeechDrained();
   } catch(err){
     if (thisTurn !== turnId) return;
@@ -2097,9 +2142,11 @@ function refreshMode(){
   $('modeLabel').textContent = {companion:'Présence attentive',studio:'Création & mise en scène',analysis:'Réflexion & précision'}[companionMode];
 }
 async function initCompanion(){
-  const values=await Promise.all(['gentleVoice','listenPatience','companionMode','careRememberV1','careEntriesV1']
+  const values=await Promise.all(['gentleVoice','listenPatience','companionMode','careRememberV1','careEntriesV1','voiceMuted']
     .map(key=>safeStorage.get(key)));
   gentleVoice=values[0]===true;
+  voiceMuted=values[5]===true;
+  $('muteBtn').setAttribute('aria-pressed',String(voiceMuted));
   listenPatience=[0,2500,4500].includes(values[1])?values[1]:2500;
   companionMode=Object.hasOwn(modeInstructions,values[2])?values[2]:'companion';
   careRemember=values[3]===true;
@@ -2119,6 +2166,28 @@ async function initCompanion(){
   };
   $('patienceSel').onchange = () => { listenPatience = Number($('patienceSel').value); safeStorage.set('listenPatience',listenPatience); };
   $('pauseBtn').onclick = stopAll;
+  $('muteBtn').onclick = () => {
+    voiceMuted=!voiceMuted;
+    $('muteBtn').setAttribute('aria-pressed',String(voiceMuted));
+    safeStorage.set('voiceMuted',voiceMuted);
+    if(voiceMuted){
+      stopSpeaking();sentenceBuf='';
+      if(state==='speaking'){
+        if(streamDone)onSpeechDrained();else setThinkingDetail('RON continue sa réponse à l’écrit…');
+      }
+    }
+    toast(voiceMuted?'Lecture audio coupée. Les réponses écrites continuent.':'Lecture audio activée pour les prochaines phrases.');
+  };
+  $('conversationBtn').onclick=openConversation;
+  $('conversationClose').onclick=()=>$('conversationDialog').close();
+  $('conversationExport').onclick=exportConversation;
+  $('conversationClear').onclick=()=>{
+    clearConversation();renderConversation();$('textIn').value='';
+    $('conversationStatus').textContent='Conversation effacée. Le carnet et les savoirs restent séparés.';
+  };
+  $('conversationDialog').addEventListener('close',()=>{
+    $('conversationList').replaceChildren();$('conversationStatus').textContent='';
+  });
   $('careBtn').onclick = openCare;
   $('careClose').onclick = () => $('careDialog').close();
   $('careForm').onsubmit = async e => {
@@ -2141,6 +2210,7 @@ async function initCompanion(){
   };
   $('careErase').onclick = async () => {
     stopAll(); careEntries = []; history.length = 0; careRemember = false;
+    agentCache.clear();refreshConversation();
     $('careForm').reset(); $('youLine').textContent = ''; $('ronLine').textContent = '';
     renderCare(); await persistCare(); toast('Carnet et conversation locale effacés.');
   };
@@ -2150,16 +2220,17 @@ async function initCompanion(){
   document.querySelectorAll('[data-command]').forEach(b => b.onclick = () => {
     $('commandDialog').close();
     const cmd = b.dataset.command;
+    if (cmd === 'conversation') openConversation();
     if (cmd === 'care') openCare();
     if (cmd === 'knowledge') window.RONKnowledge?.open();
     if (cmd === 'settings') openPanel();
     if (cmd === 'dots'){ $('dotsPanel').classList.add('open'); renderDots(); }
     if (cmd === 'pause') stopAll();
-    if (cmd === 'clear'){ stopAll(); history.length = 0; $('youLine').textContent = ''; $('ronLine').textContent = ''; toast('Nouvelle conversation. Ton carnet reste séparé.'); }
+    if (cmd === 'clear') clearConversation();
     if (cmd === 'studio'){ companionMode = 'studio'; refreshMode(); safeStorage.set('companionMode',companionMode); $('textIn').value = 'Ron, aide-moi à développer une intention de mise en scène pour '; $('textIn').focus(); }
   });
   document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { companionMode = b.dataset.mode; refreshMode(); safeStorage.set('companionMode',companionMode); });
-  addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); if (!$('careDialog').open && !$('commandDialog').open) openCommands(); } });
+  addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); if (!document.querySelector('dialog[open]')) openCommands(); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopAll(); });
   addEventListener('pagehide', stopAll);
   $('ronLine').textContent = 'Bonsoir Niko. Qu’est-ce qui compte pour toi maintenant ?';
@@ -2175,6 +2246,7 @@ function companionCommand(text){
     return true;
   }
   if (/^(stop|arrete|silence|tais-toi|coupe le micro)$/.test(command)){ stopAll(); return true; }
+  if (/^(ouvre|affiche|relis) (notre |la |ma )?conversation$/.test(command)){ stopAll(); openConversation(); return true; }
   if (/^(ouvre (mon |le )?carnet|mon bien-etre|ouvre le carnet de sante)$/.test(command)){ openCare(); return true; }
   if (/^(ouvre (les |mes )?commandes|centre de commande)$/.test(command)){ openCommands(); return true; }
   if (/^ouvre (les |mes )?missions$/.test(command)){ stopAll(); $('dotsPanel').classList.add('open'); renderDots(); return true; }
@@ -2480,12 +2552,77 @@ function initEngines(){
   });
   $('keyIn').addEventListener('input',()=>{++draftRevision;++catalogRevision;$('refreshModelsBtn').disabled=false;try{draftKeyScope=engineScope($('providerSel').value,normalizeEndpoint($('providerSel').value,$('endpointIn').value));}catch(e){draftKeyScope='';}});
 }
-function renderRonAnswer(text){
-  const el=$('ronLine');
-  if(!window.marked||!window.DOMPurify||text.length>100000){el.textContent=text;return;}
+function renderRonAnswer(text, el=$('ronLine')){
+  if(!window.marked||!window.DOMPurify||text.length>100000){el.textContent=text;el.style.whiteSpace='pre-wrap';return;}
+  el.style.whiteSpace='normal';
   const html=window.marked.parse(text,{async:false,breaks:true});
   el.innerHTML=window.DOMPurify.sanitize(html,{ALLOWED_TAGS:['p','br','strong','em','del','ul','ol','li','blockquote','pre','code','h1','h2','h3','h4','hr','table','thead','tbody','tr','th','td','a'],ALLOWED_ATTR:['href','title'],ALLOW_DATA_ATTR:false,ALLOW_ARIA_ATTR:false});
   for(const a of el.querySelectorAll('a')){if(!/^https?:/i.test(a.href)){a.removeAttribute('href');continue;}a.target='_blank';a.rel='noopener noreferrer';}
+}
+
+// One source of truth: the existing in-memory context. Never persist, re-send,
+// or export an incomplete turn, API settings, or unshared journal entries.
+function completedConversation(){
+  const messages=[];
+  for(let i=0;i<history.length-1;i++){
+    if(history[i].role==='user' && history[i+1].role==='assistant'){
+      messages.push(history[i],history[++i]);
+    }
+  }
+  return messages.slice(-40);
+}
+function renderConversation(){
+  const list=$('conversationList'),messages=completedConversation();
+  const scroll=list.parentElement.scrollTop;
+  list.replaceChildren();
+  $('conversationExport').disabled=!messages.length;
+  if(!messages.length){
+    const empty=document.createElement('p');empty.className='hint';
+    empty.textContent='Tes échanges terminés apparaîtront ici. Tu peux continuer à écrire ou parler à Ron.';
+    list.appendChild(empty);return;
+  }
+  for(const message of messages){
+    const entry=document.createElement('article');entry.className='conversation-entry';entry.dataset.role=message.role;
+    const label=document.createElement('h3');label.textContent=message.role==='user'?'TOI':'RON';
+    const content=document.createElement('div');content.className='conversation-content';
+    if(message.role==='assistant')renderRonAnswer(message.content,content);else content.textContent=message.content;
+    entry.append(label,content);
+    if(message.role==='assistant'){
+      const copy=document.createElement('button');copy.type='button';copy.className='conversation-copy';copy.textContent='Copier la réponse';
+      copy.onclick=async()=>{
+        try{
+          if(!navigator.clipboard?.writeText)throw Error('Presse-papiers indisponible');
+          await navigator.clipboard.writeText(message.content);
+          $('conversationStatus').textContent='Réponse copiée.';
+        }catch(error){
+          const selection=window.getSelection(),range=document.createRange();
+          range.selectNodeContents(content);selection.removeAllRanges();selection.addRange(range);
+          $('conversationStatus').textContent='Copie automatique indisponible. Le texte est sélectionné : utilise Copier ou Ctrl/Cmd+C.';
+        }
+      };
+      entry.appendChild(copy);
+    }
+    list.appendChild(entry);
+  }
+  list.parentElement.scrollTop=scroll;
+}
+function refreshConversation(){if($('conversationDialog').open)renderConversation();}
+function openConversation(){
+  closePanel();renderConversation();$('conversationStatus').textContent='';
+  if(!$('conversationDialog').open)$('conversationDialog').showModal();
+}
+function exportConversation(){
+  const messages=completedConversation();if(!messages.length)return;
+  const text='RON — Conversation\nExport du '+new Date().toLocaleString('fr-FR')+'\n\n'+messages.map(m=>(m.role==='user'?'TOI':'RON')+'\n'+m.content).join('\n\n────────\n\n');
+  const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download='ron-conversation-'+new Date().toISOString().slice(0,10)+'.txt';
+  document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  $('conversationStatus').textContent='Export préparé. Garde ce fichier personnel dans un emplacement de confiance.';
+}
+function clearConversation(){
+  stopAll();history.length=0;agentCache.clear();
+  $('youLine').textContent='';$('ronLine').textContent='';refreshConversation();
+  toast('Nouvelle conversation. Ton carnet reste séparé.');
 }
 
 /* ═══════════ Démarrage ═══════════ */
@@ -2598,7 +2735,9 @@ async function boot(){
     if (v){ voice = v; cfg.voiceName = v.name; safeStorage.set('voice', v.name); }
   });
   addEventListener('keydown', e => {
-    const typing = /INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement && document.activeElement.tagName) || $('careDialog').open || $('commandDialog').open;
+    const modalOpen=!!document.querySelector('dialog[open]');
+    const typing = /INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement && document.activeElement.tagName) || modalOpen;
+    if(modalOpen)return; // Native dialogs own Escape and focus; reading must not cancel a response.
     if (e.key === 'Escape'){ if ($('panel').classList.contains('open')) closePanel(); else if ($('dotsPanel').classList.contains('open')) $('dotsPanel').classList.remove('open'); else stopAll(); }
     else if (e.code === 'Space' && !typing && !e.repeat){ e.preventDefault(); $('micBtn').click(); }
   });
@@ -2611,7 +2750,7 @@ async function boot(){
     && !$('panel').classList.contains('open')
     && !$('dotsPanel').classList.contains('open')
     && !$('careDialog').open && !$('commandDialog').open
-    && !$('knowledgeDialog').open});
+    && !$('knowledgeDialog').open && !$('conversationDialog').open});
 
   setState('idle'); // Everything below is noncritical background work.
   if(cfg.autoEngine)void autoConfigure('startup').catch(error=>{$('autoEngineStatus').textContent='Détection indisponible : '+error.message;});

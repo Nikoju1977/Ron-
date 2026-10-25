@@ -153,6 +153,31 @@ async function main(){
   await nativePage.waitForFunction(()=>document.getElementById('ronLine')?.textContent.includes('RON fonctionne sans clé API.'),null,{timeout:10000});
   assert(await nativePage.locator('#noPaidChk').isChecked(),'No-key native mode keeps the zero-spend guard');
   assert.deepEqual(nativeErrors,[],'No native browser integration script exceptions');
+  // Reading/copying/exporting the session works on narrow touch screens too.
+  await nativePage.locator('#muteBtn').click();
+  assert.equal(await nativePage.locator('#muteBtn').getAttribute('aria-pressed'),'true');
+  await nativePage.locator('#conversationBtn').click();
+  assert(await nativePage.locator('#conversationDialog').evaluate(e=>e.open));
+  assert.equal(await nativePage.locator('.conversation-entry').count(),2);
+  assert.match(await nativePage.locator('#conversationList').innerText(),/RON fonctionne sans clé API/);
+  const downloadEvent=nativePage.waitForEvent('download');
+  await nativePage.locator('#conversationExport').click();
+  assert.match((await downloadEvent).suggestedFilename(),/^ron-conversation-.*\.txt$/);
+  for(const width of [320,390,1280]){
+   await nativePage.setViewportSize({width,height:844});
+   const bounds=await nativePage.locator('#conversationDialog').boundingBox();
+   assert(bounds.x>=0 && bounds.x+bounds.width<=width+1,'Conversation dialog fits viewport '+width);
+   assert(await nativePage.locator('#conversationClose').isVisible());
+  }
+  await nativePage.keyboard.press('Escape');
+  assert(!(await nativePage.locator('#conversationDialog').evaluate(e=>e.open)));
+  assert.equal(await nativePage.locator('#conversationBtn').evaluate(e=>e===document.activeElement),true,'Dialog restores focus');
+  await nativePage.locator('#conversationBtn').click();
+  await nativePage.locator('#conversationClear').click();
+  assert.equal(await nativePage.locator('.conversation-entry').count(),0);
+  assert(await nativePage.locator('#conversationExport').isDisabled());
+  await nativePage.locator('#conversationClose').click();
+  assert.deepEqual(nativeErrors,[],'Conversation tools do not throw in Chromium');
   // Real Android UA with GPU disabled must select CPU inference without fetching
   // the large model until the first user request.
   const cpuPage=await context.newPage(),cpuErrors=[];
