@@ -18,7 +18,7 @@ function mind(previous,now=Date.now()){
    // The device clock may move backwards; never freeze an agent until a future timestamp.
    lastAttemptAt:Math.min(now,numeric(m.lastAttemptAt)),
    lastCycleAt:Math.min(now,numeric(m.lastCycleAt)),
-   nextAt:0,
+   nextAt:numeric(m.nextAt),
    focus:String(m.focus||'').slice(0,160),
    reflection:String(m.reflection||'').slice(0,400),
    uncertainty:String(m.uncertainty||'').slice(0,240)
