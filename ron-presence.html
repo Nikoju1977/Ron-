@@ -1240,9 +1240,9 @@ async function loadDotsState(){
 /* Bridge limité au WebView du compagnon Android. Aucun démarrage de service ici. */
 let ronAndroidSyncing=false;
 function ronSendMissionsToAndroid(){
-  if(ronAndroidSyncing||!dotsRuntime.loaded||typeof window.RonNative?.submit!=='function')return;
+  if(ronAndroidSyncing||!dotsRuntime.loaded||typeof window.RonNative?.postMessage!=='function')return;
   try{
-    window.RonNative.submit(JSON.stringify({version:1,missions:dotsRuntime.missions.slice(-30),
+    window.RonNative.postMessage(JSON.stringify({version:1,missions:dotsRuntime.missions.slice(-30),
       paused:dotsRuntime.paused}));
   }catch(error){console.warn('RON Android : synchronisation indisponible',error);}
 }
