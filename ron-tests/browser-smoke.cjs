@@ -68,6 +68,8 @@ async function main(){
   // settings and mission storage rather than a disconnected decorative drawer.
   await page.locator('#dotsBtn').click();
   assert(await page.locator('#dotsPanel').evaluate(e=>e.classList.contains('open')),'DOTS drawer opens');
+  assert(await page.locator('#dotsMind').innerText().then(x=>x.includes('Attention :')),'DOTS exposes an inspectable operational state');
+  assert(await page.evaluate(()=>!!window.RONAutonomy),'RON autonomy module is loaded before conversation runtime');
   assert.equal(await page.locator('#dotsPanel').getAttribute('aria-hidden'),'false','DOTS dialog is announced when open');
   await page.waitForFunction(()=>getComputedStyle(document.getElementById('dotsBackdrop')).visibility==='visible',null,{timeout:3000});
   assert(await page.locator('#dotsBackdrop').isVisible(),'Opaque DOTS backdrop hides the rest of the interface');
