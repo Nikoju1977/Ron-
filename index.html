@@ -1319,15 +1319,18 @@ window.RONAndroid={
     if(!Array.isArray(remote?.missions))return;
     let changed=false,localNewer=false;
     for(const item of remote.missions.slice(-30)){
-      if(!item||typeof item.id!=='string'||typeof item.title!=='string')continue;
+      if(!item||typeof item.id!=='string'||typeof item.title!=='string'
+         ||!Number.isFinite(Date.parse(item.updatedAt||'')))continue;
       const i=dotsRuntime.missions.findIndex(m=>m.id===item.id);
       if(i<0){
         if(dotsRuntime.missions.length<30){dotsRuntime.missions.push(item);changed=true;}
       }else{
         const local=dotsRuntime.missions[i];
-        if(String(item.updatedAt||'')>String(local.updatedAt||'')){
+        const incomingTime=Date.parse(item.updatedAt||'');
+        const localTime=Date.parse(local.updatedAt||'');
+        if(Number.isFinite(incomingTime)&&(!Number.isFinite(localTime)||incomingTime>localTime)){
           dotsRuntime.missions[i]=item;changed=true;
-        }else if(String(local.updatedAt||'')>String(item.updatedAt||''))localNewer=true;
+        }else if(Number.isFinite(localTime)&&localTime>incomingTime)localNewer=true;
       }
     }
     if(typeof remote.paused==='boolean'&&dotsRuntime.paused!==remote.paused){
