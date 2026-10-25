@@ -10,7 +10,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -21,6 +20,9 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONObject;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import java.util.Collections;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -97,7 +99,19 @@ public final class MainActivity extends Activity {
         WebSettings settings=page.getSettings();
         settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        page.addJavascriptInterface(new MissionBridge(),"RonNative");
+        // Origin-scoped, main-frame-only bridge; no native methods exposed to iframes.
+        if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)){
+            WebViewCompat.addWebMessageListener(page,"RonNative",
+                Collections.singleton("https://nikoju1977.github.io"),
+                (view,message,origin,isMainFrame,reply)->{
+                    if(!isMainFrame||!"https".equals(origin.getScheme())
+                        ||!"nikoju1977.github.io".equals(origin.getHost())||!allowed(view.getUrl()))return;
+                    String payload=message.getData();
+                    if(payload==null||payload.length()>262144)return;
+                    try{RonStore.merge(MainActivity.this,new JSONObject(payload));updateUI();}
+                    catch(Exception ignored){}
+                });
+        }
         page.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest request){
                 if(allowed(request.getUrl().toString()))return false;
@@ -199,18 +213,6 @@ public final class MainActivity extends Activity {
         String json=JSONObject.quote(RonStore.forWeb(this).toString());
         page.evaluateJavascript("window.RONAndroid&&window.RONAndroid.applyState("+json+")",null);
     }
-    private final class MissionBridge {
-        @JavascriptInterface public void submit(String payload) {
-            if(payload==null||payload.length()>65536)return;
-            runOnUiThread(()->{
-                if(page==null||!allowed(page.getUrl()))return;
-                try{
-                    RonStore.merge(MainActivity.this,new JSONObject(payload));
-                    updateUI();
-                }catch(Exception ignored){}
-            });
-        }
-    }
     @Override protected void onResume(){
         super.onResume();live=true;handler.removeCallbacks(refresh);handler.post(refresh);
         if(page!=null)page.onResume();
@@ -221,7 +223,7 @@ public final class MainActivity extends Activity {
         super.onPause();
     }
     @Override protected void onDestroy(){
-        if(page!=null){page.removeJavascriptInterface("RonNative");page.destroy();}
+        if(page!=null){page.destroy();}
         super.onDestroy();
     }
 }
