@@ -4,6 +4,14 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class RonCycleTest {
+    @Test public void rejectsInvalidIntervalsWithoutFallbackOrOverflow() {
+        assertEquals(60_000L,RonCycle.validIntervalMs(1));
+        assertEquals(3_600_000L,RonCycle.validIntervalMs(60));
+        assertEquals(0L,RonCycle.validIntervalMs(0));
+        assertEquals(0L,RonCycle.validIntervalMs(61));
+        assertEquals(0L,RonCycle.validIntervalMs(Long.MAX_VALUE));
+        assertEquals(0L,RonCycle.validIntervalMs(-5));
+    }
     @Test public void onlyPrivateIpv4WithExplicitPortAllowed() {
         assertTrue(RonCycle.isAllowedEndpoint("http://192.168.1.20:11434/v1"));
         assertTrue(RonCycle.isAllowedEndpoint("http://10.2.3.4:1234/v1"));
