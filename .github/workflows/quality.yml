@@ -49,6 +49,7 @@ jobs:
           node --check ron-tests/updater.cjs
           node --check ron-tests/sw-offline.cjs
           node --check ron-tests/release-gate.cjs
+          node --check ron-tests/routing-eval.cjs
           node --check ron-tests/net.cjs
           node --check ron-tests/browser-ai.cjs
           node -e "const fs=require('fs'),vm=require('vm');for(const f of ['ron-presence.html','index.html']){const s=fs.readFileSync(f,'utf8');const scripts=[...s.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];for(const [i,m] of scripts.entries())new vm.Script(m[1],{filename:f+'#inline-'+i});console.log(f+': '+scripts.length+' inline script(s) valid');}"
@@ -56,6 +57,14 @@ jobs:
         run: npm --prefix ron-tests install --ignore-scripts --no-audit --no-fund
       - name: Test conversations, engines, limits, Mistral and knowledge
         run: npm --prefix ron-tests test
+      - name: Upload deterministic routing evaluation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ron-routing-evaluation
+          path: ron-tests/reports/routing-report.json
+          retention-days: 14
+          if-no-files-found: warn
       - name: Check RON UI in a real Chrome browser (runner preinstalled)
         run: google-chrome --version
       - name: Check RON UI in a real Chromium browser
