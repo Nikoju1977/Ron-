@@ -2,16 +2,17 @@ name: RON — quality checks
 
 on:
   push:
-    branches: ["feature/**"]
+    branches: ["main", "feature/**", "fix/**"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ron-quality-${{ github.ref }}
+  group: ron-quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,6 +47,8 @@ jobs:
           node --check ron-tests/agent-hub.cjs
           node --check ron-updater.js
           node --check ron-tests/updater.cjs
+          node --check ron-tests/sw-offline.cjs
+          node --check ron-tests/release-gate.cjs
           node --check ron-tests/net.cjs
           node --check ron-tests/browser-ai.cjs
           node -e "const fs=require('fs'),vm=require('vm');for(const f of ['ron-presence.html','index.html']){const s=fs.readFileSync(f,'utf8');const scripts=[...s.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];for(const [i,m] of scripts.entries())new vm.Script(m[1],{filename:f+'#inline-'+i});console.log(f+': '+scripts.length+' inline script(s) valid');}"
