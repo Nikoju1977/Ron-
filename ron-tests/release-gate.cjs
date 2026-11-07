@@ -1,0 +1,23 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const pages=fs.readFileSync('.github/workflows/pages.yml','utf8');
+const quality=fs.readFileSync('.github/workflows/quality.yml','utf8');
+const sw=fs.readFileSync('ron-presence-sw.js','utf8');
+const manifest=JSON.parse(fs.readFileSync('ron-presence.webmanifest','utf8'));
+
+assert.match(quality,/push:\s*\n\s*branches:\s*\[[^\]]*"main"/,'Direct pushes to main must be tested');
+assert.match(quality,/workflow_call:/,'The quality workflow must be reusable as a deployment gate');
+assert.match(quality,/ron-quality-\$\{\{ github\.workflow \}\}/,'Reusable and standalone checks must not cancel one another');
+assert.match(pages,/^\s{2}verify:\s*\n\s+uses: \.\/\.github\/workflows\/quality\.yml/m,'Pages must invoke the complete quality suite');
+assert.match(pages,/^\s{2}deploy:\s*\n\s+needs: verify/m,'Public deploy must depend on successful verification');
+assert.match(quality,/node ron-tests\/sw-offline\.cjs/,'Offline PWA checks must be included in CI');
+assert.match(quality,/node ron-tests\/browser-smoke\.cjs/,'Browser smoke checks must run before deployment');
+assert.match(quality,/node ron-tests\/ios-webkit\.cjs/,'WebKit checks must run before deployment');
+assert.match(pages,/node ron-tools\/build-pages\.cjs/,'Publish only the reviewed public bundle');
+assert.match(sw,/Promise\.allSettled\(required\.map/,'A failed essential fetch must be detected');
+assert.match(sw,/await caches\.delete\(CACHE\)/,'Discard an incomplete new cache');
+assert.match(sw,/if\(cached\)return cached/,'Offline shell must be cache-first');
+assert.equal(manifest.start_url,'./ron-presence.html');
+assert.equal(manifest.scope,'./ron-presence.html');
+console.log(JSON.stringify({passed:true,suite:'release-gate',checks:14}));
