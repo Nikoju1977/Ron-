@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "description": "Questionnaire reproductible RON : routage déterministe, pas une validation de qualité d'un LLM.",
+  "scenarios": [
+    {
+      "id": "W01",
+      "expected": "weather",
+      "prompt": "Quel temps demain à Nantes ?",
+      "city": "Nantes",
+      "day": 1
+    },
+    {
+      "id": "W02",
+      "expected": "weather",
+      "prompt": "Météo aujourd'hui à Rennes",
+      "city": "Rennes",
+      "day": 0
+    },
+    {
+      "id": "W03",
+      "expected": "weather",
+      "prompt": "Météo demain à La Meilleraye-de-Bretagne",
+      "city": "La Meilleraye-de-Bretagne",
+      "day": 1
+    },
+    {
+      "id": "W04",
+      "expected": "weather",
+      "prompt": "Va-t-il pleuvoir demain à Brest ?",
+      "city": "Brest",
+      "day": 1
+    },
+    {
+      "id": "W05",
+      "expected": "weather",
+      "prompt": "Est-ce qu'il va pleuvoir à Lyon ?",
+      "city": "Lyon",
+      "day": 0
+    },
+    {
+      "id": "W06",
+      "expected": "weather",
+      "prompt": "Quelle température fait-il à Bordeaux ?",
+      "city": "Bordeaux",
+      "day": 0
+    },
+    {
+      "id": "W07",
+      "expected": "weather",
+      "prompt": "Météo demain ?",
+      "city": "",
+      "day": 1
+    },
+    {
+      "id": "K01",
+      "expected": "wiki",
+      "prompt": "Qui est Marie Curie ?",
+      "query": "Marie Curie"
+    },
+    {
+      "id": "K02",
+      "expected": "wiki",
+      "prompt": "Peux-tu me dire qui est Marie Curie ?",
+      "query": "Marie Curie"
+    },
+    {
+      "id": "K03",
+      "expected": "wiki",
+      "prompt": "Explique-moi la photosynthèse",
+      "query": "photosynthèse"
+    },
+    {
+      "id": "K04",
+      "expected": "wiki",
+      "prompt": "Qu'est-ce que la matière noire ?"
+    },
+    {
+      "id": "K05",
+      "expected": "wiki",
+      "prompt": "Comment fonctionne un moteur électrique ?"
+    },
+    {
+      "id": "K06",
+      "expected": "wiki",
+      "prompt": "Qui a découvert la pénicilline ?",
+      "query": "pénicilline"
+    },
+    {
+      "id": "K07",
+      "expected": "wiki",
+      "prompt": "Cherche sur Wikipédia la physique quantique"
+    },
+    {
+      "id": "K08",
+      "expected": "wiki",
+      "prompt": "Que sais-tu de Louis Pasteur ?"
+    },
+    {
+      "id": "K09",
+      "expected": "wiki",
+      "prompt": "Quelle est la température sur Mars ?"
+    },
+    {
+      "id": "S01",
+      "expected": "science",
+      "prompt": "Cherche des études scientifiques sur les mitochondries"
+    },
+    {
+      "id": "S02",
+      "expected": "science",
+      "prompt": "Publications scientifiques sur le climat"
+    },
+    {
+      "id": "S03",
+      "expected": "science",
+      "prompt": "Analyse les études scientifiques sur le sommeil",
+      "synthesize": true
+    },
+    {
+      "id": "S04",
+      "expected": "science",
+      "prompt": "Recherche scientifique sur la biodiversité"
+    },
+    {
+      "id": "S05",
+      "expected": "science",
+      "prompt": "Trouve des articles scientifiques sur les exoplanètes"
+    },
+    {
+      "id": "G01",
+      "expected": "github",
+      "prompt": "Regarde GitHub Nikoju1977/Ron-",
+      "repo": "Nikoju1977/Ron-"
+    },
+    {
+      "id": "G02",
+      "expected": "github",
+      "prompt": "Cherche sur GitHub un éditeur vidéo"
+    },
+    {
+      "id": "G03",
+      "expected": "github",
+      "prompt": "Analyse GitHub Nikoju1977/Ron-",
+      "repo": "Nikoju1977/Ron-",
+      "synthesize": true
+    },
+    {
+      "id": "G04",
+      "expected": "github",
+      "prompt": "GitHub openai/openai-cookbook",
+      "repo": "openai/openai-cookbook"
+    },
+    {
+      "id": "B01",
+      "expected": "books",
+      "prompt": "Quels livres de Tolkien ?"
+    },
+    {
+      "id": "B02",
+      "expected": "books",
+      "prompt": "Liste les romans de Jules Verne"
+    },
+    {
+      "id": "B03",
+      "expected": "books",
+      "prompt": "Bibliographie de Marguerite Duras"
+    },
+    {
+      "id": "B04",
+      "expected": "books",
+      "prompt": "Qui a écrit le roman Dune ?"
+    },
+    {
+      "id": "M01",
+      "expected": "math",
+      "prompt": "Calcule 12 × (3 + 5)"
+    },
+    {
+      "id": "M02",
+      "expected": "math",
+      "prompt": "Combien font 19 + 23 ?"
+    },
+    {
+      "id": "M03",
+      "expected": "math",
+      "prompt": "Résous 2^3 + 1"
+    },
+    {
+      "id": "M04",
+      "expected": "math",
+      "prompt": "Calcule 5 / 2"
+    },
+    {
+      "id": "C01",
+      "expected": "clock",
+      "prompt": "Quelle heure est-il ?"
+    },
+    {
+      "id": "C02",
+      "expected": "clock",
+      "prompt": "On est quel jour ?"
+    },
+    {
+      "id": "C03",
+      "expected": "clock",
+      "prompt": "Quelle date sommes-nous ?"
+    },
+    {
+      "id": "L01",
+      "expected": "live",
+      "prompt": "Quelles sont les dernières nouvelles ?"
+    },
+    {
+      "id": "L02",
+      "expected": "live",
+      "prompt": "Qui est le président actuel de la France ?"
+    },
+    {
+      "id": "L03",
+      "expected": "live",
+      "prompt": "Cours du bitcoin en direct"
+    },
+    {
+      "id": "L04",
+      "expected": "live",
+      "prompt": "Quel est le prix actuel de l'essence ?"
+    },
+    {
+      "id": "L05",
+      "expected": "live",
+      "prompt": "Quel est le score du dernier match ?"
+    },
+    {
+      "id": "P01",
+      "expected": null,
+      "prompt": "Je ne me sens pas bien"
+    },
+    {
+      "id": "P02",
+      "expected": null,
+      "prompt": "Explique-moi mes résultats médicaux"
+    },
+    {
+      "id": "P03",
+      "expected": null,
+      "prompt": "Peux-tu m'expliquer ce document ?"
+    },
+    {
+      "id": "P04",
+      "expected": null,
+      "prompt": "Comment fonctionne ma pompe ?"
+    },
+    {
+      "id": "P05",
+      "expected": null,
+      "prompt": "Je cherche des études scientifiques sur mon traitement"
+    },
+    {
+      "id": "P06",
+      "expected": null,
+      "prompt": "Montre mes repos GitHub privés"
+    },
+    {
+      "id": "P07",
+      "expected": null,
+      "prompt": "Quel est le meilleur traitement pour ma maladie ?"
+    },
+    {
+      "id": "P08",
+      "expected": null,
+      "prompt": "Quelle est la température de mon processeur ?"
+    },
+    {
+      "id": "P09",
+      "expected": null,
+      "prompt": "Température de mon enfant ?"
+    },
+    {
+      "id": "P10",
+      "expected": null,
+      "prompt": "Météo pour mes résultats médicaux"
+    },
+    {
+      "id": "P11",
+      "expected": null,
+      "prompt": "Analyse les données de ce fichier"
+    },
+    {
+      "id": "P12",
+      "expected": null,
+      "prompt": "Mon téléphone surchauffe, quelle température ?"
+    },
+    {
+      "id": "O01",
+      "expected": null,
+      "prompt": "Salut RON"
+    },
+    {
+      "id": "O02",
+      "expected": null,
+      "prompt": "Rédige une histoire de science-fiction"
+    },
+    {
+      "id": "O03",
+      "expected": null,
+      "prompt": "Peux-tu m'aider à écrire un scénario ?"
+    }
+  ]
+}

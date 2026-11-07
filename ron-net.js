@@ -32,17 +32,21 @@ function parse(text){
  if(/^(?:(?:quelle|quel) (?:est )?(?:la )?(?:date|heure) (?:actuelle|d.aujourd.hui)?|(?:on est quel jour|il est quelle heure|quelle heure est.il|quelle heure est-il|quelle date sommes-nous))\s*[?!.,]*$/i.test(n))
   return {kind:'clock'};
 
- if(/\b(meteo|temps (?:fera|fait|va faire)|temperature|pleuvra|pluie demain|previsions? meteo|quel temps)\b/.test(n)){
+ // Privacy must win over weather: "temperature de mon enfant" or "météo pour mes analyses"
+ // are not public weather requests and must never trigger a location lookup.
+ if(privateContext)return null;
+ const weatherTopic=/\b(meteo|temps (?:fera|fait|va faire)|temperature|pleuvra|pleuvoir|pleut|pluie demain|previsions? meteo|quel temps)\b/.test(n);
+ const astronomyTemperature=/\btemperature\b/.test(n)
+  && /\b(?:sur|de|du|dans) (?:mars|venus|mercure|jupiter|saturne|uranus|neptune|pluton|la lune|le soleil)\b/.test(n)
+  && !/\b(?:meteo|quel temps|previsions?)\b/.test(n);
+ if(weatherTopic&&!astronomyTemperature){
   const day=/\b(demain|demain matin|tomorrow)\b/.test(n)?1:0;
   const m=raw.match(/(?:^|\s)(?:à|a|sur|pour|dans)\s+([\p{L}][\p{L}\p{M}' -]{0,68}?)(?:\s*[?!.,;:]|$)/iu);
   let city=m?clean(m[1],70):'';
   if(/^(?:demain|aujourd.hui|l.exterieur|la maison|la meteo|mon avis)$/i.test(norm(city)))city='';
   return {kind:'weather',day,city};
  }
- // Never send personal, private or potentially medical questions to public
- // APIs during automatic routing. Weather already requires explicit intent
- // and browser consent for geolocation.
- if(privateContext)return null;
+ // Only non-personal requests continue to external public-source routing.
  // No reliable live-news/market/score provider is connected. Do not guess.
  if(/\b(?:actualites?|dernieres? nouvelles|news|en direct|cours (?:du|de la|de l') (?:bitcoin|bourse|action)|prix (?:actuel|aujourd'hui)|score (?:du|de la|du dernier) match)\b/.test(n)
   || (/\b(?:president|premier ministre|chef d.etat|cours|bourse|taux de change|prix)\b/.test(n)
@@ -92,7 +96,7 @@ async function json(url,opts={}){
  const timer=setTimeout(()=>controller.abort(),opts.timeout||TIMEOUT);
  try{
   const response=await (opts.fetcher||root.fetch.bind(root))(url,{
-   method:'GET',cache:'no-store',credentials:'omit',headers:DEFAULT_HEADERS,signal:controller.signal
+   method:'GET',cache:'no-store',credentials:'omit',redirect:'error',headers:DEFAULT_HEADERS,signal:controller.signal
   });
   if(!response?.ok)throw Error('Service Internet indisponible (HTTP '+(response?.status||'?')+').');
   return await response.json();
