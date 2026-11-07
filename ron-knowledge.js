@@ -87,8 +87,26 @@ async function addFiles(files){
 async function readJson(url,options={}){
  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);
  try{
-  const response=await fetch(url,{credentials:'omit',cache:'no-store',signal:ctrl.signal,...options});
+  const response=await fetch(url,{...options,credentials:'omit',cache:'no-store',redirect:'error',signal:ctrl.signal});
   if(!response.ok)throw Error('Source indisponible (HTTP '+response.status+'). Vérifie le lien ou les limites du service.');
+  // Refuse oversized GitHub/Wikipedia responses before allocating or parsing them.
+  const max=2*1024*1024;
+  if(Number(response.headers?.get?.('content-length')||0)>max)throw Error('Source trop volumineuse.');
+  if(response.body?.getReader){
+    const reader=response.body.getReader();let bytes=0,text='';
+    const decoder=new TextDecoder('utf-8',{fatal:true});
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        bytes+=value.byteLength;
+        if(bytes>max)throw Error('Source trop volumineuse.');
+        text+=decoder.decode(value,{stream:true});
+      }
+      return JSON.parse(text+decoder.decode());
+    }catch(error){try{await reader.cancel();}catch(e){}throw error;}
+    finally{reader.releaseLock();}
+  }
   return await response.json();
  }finally{clearTimeout(timer);}
 }
