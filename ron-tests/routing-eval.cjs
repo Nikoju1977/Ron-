@@ -38,7 +38,8 @@ for(const test of fixture.scenarios){
 }
 const correct=results.filter(x=>x.status==='passed').length;
 const local=results.filter(x=>x.expected==='local');
-const localCorrect=local.filter(x=>x.actual==='local').length;
+const privacy=local.filter(x=>x.id.startsWith('P'));
+const localCorrect=privacy.filter(x=>x.actual==='local').length;
 const groups={};
 for(const item of results){
  const g=groups[item.expected]||{total:0,passed:0,failed:0};
@@ -53,7 +54,7 @@ const report={
  commit:/^[a-f0-9]{40}$/i.test(process.env.GITHUB_SHA||'')?process.env.GITHUB_SHA:'local-unknown',
  total:results.length,passed:correct,failed:results.length-correct,
  routing_accuracy:correct/results.length,
- local_privacy_cases:local.length,local_preserved:localCorrect,
+ local_cases:local.length,local_privacy_cases:privacy.length,local_preserved:localCorrect,
  external_api_calls:0,
  untested:['real API availability and factual accuracy','LLM answer quality and hallucinations','physical Android and iOS microphone/PWA behaviour'],
  breakdown:groups,results
