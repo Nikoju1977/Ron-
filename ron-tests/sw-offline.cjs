@@ -30,7 +30,7 @@ function harness(fail=[],nonOk=[]){
  const fetch=async input=>{
   const url=typeof input==='string'?input:input.url;
   requests.push(url);
-  const name=url.slice(url.lastIndexOf('/')+1);
+  const name=url.startsWith(BASE)?url.slice(BASE.length):url.slice(url.lastIndexOf('/')+1);
   if(offline||fail.includes(name))throw Error('network down');
   const ok=!nonOk.includes(name);
   return {ok,status:ok?200:404,body:url,type:'basic',redirected:false,clone(){return this;}};
