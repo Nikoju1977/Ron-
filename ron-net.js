@@ -5,6 +5,40 @@
 'use strict';
 const TIMEOUT=9000;
 const DEFAULT_HEADERS={Accept:'application/json'};
+const MAX_JSON_BYTES=2*1024*1024;
+// Browser streams are bounded before JSON parsing: a compromised/buggy public
+// endpoint must not be able to exhaust the memory of a low-end phone.
+async function boundedJson(response){
+ const declared=Number(response.headers?.get?.('content-length')||0);
+ if(Number.isFinite(declared)&&declared>MAX_JSON_BYTES)throw Error('Réponse Internet trop volumineuse.');
+ const reader=response.body?.getReader?.();
+ if(reader){
+  let size=0;
+  const chunks=[];
+  try{
+   while(true){
+    const {done,value}=await reader.read();
+    if(done)break;
+    size+=value.byteLength;
+    if(size>MAX_JSON_BYTES)throw Error('Réponse Internet trop volumineuse.');
+    chunks.push(value);
+   }
+  }catch(error){
+   try{await reader.cancel();}catch(e){}
+   throw error;
+  }finally{try{reader.releaseLock();}catch(e){}}
+  const bytes=new Uint8Array(size);let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+ }
+ if(typeof response.text==='function'){
+  const body=await response.text();
+  if(new TextEncoder().encode(body).byteLength>MAX_JSON_BYTES)throw Error('Réponse Internet trop volumineuse.');
+  return JSON.parse(body);
+ }
+ // Test doubles have only json(); real browser responses implement body/text.
+ return response.json();
+}
 function norm(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
 function clean(s,n=350){return String(s||'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,n);}
 function md(s){return clean(s,430).replace(/[\\`*_{}\[\]()<>!|]/g,'\\$&');}
@@ -99,7 +133,7 @@ async function json(url,opts={}){
    method:'GET',cache:'no-store',credentials:'omit',redirect:'error',headers:DEFAULT_HEADERS,signal:controller.signal
   });
   if(!response?.ok)throw Error('Service Internet indisponible (HTTP '+(response?.status||'?')+').');
-  return await response.json();
+  return await boundedJson(response);
  }catch(error){
   if(controller.signal.aborted)throw Error(external?.aborted?'Recherche interrompue.':'Recherche trop lente ou connexion indisponible.');
   throw error;

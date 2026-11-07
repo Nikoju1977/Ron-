@@ -913,9 +913,34 @@ async function fetchLLMJson(url, options={}, routing={}){
   const timer=setTimeout(()=>{timedOut=true;controller.abort();},LLM_TIMEOUT_MS);
   const cancel=setInterval(()=>{if(routing.turn!==undefined&&routing.turn!==turnId)controller.abort();},100);
   try{
-    const response=await fetch(url,{...options,signal:controller.signal});
+    // Never follow provider redirects with user conversations or bearer tokens.
+    // Cookies are not required: only the explicit API key may authenticate.
+    const response=await fetch(url,{...options,credentials:'omit',redirect:'error',cache:'no-store',signal:controller.signal});
     let payload=null;
-    try{payload=await response.json();}catch(error){if(controller.signal.aborted)throw error;}
+    try{
+      const max=4*1024*1024;
+      if(Number(response.headers?.get?.('content-length')||0)>max)
+        throw new Error('Réponse du serveur trop volumineuse.');
+      if(response.body?.getReader){
+        const reader=response.body.getReader();
+        let bytes=0,text='',invalid=false;
+        const decoder=new TextDecoder('utf-8',{fatal:true});
+        try{
+          while(true){
+            const {done,value}=await reader.read();
+            if(done)break;
+            bytes+=value.byteLength;
+            if(bytes>max){invalid=true;throw new Error('Réponse du serveur trop volumineuse.');}
+            text+=decoder.decode(value,{stream:true});
+          }
+          text+=decoder.decode();
+        }catch(error){try{await reader.cancel();}catch(e){}throw error;}
+        finally{reader.releaseLock();}
+        payload=JSON.parse(text);
+      }else payload=await response.json();
+    }catch(error){
+      if(controller.signal.aborted||/trop volumineuse/.test(String(error?.message)))throw error;
+    }
     checkTurn(routing);
     return {response,payload};
   }catch(error){
@@ -1111,11 +1136,18 @@ function chatStream(messages,onDelta,routing={}){
         const lines=buf.split('\n');buf=lines.pop();lines.forEach(line);
         if(flush&&buf.trim()){line(buf);buf='';}
       };
-      xhr.onprogress=()=>parse(false);
+      xhr.onprogress=()=>{
+        if(xhr.responseText.length>300000){
+          fail(new Error('Réponse du modèle trop volumineuse : diffusion interrompue.'));
+          xhr.abort();return;
+        }
+        parse(false);
+      };
       xhr.onload=()=>{(async()=>{
         if(finished)return;
         checkTurn(routing);clear();
         const headers={get:n=>xhr.getResponseHeader(n)};absorbRateHeaders(headers);
+        if(xhr.responseText.length>300000)throw new Error('Réponse du modèle trop volumineuse.');
         if(xhr.status===200){
           parse(true);
           if(streamError)throw streamError;

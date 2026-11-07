@@ -56,11 +56,7 @@ public final class MainActivity extends Activity {
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setOnClickListener(v->action.run());return b;
     }
     private boolean allowed(String raw){
-        try{
-            Uri u=Uri.parse(raw);
-            return "https".equals(u.getScheme())&&"nikoju1977.github.io".equals(u.getHost())
-                && (u.getPath()!=null&&u.getPath().startsWith("/Ron-/"));
-        }catch(Exception e){return false;}
+        return RonWebOrigin.isTrustedPage(raw);
     }
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -99,6 +95,7 @@ public final class MainActivity extends Activity {
         WebSettings settings=page.getSettings();
         settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSafeBrowsingEnabled(true);
         // Origin-scoped, main-frame-only bridge; no native methods exposed to iframes.
         if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)){
             WebViewCompat.addWebMessageListener(page,"RonNative",
@@ -116,8 +113,15 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest request){
                 if(allowed(request.getUrl().toString()))return false;
                 if(request.isForMainFrame()){
-                    Intent i=new Intent(Intent.ACTION_VIEW,request.getUrl());
-                    try{startActivity(i);}catch(Exception ignored){}
+                    // Do not hand untrusted javascript:, file:, content: or intent:
+                    // URLs to external applications from the privileged WebView.
+                    Uri destination=request.getUrl();
+                    String scheme=destination.getScheme();
+                    if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)
+                        ||"mailto".equalsIgnoreCase(scheme)||"tel".equalsIgnoreCase(scheme)){
+                        Intent i=new Intent(Intent.ACTION_VIEW,destination);
+                        try{startActivity(i);}catch(Exception ignored){}
+                    }
                 }
                 return true;
             }
