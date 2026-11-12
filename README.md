@@ -16,6 +16,14 @@ La nouvelle version compagnon est disponible dans [`ron-presence.html`](ron-pres
 
 Consulter [l’utilisation, la compatibilité et les limites](README-RON-PRESENCE.md). Les connexions Samsung Health, Android et Wear OS restent à implémenter. La version multimédia `index.html` est conservée.
 
+### Relire et garder une conversation
+
+Dans **RON Présence**, le bouton **Conversation** (ou « ouvre notre conversation ») affiche les 20 derniers échanges terminés avec mise en forme, blocs de code et liens. Chaque réponse peut être copiée ; **Exporter en texte** télécharge les échanges de l’onglet, sans réglages API ni entrées de carnet non partagées. L’historique reste en mémoire uniquement et disparaît au rechargement : exporte ce que tu souhaites conserver. Une réponse reprenant des informations personnelles partagées fait partie de cet export.
+
+**Mode silencieux** coupe la lecture audio sans interrompre la génération écrite. Cette préférence est conservée dans le navigateur. **Arrêter · micro coupé** interrompt la réponse et l’écoute. **Nouvelle conversation** efface le contexte de discussion et son cache de raisonnement, en préservant le carnet et les savoirs.
+
+Les serveurs compatibles qui renvoient une réponse JSON complète au lieu d’un flux sont également acceptés. Les erreurs de flux restent signalées et les échanges interrompus ne sont pas ajoutés à l’historique exportable.
+
 
 ## RON gratuit · agents + bibliothèque locale
 
